@@ -33,8 +33,7 @@ import {
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
 import {
-  BarChart,
-  Bar,
+  
   XAxis,
   YAxis,
   CartesianGrid,
@@ -47,9 +46,9 @@ import {
   Line,
   Label,
 } from "recharts";
-import type { Select } from "react-day-picker";
+import { Select } from "react-day-picker";
 import { SelectTrigger, SelectValue, SelectContent, SelectItem } from "../components/ui/select";
-import type { Switch } from "../components/ui/switch";
+import { Switch } from "../components/ui/switch";
 
 const mockUsers = [
   {
@@ -344,7 +343,7 @@ export default function AdminDashboard() {
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          label={({ name, percent }) => `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`}
                           outerRadius={80}
                           fill="#8884d8"
                           dataKey="value"
@@ -447,7 +446,7 @@ export default function AdminDashboard() {
                             <Badge
                               variant={
                                 user.status === "active"
-                                  ? "success"
+                                  ? "default"
                                   : user.status === "suspended"
                                   ? "destructive"
                                   : "secondary"
@@ -538,7 +537,7 @@ export default function AdminDashboard() {
                               <Calendar className="h-3 w-3" />
                               {context.created}
                             </div>
-                            <Badge variant={context.status === "active" ? "success" : "secondary"}>
+                            <Badge variant={context.status === "active" ? "default" : "secondary"}>
                               {context.status}
                             </Badge>
                           </div>

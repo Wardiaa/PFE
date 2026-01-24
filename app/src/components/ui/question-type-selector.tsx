@@ -104,7 +104,7 @@ export function QuestionTypeSelector({ value, onChange }: QuestionTypeSelectorPr
               key={type.id}
               onClick={() => onChange(type.id)}
               className={cn(
-                "flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all hover:shadow-md",
+                "relative flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all hover:shadow-md",
                 value === type.id
                   ? "border-primary bg-primary/5"
                   : "border-border hover:border-primary/50"

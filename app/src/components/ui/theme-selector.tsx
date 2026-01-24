@@ -81,7 +81,7 @@ export function ThemeSelector({ value, onChange }: ThemeSelectorProps) {
             )}
           >
             <div className={cn(
-              "h-12 w-full rounded-lg mb-2 bg-gradient-to-r",
+              "h-12 w-full rounded-lg mb-2 bg-linear-to-r",
               theme.bgFrom,
               theme.bgTo
             )} />
