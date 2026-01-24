@@ -1,92 +1,85 @@
 // components/ui/template-card.tsx
+// components/ui/template-card.tsx
+import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "./card";
 import { Badge } from "./badge";
-import { Button } from "./button";
-import { ChevronRight, Star, Users, Zap } from "lucide-react";
-import { cn } from "../../lib/utils";
 
-interface TemplateCardProps {
+export interface TemplateCardProps {
+  id: string;
   name: string;
   description: string;
-  icon: string;
+  icon: LucideIcon;
   color: string;
   category: string;
   popularity: number;
   questionsCount: number;
-  isPopular?: boolean;
-  isNew?: boolean;
-  onClick: () => void;
+  isPopular: boolean;
+  isNew: boolean;
+  onClick?: () => void;
 }
 
 export function TemplateCard({
   name,
   description,
-  icon,
+  icon: Icon,
   color,
   category,
   popularity,
   questionsCount,
-  isPopular = false,
-  isNew = false,
+  isPopular,
+  isNew,
   onClick,
 }: TemplateCardProps) {
   return (
-    <Card 
-      className="group relative overflow-hidden border-2 hover:border-primary transition-all duration-300 hover:shadow-xl cursor-pointer h-full"
+    <Card
+      className="group cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-105 overflow-hidden"
       onClick={onClick}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-      
-      <CardContent className="p-6 relative z-10">
-        <div className="flex items-start justify-between mb-4">
-          <div className={cn(
-            "h-16 w-16 rounded-2xl flex items-center justify-center text-3xl shadow-lg",
-            color
-          )}>
-            {icon}
-          </div>
-          
-          <div className="flex flex-col items-end gap-2">
-            {isPopular && (
-              <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
-                <Star className="h-3 w-3 mr-1 fill-current" /> Popular
-              </Badge>
-            )}
-            {isNew && (
-              <Badge className="bg-green-100 text-green-800 border-green-200">
-                NEW
-              </Badge>
-            )}
+      <div className={`h-24 md:h-32 ${color} relative`}>
+        <div className="absolute inset-0 bg-black/10 group-hover:bg-black/5 transition-colors" />
+        <div className="absolute top-2 md:top-3 right-2 md:right-3 flex gap-2">
+          {isNew && (
+            <Badge className="bg-white/20 backdrop-blur-sm text-white border-0 text-xs">
+              New
+            </Badge>
+          )}
+          {isPopular && (
+            <Badge className="bg-white/20 backdrop-blur-sm text-white border-0 text-xs">
+              Popular
+            </Badge>
+          )}
+        </div>
+        <div className="absolute bottom-0 left-0 right-0 p-3 md:p-4 flex items-end justify-between">
+          <div className="bg-white/90 backdrop-blur-sm rounded-lg p-2 md:p-3 shadow-lg">
+            <Icon className="h-6 w-6 md:h-8 md:w-8" />
           </div>
         </div>
-
-        <h3 className="font-heading font-bold text-xl mb-2">{name}</h3>
-        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{description}</p>
-        
-        <div className="flex items-center justify-between text-sm">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1">
-              <Zap className="h-3 w-3 text-orange-500" />
-              <span className="text-muted-foreground">{popularity}%</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Users className="h-3 w-3 text-blue-500" />
-              <span className="text-muted-foreground">{questionsCount} Qs</span>
-            </div>
-          </div>
-          
-          <Badge variant="outline" className="text-xs">
-            {category}
+      </div>
+      
+      <CardContent className="p-3 md:p-4">
+        <div className="flex items-start justify-between mb-2">
+          <h3 className="font-bold text-sm md:text-base lg:text-lg line-clamp-1">{name}</h3>
+          <Badge variant="outline" className="text-xs shrink-0 ml-2">
+            {questionsCount}Q
           </Badge>
         </div>
         
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="w-full mt-4 opacity-0 group-hover:opacity-100 transition-all duration-300"
-        >
-          Use Template <ChevronRight className="ml-2 h-4 w-4" />
-        </Button>
+        <p className="text-xs md:text-sm text-muted-foreground line-clamp-2 mb-3">
+          {description}
+        </p>
+        
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">{category}</span>
+          <div className="flex items-center gap-1">
+            <div className="h-1.5 w-12 sm:w-16 md:w-20 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${popularity}%` }}
+              />
+            </div>
+            <span className="text-xs text-muted-foreground">{popularity}%</span>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
