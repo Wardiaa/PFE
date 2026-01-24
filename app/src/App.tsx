@@ -1,55 +1,35 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { Toaster } from "./components/ui/toaster";
-import { TooltipProvider } from "./components/ui/tooltip";
-import { Layout } from "./components/layout";
-import NotFound from "./pages/not-found";
-
-// Pages
+// App.tsx
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { MainLayout } from "./components/layout/main-layout";
 import Home from "./pages/home";
 import Auth from "./pages/auth";
 import Dashboard from "./pages/dashboard";
-import CreateContext from "./pages/create-context";
-import Join from "./pages/join";
+import EnhancedCreate from "./pages/enhanced-create";
+import AdminDashboard from "./pages/admin-dashboard";
 import HostSession from "./pages/host-session";
 import ParticipantSession from "./pages/participant-session";
+import Join from "./pages/join";
 import Results from "./pages/results";
-
-// Import QueryClientProvider if you're using React Query
-// import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
-// const queryClient = new QueryClient();
-
-function AppRoutes() {
-  return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/create" element={<CreateContext />} />
-        <Route path="/join" element={<Join />} />
-        <Route path="/session/:id/host" element={<HostSession />} />
-        <Route path="/session/:id" element={<ParticipantSession />} />
-        <Route path="/results/:id" element={<Results />} />
-        
-        {/* 404 Route */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </Layout>
-  );
-}
+import NotFound from "./pages/not-found";
 
 function App() {
   return (
-    // If using React Query, wrap with QueryClientProvider
-    // <QueryClientProvider client={queryClient}>
-    <Router>
-      <TooltipProvider>
-        <Toaster />
-        <AppRoutes />
-      </TooltipProvider>
-    </Router>
-    // </QueryClientProvider>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<MainLayout />}>
+          <Route index element={<Home />} />
+          <Route path="auth" element={<Auth />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="create" element={<EnhancedCreate />} />
+          <Route path="admin" element={<AdminDashboard />} />
+          <Route path="session/:id/host" element={<HostSession />} />
+          <Route path="session/:id" element={<ParticipantSession />} />
+          <Route path="join" element={<Join />} />
+          <Route path="results/:id" element={<Results />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   );
 }
 
