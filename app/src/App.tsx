@@ -11,10 +11,12 @@ import ParticipantSession from "./pages/participant-session";
 import Join from "./pages/join";
 import Results from "./pages/results";
 import NotFound from "./pages/not-found";
+import { Toaster } from "./components/ui/toaster"; // Add this import
 
 function App() {
   return (
     <BrowserRouter>
+      <Toaster /> {/* Add Toaster here */}
       <Routes>
         <Route path="/" element={<MainLayout />}>
           <Route index element={<Home />} />

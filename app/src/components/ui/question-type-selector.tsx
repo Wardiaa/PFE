@@ -1,137 +1,101 @@
-// components/ui/question-type-selector.tsx
-import { 
-  CheckCircle, 
-  ListChecks, 
-  Type, 
-  Star, 
-  Image as ImageIcon, 
-  Music, 
-  Video,
-  TrendingUp,
-  Grid
-} from "lucide-react";
+
+import { Button } from "./button";
 import { cn } from "../../lib/utils";
+import { 
+  CheckSquare, 
+  AlignLeft, 
+  BarChart2, 
+  Star, 
+  Image as ImageIcon,
+  Type,
+  List,
+  Trophy
+} from "lucide-react";
+
+interface QuestionTypeSelectorProps {
+  onSelect: (type: string) => void;
+}
 
 const questionTypes = [
   {
     id: "SINGLE_CHOICE",
-    name: "Single Choice",
-    description: "One correct answer",
-    icon: CheckCircle,
-    color: "bg-blue-500",
-    popular: true,
+    name: "Multiple Choice",
+    icon: CheckSquare,
+    color: "text-blue-500 bg-blue-50",
+    description: "Participants choose one correct answer"
   },
   {
     id: "MULTIPLE_CHOICE",
-    name: "Multiple Choice",
-    description: "Multiple correct answers",
-    icon: ListChecks,
-    color: "bg-purple-500",
-    popular: true,
+    name: "Multi-Select",
+    icon: List,
+    color: "text-purple-500 bg-purple-50",
+    description: "Participants choose all correct answers"
+  },
+  {
+    id: "TRUE_FALSE",
+    name: "True or False",
+    icon: Trophy,
+    color: "text-green-500 bg-green-50",
+    description: "Simple binary choice question"
   },
   {
     id: "OPEN_TEXT",
-    name: "Open Text",
-    description: "Text-based answers",
-    icon: Type,
-    color: "bg-green-500",
-    popular: false,
+    name: "Open Ended",
+    icon: AlignLeft,
+    color: "text-orange-500 bg-orange-50",
+    description: "Participants type their own answer"
   },
   {
-    id: "RATING_SCALE",
-    name: "Rating Scale",
-    description: "1-5 or 1-10 scale",
+    id: "POLL",
+    name: "Poll",
+    icon: BarChart2,
+    color: "text-cyan-500 bg-cyan-50",
+    description: "Gather opinions, no correct answer"
+  },
+  {
+    id: "RATING",
+    name: "Rating",
     icon: Star,
-    color: "bg-yellow-500",
-    popular: true,
+    color: "text-yellow-500 bg-yellow-50",
+    description: "Rate on a scale of stars or numbers"
   },
   {
     id: "IMAGE_CHOICE",
     name: "Image Choice",
-    description: "Choose from images",
     icon: ImageIcon,
-    color: "bg-pink-500",
-    popular: false,
+    color: "text-pink-500 bg-pink-50",
+    description: "Use images as answer options"
   },
   {
-    id: "AUDIO_QUESTION",
-    name: "Audio Question",
-    description: "Listen and answer",
-    icon: Music,
-    color: "bg-indigo-500",
-    popular: false,
-  },
-  {
-    id: "VIDEO_QUESTION",
-    name: "Video Question",
-    description: "Watch and answer",
-    icon: Video,
-    color: "bg-red-500",
-    popular: false,
-  },
-  {
-    id: "RANKING",
-    name: "Ranking",
-    description: "Rank options in order",
-    icon: TrendingUp,
-    color: "bg-orange-500",
-    popular: false,
-  },
-  {
-    id: "MATRIX",
-    name: "Matrix",
-    description: "Grid of questions",
-    icon: Grid,
-    color: "bg-cyan-500",
-    popular: false,
-  },
+    id: "WORD_CLOUD",
+    name: "Word Cloud",
+    icon: Type,
+    color: "text-indigo-500 bg-indigo-50",
+    description: "Visualize popular text answers"
+  }
 ];
 
-interface QuestionTypeSelectorProps {
-  value: string;
-  onChange: (typeId: string) => void;
-}
-
-export function QuestionTypeSelector({ value, onChange }: QuestionTypeSelectorProps) {
+export function QuestionTypeSelector({ onSelect }: QuestionTypeSelectorProps) {
   return (
-    <div className="space-y-4">
-      <h3 className="font-medium">Question Type</h3>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        {questionTypes.map((type) => {
-          const Icon = type.icon;
-          return (
-            <button
-              key={type.id}
-              onClick={() => onChange(type.id)}
-              className={cn(
-                "relative flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all hover:shadow-md",
-                value === type.id
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:border-primary/50"
-              )}
-            >
-              <div className={cn(
-                "h-12 w-12 rounded-xl flex items-center justify-center mb-3",
-                type.color,
-                "text-white"
-              )}>
-                <Icon className="h-6 w-6" />
-              </div>
-              
-              <span className="font-medium text-sm mb-1">{type.name}</span>
-              <span className="text-xs text-muted-foreground text-center">
-                {type.description}
-              </span>
-              
-              {type.popular && (
-                <div className="absolute -top-1 -right-1 bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">
-                  Popular
-                </div>
-              )}
-            </button>
-          );
-        })}
-      </div>
+    <div className="grid grid-cols-2 gap-3">
+      {questionTypes.map((type) => (
+        <Button
+          key={type.id}
+          variant="outline"
+          className="h-auto py-4 px-3 flex flex-col items-center gap-2 hover:border-primary hover:bg-primary/5 transition-all text-center"
+          onClick={() => onSelect(type.id)}
+        >
+          <div className={cn("p-2 rounded-lg", type.color)}>
+            <type.icon className="w-5 h-5" />
+          </div>
+          <div className="space-y-1">
+            <div className="font-medium text-sm">{type.name}</div>
+            <div className="text-[10px] text-muted-foreground leading-tight max-w-30 mx-auto hidden sm:block">
+              {type.description}
+            </div>
+          </div>
+        </Button>
+      ))}
     </div>
   );
 }

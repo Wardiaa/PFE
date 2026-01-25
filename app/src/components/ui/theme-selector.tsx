@@ -1,102 +1,127 @@
-// components/ui/theme-selector.tsx
-import { Check, Palette } from "lucide-react";
-import { cn } from "../../lib/utils";
 
-const themes = [
+import { cn } from "../../lib/utils";
+import { Check } from "lucide-react";
+
+export interface Theme {
+  id: string;
+  name: string;
+  colors: {
+    primary: string;
+    background: string;
+    text: string;
+    accent: string;
+  };
+  font: string;
+}
+
+interface ThemeSelectorProps {
+  selectedTheme: string;
+  onSelect: (themeId: string) => void;
+}
+
+export const themes: Theme[] = [
   {
     id: "default",
-    name: "Default",
-    bgFrom: "from-purple-500",
-    bgTo: "to-pink-500",
-    textColor: "text-purple-700",
-    borderColor: "border-purple-200",
+    name: "Modern Clean",
+    colors: {
+      primary: "bg-violet-600",
+      background: "bg-white",
+      text: "text-slate-900",
+      accent: "bg-violet-100",
+    },
+    font: "font-sans",
   },
   {
-    id: "professional",
-    name: "Professional",
-    bgFrom: "from-blue-500",
-    bgTo: "to-cyan-500",
-    textColor: "text-blue-700",
-    borderColor: "border-blue-200",
+    id: "ocean",
+    name: "Ocean Breeze",
+    colors: {
+      primary: "bg-cyan-600",
+      background: "bg-slate-50",
+      text: "text-slate-800",
+      accent: "bg-cyan-100",
+    },
+    font: "font-sans",
   },
   {
-    id: "energetic",
-    name: "Energetic",
-    bgFrom: "from-orange-500",
-    bgTo: "to-yellow-500",
-    textColor: "text-orange-700",
-    borderColor: "border-orange-200",
+    id: "dark-future",
+    name: "Dark Future",
+    colors: {
+      primary: "bg-emerald-500",
+      background: "bg-slate-900",
+      text: "text-white",
+      accent: "bg-slate-800",
+    },
+    font: "font-mono",
   },
   {
-    id: "calm",
-    name: "Calm",
-    bgFrom: "from-green-500",
-    bgTo: "to-emerald-500",
-    textColor: "text-green-700",
-    borderColor: "border-green-200",
+    id: "sunset",
+    name: "Sunset Vibes",
+    colors: {
+      primary: "bg-orange-500",
+      background: "bg-stone-50",
+      text: "text-stone-900",
+      accent: "bg-orange-100",
+    },
+    font: "font-serif",
   },
   {
-    id: "dark",
-    name: "Dark",
-    bgFrom: "from-gray-800",
-    bgTo: "to-gray-900",
-    textColor: "text-gray-300",
-    borderColor: "border-gray-700",
-    dark: true,
-  },
-  {
-    id: "colorful",
-    name: "Colorful",
-    bgFrom: "from-purple-500",
-    bgTo: "to-pink-500 via-blue-500",
-    textColor: "text-purple-700",
-    borderColor: "border-purple-200",
+    id: "playful",
+    name: "Playful Pop",
+    colors: {
+      primary: "bg-pink-500",
+      background: "bg-yellow-50",
+      text: "text-slate-900",
+      accent: "bg-yellow-200",
+    },
+    font: "font-heading",
   },
 ];
 
-interface ThemeSelectorProps {
-  value: string;
-  onChange: (themeId: string) => void;
-}
-
-export function ThemeSelector({ value, onChange }: ThemeSelectorProps) {
+export function ThemeSelector({ selectedTheme, onSelect }: ThemeSelectorProps) {
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Palette className="h-5 w-5 text-muted-foreground" />
-        <h3 className="font-medium">Choose Theme</h3>
-      </div>
-      
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-        {themes.map((theme) => (
-          <button
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      {themes.map((theme) => {
+        const isSelected = selectedTheme === theme.id;
+        
+        return (
+          <div
             key={theme.id}
-            onClick={() => onChange(theme.id)}
             className={cn(
-              "relative rounded-xl border-2 p-4 transition-all hover:scale-105",
-              value === theme.id 
-                ? "border-primary ring-2 ring-primary/20" 
-                : "border-border hover:border-primary/50",
-              theme.borderColor
+              "cursor-pointer group relative rounded-xl border-2 transition-all duration-200 overflow-hidden",
+              isSelected 
+                ? "border-primary ring-2 ring-primary/20 scale-105 shadow-lg" 
+                : "border-transparent hover:border-muted-foreground/20 hover:scale-105"
             )}
+            onClick={() => onSelect(theme.id)}
           >
-            <div className={cn(
-              "h-12 w-full rounded-lg mb-2 bg-linear-to-r",
-              theme.bgFrom,
-              theme.bgTo
-            )} />
-            <span className={cn("text-sm font-medium", theme.textColor)}>
-              {theme.name}
-            </span>
+            <div className={cn("aspect-video w-full p-3 flex flex-col justify-between", theme.colors.background)}>
+              <div className="flex gap-2">
+                <div className={cn("w-full h-2 rounded-full", theme.colors.primary)} />
+                <div className={cn("w-1/3 h-2 rounded-full", theme.colors.accent)} />
+              </div>
+              
+              <div className="space-y-1.5">
+                <div className={cn("w-3/4 h-2 rounded-full opacity-40", theme.colors.text, theme.colors.primary)} />
+                <div className={cn("w-1/2 h-2 rounded-full opacity-20", theme.colors.text, theme.colors.primary)} />
+              </div>
+              
+              <div className={cn("w-8 h-8 rounded-full flex items-center justify-center ml-auto shadow-sm", theme.colors.primary)}>
+                <div className="w-4 h-4 rounded-full bg-white/30" />
+              </div>
+            </div>
             
-            {value === theme.id && (
-              <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full p-1">
-                <Check className="h-3 w-3" />
+            <div className="p-2 text-center text-xs font-medium border-t bg-muted/20">
+              {theme.name}
+            </div>
+
+            {isSelected && (
+              <div className="absolute top-2 right-2 w-5 h-5 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-sm">
+                <Check className="w-3 h-3" />
               </div>
             )}
-          </button>
-        ))}
-      </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

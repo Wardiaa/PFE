@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useContexts, useParticipation, type Context,type  Question } from "../lib/mock-data";
-import { Button } from "../components/ui/button";
+import { useContexts,  type Context } from "../lib/mock-data";
+import { Button } from "../components/ui/button"; 
 import { Card } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
-import { Play, SkipForward, BarChart2, Trophy, Users, Clock, QrCode, Copy, CheckCircle } from "lucide-react";
+import { Play, SkipForward, Trophy, Users, Clock, QrCode, Copy, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function HostSession() {
@@ -18,7 +18,7 @@ export default function HostSession() {
   const navigate = useNavigate();
 
   // Mock participants joining
-  const [participants, setParticipants] = useState([
+  const [participants] = useState([
     { name: "Alice", score: 0 },
     { name: "Bob", score: 0 },
     { name: "Charlie", score: 0 },
@@ -88,7 +88,7 @@ export default function HostSession() {
             </Card>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 h-[400px] flex flex-col">
+          <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 h-100 flex flex-col">
             <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
               <div className="flex items-center gap-2 font-bold text-lg">
                 <Users className="h-5 w-5" />
