@@ -4,11 +4,23 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
-import { Label } from "../components/ui/label"
+import { Label } from "../components/ui/label";
+import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { 
   ArrowLeft, 
   Plus, 
+  Settings, 
+  Eye, 
+  Copy, 
+  QrCode,
+  Lock,
+  Globe,
+  Users,
+  Music,
+  Bell,
+  Download,
+  Save,
   Sparkles,
   Trophy,
   BarChart3,
@@ -16,9 +28,6 @@ import {
   Gamepad2,
   Star,
   FileText,
-  Palette,
-  Snowflake,
-  Save,
   Trash2,
   GripVertical,
   Check,
@@ -40,7 +49,10 @@ import { ThemeSelector } from "../components/ui/theme-selector";
 import { QuestionTypeSelector } from "../components/ui/question-type-selector";
 import { DevicePreview } from "../components/ui/device-preview";
 import { useToast } from "../hooks/use-toast";
-import { Card, CardContent, CardHeader } from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
+import { Switch } from "../components/ui/switch";
+import { Slider } from "../components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { cn } from "../lib/utils";
 import { templates } from "../lib/templates";
 import { getDefaultQuestion, QUESTION_TYPE_DETAILS } from "../lib/question-types";
@@ -259,7 +271,7 @@ function SortableQuestion({
 }
 
 export default function EnhancedCreate() {
-  const navigate = useNavigate(); // Changed from useLocation hook
+  const navigate = useNavigate();
   const { toast } = useToast();
   
   const [step, setStep] = useState(1);
