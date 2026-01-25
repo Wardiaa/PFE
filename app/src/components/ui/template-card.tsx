@@ -1,8 +1,8 @@
-
+// components/ui/template-card.tsx - ORIGINAL SIMPLE VERSION
 import { cn } from "../../lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Badge } from "./badge";
-import { type LucideIcon, Sparkles } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 
 interface TemplateCardProps {
   id: string;
@@ -34,7 +34,7 @@ export function TemplateCard({
   return (
     <Card 
       className={cn(
-        "cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 group relative overflow-hidden border-2",
+        "cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-1 group relative overflow-hidden",
         selected ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/50"
       )}
       onClick={onClick}
@@ -42,13 +42,13 @@ export function TemplateCard({
       <div className={cn("absolute inset-0 opacity-0 group-hover:opacity-5 transition-opacity", color)} />
       
       {isPopular && (
-        <Badge className="absolute top-3 right-3 bg-amber-500 hover:bg-amber-600 text-white shadow-xs">
-          <Sparkles className="w-3 h-3 mr-1" /> Popular
+        <Badge className="absolute top-3 right-3 bg-amber-500 hover:bg-amber-600 text-white">
+          Popular
         </Badge>
       )}
       
       {isNew && (
-        <Badge className="absolute top-3 right-3 bg-blue-500 hover:bg-blue-600 text-white shadow-xs">
+        <Badge className="absolute top-3 right-3 bg-blue-500 hover:bg-blue-600 text-white">
           New
         </Badge>
       )}

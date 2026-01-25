@@ -1,0 +1,564 @@
+// templates.ts - COMPLETE ENHANCED VERSION
+import { 
+  Trophy, 
+  BarChart3, 
+  ThumbsUp, 
+  Gamepad2, 
+  Star, 
+  FileText, 
+  Snowflake, 
+  Palette,
+  Sparkles,
+  TrendingUp,
+  Grid,
+  GraduationCap,
+  Briefcase,
+  Users as UsersIcon,
+  BookOpen,
+  ListChecks} from "lucide-react";
+import { QUESTION_TYPES } from "./question-types";
+
+// Template categories for filtering
+export const TEMPLATE_CATEGORIES = [
+  { id: "all", name: "All Templates", icon: Grid, count: 11 },
+  { id: "popular", name: "Most Popular", icon: TrendingUp, count: 5 },
+  { id: "new", name: "New & Trending", icon: Sparkles, count: 3 },
+  { id: "education", name: "Education", icon: GraduationCap, count: 3 },
+  { id: "business", name: "Business", icon: Briefcase, count: 4 },
+  { id: "team", name: "Team Building", icon: UsersIcon, count: 3 },
+  { id: "entertainment", name: "Entertainment", icon: Gamepad2, count: 1 },
+];
+
+// Sort options
+export const SORT_OPTIONS = [
+  { id: "popularity", name: "Most Popular", icon: TrendingUp },
+  { id: "newest", name: "Newest First", icon: Sparkles },
+  { id: "questions", name: "Most Questions", icon: ListChecks },
+  { id: "alphabetical", name: "A to Z", icon: BookOpen },
+];
+
+export const templates = [
+  {
+    id: "quiz-classic",
+    name: "Classic Quiz",
+    description: "Multiple choice questions with points and timer",
+    icon: Trophy,
+    color: "bg-gradient-to-br from-purple-500 to-pink-500",
+    category: "Education",
+    popularity: 95,
+    isPopular: true,
+    isNew: false,
+    questions: [
+      {
+        id: "q1",
+        type: QUESTION_TYPES.SINGLE_CHOICE,
+        title: "What is the capital of France?",
+        points: 100,
+        timeLimit: 30,
+        options: [
+          { id: "1", text: "London", isCorrect: false },
+          { id: "2", text: "Paris", isCorrect: true },
+          { id: "3", text: "Berlin", isCorrect: false },
+          { id: "4", text: "Madrid", isCorrect: false },
+        ],
+      },
+      {
+        id: "q2",
+        type: QUESTION_TYPES.TRUE_FALSE,
+        title: "The earth is flat.",
+        points: 100,
+        timeLimit: 15,
+        options: [
+          { id: "1", text: "True", isCorrect: false },
+          { id: "2", text: "False", isCorrect: true },
+        ],
+      },
+      {
+        id: "q3",
+        type: QUESTION_TYPES.SINGLE_CHOICE,
+        title: "Which planet is known as the Red Planet?",
+        points: 150,
+        timeLimit: 20,
+        options: [
+          { id: "1", text: "Venus", isCorrect: false },
+          { id: "2", text: "Mars", isCorrect: true },
+          { id: "3", text: "Jupiter", isCorrect: false },
+          { id: "4", text: "Saturn", isCorrect: false },
+        ],
+      },
+      {
+        id: "q4",
+        type: QUESTION_TYPES.SINGLE_CHOICE,
+        title: "Who painted the Mona Lisa?",
+        points: 200,
+        timeLimit: 25,
+        options: [
+          { id: "1", text: "Vincent van Gogh", isCorrect: false },
+          { id: "2", text: "Leonardo da Vinci", isCorrect: true },
+          { id: "3", text: "Pablo Picasso", isCorrect: false },
+          { id: "4", text: "Michelangelo", isCorrect: false },
+        ],
+      },
+    ],
+    settings: {
+      participationMode: "PUBLIC",
+      timeLimit: 60,
+      showLeaderboard: true,
+      soundEffects: true,
+      shuffleQuestions: true,
+      allowRetry: false,
+    },
+    estimatedSetupTime: "2 minutes",
+    avgCompletionTime: "5 minutes",
+    targetAudience: "Students, Trivia Enthusiasts"
+  },
+  {
+    id: "poll-quick",
+    name: "Quick Poll",
+    description: "Gather instant opinions and feedback",
+    icon: BarChart3,
+    color: "bg-gradient-to-br from-blue-500 to-cyan-500",
+    category: "Business",
+    popularity: 88,
+    isPopular: true,
+    isNew: false,
+    questions: [
+      {
+        id: "q1",
+        type: QUESTION_TYPES.POLL,
+        title: "How likely are you to recommend our service?",
+        points: 0,
+        timeLimit: 45,
+        options: [
+          { id: "1", text: "Very Likely (10)", isCorrect: false },
+          { id: "2", text: "Likely (8-9)", isCorrect: false },
+          { id: "3", text: "Neutral (6-7)", isCorrect: false },
+          { id: "4", text: "Unlikely (4-5)", isCorrect: false },
+          { id: "5", text: "Very Unlikely (0-3)", isCorrect: false },
+        ],
+      },
+      {
+        id: "q2",
+        type: QUESTION_TYPES.OPEN_TEXT,
+        title: "What feature would you like to see next?",
+        points: 0,
+        timeLimit: 60,
+        placeholder: "Please describe the feature you'd like...",
+        options: [],
+      },
+      {
+        id: "q3",
+        type: QUESTION_TYPES.POLL,
+        title: "How often do you use our product?",
+        points: 0,
+        timeLimit: 30,
+        options: [
+          { id: "1", text: "Daily", isCorrect: false },
+          { id: "2", text: "Weekly", isCorrect: false },
+          { id: "3", text: "Monthly", isCorrect: false },
+          { id: "4", text: "Rarely", isCorrect: false },
+        ],
+      },
+      {
+        id: "q4",
+        type: QUESTION_TYPES.RATING,
+        title: "Rate our customer support (1-5 stars)",
+        points: 0,
+        timeLimit: 30,
+        maxRating: 5,
+        ratingLabels: ["Poor", "Fair", "Good", "Very Good", "Excellent"]
+      },
+    ],
+    settings: {
+      participationMode: "ANONYMOUS",
+      showLeaderboard: false,
+      showProgress: true,
+      allowAnonymous: true,
+      maxParticipants: 500,
+    },
+    estimatedSetupTime: "3 minutes",
+    avgCompletionTime: "4 minutes",
+    targetAudience: "Customers, Team Members"
+  },
+  {
+    id: "vote-decision",
+    name: "Team Vote",
+    description: "Make democratic decisions together",
+    icon: ThumbsUp,
+    color: "bg-gradient-to-br from-green-500 to-emerald-500",
+    category: "Team Building",
+    popularity: 75,
+    isPopular: false,
+    isNew: true,
+    questions: [
+      {
+        id: "q1",
+        type: QUESTION_TYPES.SINGLE_CHOICE,
+        title: "Where should we go for the team lunch?",
+        points: 0,
+        timeLimit: 60,
+        options: [
+          { id: "1", text: "Pizza Place", isCorrect: false },
+          { id: "2", text: "Sushi Bar", isCorrect: false },
+          { id: "3", text: "Burger Joint", isCorrect: false },
+          { id: "4", text: "Italian Restaurant", isCorrect: false },
+          { id: "5", text: "Mexican Grill", isCorrect: false },
+        ]
+      },
+      {
+        id: "q2",
+        type: QUESTION_TYPES.SINGLE_CHOICE,
+        title: "Which day works best for the team meeting?",
+        points: 0,
+        timeLimit: 45,
+        options: [
+          { id: "1", text: "Monday morning", isCorrect: false },
+          { id: "2", text: "Wednesday afternoon", isCorrect: false },
+          { id: "3", text: "Friday morning", isCorrect: false },
+          { id: "4", text: "Any day after 3 PM", isCorrect: false },
+        ]
+      },
+      {
+        id: "q3",
+        type: QUESTION_TYPES.POLL,
+        title: "Which team building activity do you prefer?",
+        points: 0,
+        timeLimit: 45,
+        options: [
+          { id: "1", text: "Escape Room", isCorrect: false },
+          { id: "2", text: "Virtual Game Night", isCorrect: false },
+          { id: "3", text: "Outdoor Sports", isCorrect: false },
+          { id: "4", text: "Workshop/Training", isCorrect: false },
+        ]
+      }
+    ],
+    settings: {
+      participationMode: "RESTRICTED",
+      showLeaderboard: true,
+      allowAnonymous: false,
+      requireAccount: true,
+      maxParticipants: 50,
+    },
+    estimatedSetupTime: "2 minutes",
+    avgCompletionTime: "3 minutes",
+    targetAudience: "Team Leaders, Managers"
+  },
+  {
+    id: "game-trivia",
+    name: "Trivia Game",
+    description: "Fun trivia with images and sounds",
+    icon: Gamepad2,
+    color: "bg-gradient-to-br from-orange-500 to-yellow-500",
+    category: "Entertainment",
+    popularity: 92,
+    isPopular: true,
+    isNew: false,
+    questions: [
+      {
+        id: "q1",
+        type: QUESTION_TYPES.SINGLE_CHOICE,
+        title: "Which planet is known as the Red Planet?",
+        points: 200,
+        timeLimit: 20,
+        imageUrl: "https://images.unsplash.com/photo-1446776653964-20c1d3a81b06?auto=format&fit=crop&w=600",
+        options: [
+          { id: "1", text: "Venus", isCorrect: false },
+          { id: "2", text: "Mars", isCorrect: true },
+          { id: "3", text: "Jupiter", isCorrect: false },
+          { id: "4", text: "Saturn", isCorrect: false },
+        ]
+      },
+      {
+        id: "q2",
+        type: QUESTION_TYPES.SINGLE_CHOICE,
+        title: "In which year did the Titanic sink?",
+        points: 300,
+        timeLimit: 25,
+        imageUrl: "https://images.unsplash.com/photo-1513326738677-b964603b136d?auto=format&fit=crop&w=600",
+        options: [
+          { id: "1", text: "1905", isCorrect: false },
+          { id: "2", text: "1912", isCorrect: true },
+          { id: "3", text: "1920", isCorrect: false },
+          { id: "4", text: "1898", isCorrect: false },
+        ]
+      },
+      {
+        id: "q3",
+        type: QUESTION_TYPES.TRUE_FALSE,
+        title: "Bananas grow on trees.",
+        points: 150,
+        timeLimit: 15,
+        imageUrl: "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?auto=format&fit=crop&w=600",
+        options: [
+          { id: "1", text: "True", isCorrect: false },
+          { id: "2", text: "False", isCorrect: true },
+        ]
+      },
+      {
+        id: "q4",
+        type: QUESTION_TYPES.IMAGE_CHOICE,
+        title: "Which of these is the logo of Apple?",
+        points: 250,
+        timeLimit: 30,
+        options: [
+          { id: "1", text: "Option 1", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Apple_logo_black.svg/800px-Apple_logo_black.svg.png", isCorrect: true },
+          { id: "2", text: "Option 2", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Microsoft_logo.svg/800px-Microsoft_logo.svg.png", isCorrect: false },
+          { id: "3", text: "Option 3", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/800px-Google_2015_logo.svg.png", isCorrect: false },
+        ]
+      }
+    ],
+    settings: {
+      showLeaderboard: true,
+      soundEffects: true,
+      backgroundMusic: "upbeat",
+      shuffleQuestions: true,
+      timeLimit: 300,
+      showProgress: true,
+    },
+    estimatedSetupTime: "4 minutes",
+    avgCompletionTime: "8 minutes",
+    targetAudience: "Friends, Social Groups"
+  },
+  {
+    id: "survey-feedback",
+    name: "Feedback Survey",
+    description: "Collect detailed feedback with rating scales",
+    icon: Star,
+    color: "bg-gradient-to-br from-pink-500 to-rose-500",
+    category: "HR",
+    popularity: 82,
+    isPopular: false,
+    isNew: true,
+    questions: [
+      {
+        id: "q1",
+        type: QUESTION_TYPES.RATING,
+        title: "How satisfied are you with our product/service?",
+        points: 0,
+        timeLimit: 30,
+        maxRating: 5,
+        ratingLabels: ["Very Unsatisfied", "Unsatisfied", "Neutral", "Satisfied", "Very Satisfied"]
+      },
+      {
+        id: "q2",
+        type: QUESTION_TYPES.OPEN_TEXT,
+        title: "What did we do well?",
+        points: 0,
+        timeLimit: 45,
+        placeholder: "Please share specific examples of what you liked..."
+      },
+      {
+        id: "q3",
+        type: QUESTION_TYPES.OPEN_TEXT,
+        title: "What can we improve?",
+        points: 0,
+        timeLimit: 45,
+        placeholder: "Be honest - we value constructive feedback!"
+      },
+      {
+        id: "q4",
+        type: QUESTION_TYPES.SINGLE_CHOICE,
+        title: "How likely are you to recommend us to a colleague? (NPS)",
+        points: 0,
+        timeLimit: 30,
+        options: [
+          { id: "1", text: "Very unlikely (0)", isCorrect: false },
+          { id: "2", text: "1", isCorrect: false },
+          { id: "3", text: "2", isCorrect: false },
+          { id: "4", text: "3", isCorrect: false },
+          { id: "5", text: "4", isCorrect: false },
+          { id: "6", text: "5", isCorrect: false },
+          { id: "7", text: "6", isCorrect: false },
+          { id: "8", text: "7", isCorrect: false },
+          { id: "9", text: "8", isCorrect: false },
+          { id: "10", text: "Very likely (10)", isCorrect: false }
+        ]
+      },
+      {
+        id: "q5",
+        type: QUESTION_TYPES.MULTIPLE_CHOICE,
+        title: "Which features do you use most often? (Select all that apply)",
+        points: 0,
+        timeLimit: 45,
+        options: [
+          { id: "1", text: "Dashboard", isCorrect: false },
+          { id: "2", text: "Reporting", isCorrect: false },
+          { id: "3", text: "Mobile App", isCorrect: false },
+          { id: "4", text: "Notifications", isCorrect: false },
+          { id: "5", text: "Integrations", isCorrect: false },
+        ]
+      }
+    ],
+    settings: {
+      participationMode: "ANONYMOUS",
+      showLeaderboard: false,
+      showProgress: true,
+      allowRetry: false,
+      answerValidation: "MANUAL",
+      allowAnonymous: true,
+      maxParticipants: 1000,
+    },
+    estimatedSetupTime: "5 minutes",
+    avgCompletionTime: "7 minutes",
+    targetAudience: "Customers, Employees"
+  },
+  {
+    id: "assessment-test",
+    name: "Assessment Test",
+    description: "Formal testing with time limits and scoring",
+    icon: FileText,
+    color: "bg-gradient-to-br from-indigo-500 to-purple-500",
+    category: "Education",
+    popularity: 78,
+    isPopular: false,
+    isNew: false,
+    questions: [
+      {
+        id: "q1",
+        type: QUESTION_TYPES.SINGLE_CHOICE,
+        title: "What is the primary purpose of version control systems like Git?",
+        points: 100,
+        timeLimit: 60,
+        options: [
+          { id: "1", text: "To store passwords securely", isCorrect: false },
+          { id: "2", text: "To track changes in source code", isCorrect: true },
+          { id: "3", text: "To compile code faster", isCorrect: false },
+          { id: "4", text: "To design user interfaces", isCorrect: false },
+        ]
+      },
+      {
+        id: "q2",
+        type: QUESTION_TYPES.MULTIPLE_CHOICE,
+        title: "Which of these are JavaScript frameworks? (Select all correct)",
+        points: 150,
+        timeLimit: 90,
+        options: [
+          { id: "1", text: "React", isCorrect: true },
+          { id: "2", text: "Vue.js", isCorrect: true },
+          { id: "3", text: "Django", isCorrect: false },
+          { id: "4", text: "Angular", isCorrect: true },
+          { id: "5", text: "Spring Boot", isCorrect: false },
+        ]
+      },
+      {
+        id: "q3",
+        type: QUESTION_TYPES.TRUE_FALSE,
+        title: "CSS stands for Cascading Style Sheets",
+        points: 50,
+        timeLimit: 30,
+        options: [
+          { id: "1", text: "True", isCorrect: true },
+          { id: "2", text: "False", isCorrect: false },
+        ]
+      },
+      {
+        id: "q4",
+        type: QUESTION_TYPES.OPEN_TEXT,
+        title: "Explain the difference between 'let' and 'const' in JavaScript",
+        points: 200,
+        timeLimit: 120,
+        placeholder: "Your answer here...",
+        wordLimit: 250
+      }
+    ],
+    settings: {
+      participationMode: "RESTRICTED",
+      requireAccount: true,
+      allowGuest: false,
+      timeLimit: 600,
+      showLeaderboard: false,
+      showProgress: true,
+      allowRetry: false,
+      shuffleQuestions: false,
+      answerValidation: "AUTO",
+    },
+    estimatedSetupTime: "4 minutes",
+    avgCompletionTime: "10 minutes",
+    targetAudience: "Students, Job Applicants"
+  },
+  {
+    id: "icebreaker",
+    name: "Icebreaker",
+    description: "Fun questions to break the ice in meetings",
+    icon: Snowflake,
+    color: "bg-gradient-to-br from-cyan-500 to-blue-500",
+    category: "Team Building",
+    popularity: 90,
+    isPopular: true,
+    isNew: false,
+    questions: [
+      {
+        id: "q1",
+        type: QUESTION_TYPES.OPEN_TEXT,
+        title: "If you could have any superpower, what would it be and why?",
+        points: 0,
+        timeLimit: 45,
+        placeholder: "Be creative! 🦸‍♀️"
+      },
+      {
+        id: "q2",
+        type: QUESTION_TYPES.SINGLE_CHOICE,
+        title: "What's your favorite way to spend a weekend?",
+        points: 0,
+        timeLimit: 30,
+        options: [
+          { id: "1", text: "Outdoor adventure", isCorrect: false },
+          { id: "2", text: "Netflix binge", isCorrect: false },
+          { id: "3", text: "Quality time with family", isCorrect: false },
+          { id: "4", text: "Learning something new", isCorrect: false },
+          { id: "5", text: "Cooking or baking", isCorrect: false },
+        ]
+      },
+      {
+        id: "q3",
+        type: QUESTION_TYPES.WORD_CLOUD,
+        title: "What's the first word that comes to mind when you hear 'teamwork'?",
+        points: 0,
+        timeLimit: 20,
+        maxWords: 1
+      },
+      {
+        id: "q4",
+        type: QUESTION_TYPES.POLL,
+        title: "Coffee ☕ or Tea 🍵?",
+        points: 0,
+        timeLimit: 15,
+        options: [
+          { id: "1", text: "Coffee", isCorrect: false },
+          { id: "2", text: "Tea", isCorrect: false },
+          { id: "3", text: "Both", isCorrect: false },
+          { id: "4", text: "Neither", isCorrect: false },
+        ]
+      }
+    ],
+    settings: {
+      participationMode: "PUBLIC",
+      showLeaderboard: false,
+      showProgress: true,
+      allowAnonymous: true,
+      soundEffects: true,
+      backgroundMusic: "calm",
+    },
+    estimatedSetupTime: "2 minutes",
+    avgCompletionTime: "5 minutes",
+    targetAudience: "New Teams, Remote Workers"
+  },
+  {
+    id: "custom-blank",
+    name: "Blank Canvas",
+    description: "Start from scratch with full control",
+    icon: Palette,
+    color: "bg-gradient-to-br from-gray-500 to-gray-700",
+    category: "Custom",
+    popularity: 65,
+    isPopular: false,
+    isNew: false,
+    questions: [],
+    settings: {},
+    estimatedSetupTime: "5+ minutes",
+    avgCompletionTime: "Custom",
+    targetAudience: "Power Users, Creators"
+  },
+ 
+ 
+];

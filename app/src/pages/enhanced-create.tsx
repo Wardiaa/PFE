@@ -5,7 +5,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { Label } from "../components/ui/label";
-import { Card, CardContent, CardHeader } from "../components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { 
   ArrowLeft, 
@@ -13,21 +13,13 @@ import {
   Settings, 
   Eye, 
   Copy, 
-  QrCode,
   Lock,
   Globe,
   Users,
   Music,
   Bell,
-  Download,
   Save,
   Sparkles,
-  Trophy,
-  BarChart3,
-  ThumbsUp,
-  Gamepad2,
-  Star,
-  FileText,
   Trash2,
   GripVertical,
   Check,
@@ -1753,6 +1745,9 @@ export default function EnhancedCreate() {
                 <h3 className="font-heading font-bold flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-500" /> Live Preview
                 </h3>
+                <Badge variant="outline" className="text-xs">
+                  Auto-updates
+                </Badge>
               </div>
               
               <div className="flex-1">
@@ -1766,6 +1761,7 @@ export default function EnhancedCreate() {
               
               <div className="mt-4 p-4 bg-background/80 backdrop-blur rounded-xl border text-xs text-muted-foreground text-center">
                 This is how your participants will see the experience on their devices.
+                Changes are reflected in real-time.
               </div>
             </div>
           </div>
