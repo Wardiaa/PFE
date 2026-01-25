@@ -1,6 +1,6 @@
 import { Button } from "../components/ui/button";
 import { Link } from "react-router-dom";
-import { ArrowRight, CheckCircle2, Zap, BarChart3, Users } from "lucide-react";
+import { ArrowRight, Zap, BarChart3, Users } from "lucide-react";
 import { useAuth } from "../lib/mock-data";
 
 export default function Home() {
@@ -55,8 +55,8 @@ export default function Home() {
 
       {/* Preview Section */}
       <section className="rounded-xl overflow-hidden border shadow-2xl mt-10 bg-muted/30 p-1">
-        <div className="rounded-lg bg-background border overflow-hidden aspect-video md:aspect-[21/9] flex items-center justify-center relative group">
-          <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 to-accent/10 opacity-50" />
+        <div className="rounded-lg bg-background border overflow-hidden aspect-video md:aspect-21/9 flex items-center justify-center relative group">
+          <div className="absolute inset-0 bg-linear-to-tr from-primary/10 to-accent/10 opacity-50" />
           <div className="z-10 text-center p-8">
             <h3 className="text-2xl font-heading font-bold mb-4">Ready to create?</h3>
             <div className="flex justify-center gap-4">

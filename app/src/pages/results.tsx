@@ -1,16 +1,15 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { useContexts,type Context } from "../lib/mock-data";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { ArrowLeft, Download, Share2, BarChart as BarChartIcon } from "lucide-react";
+import { ArrowLeft, Download, Share2 } from "lucide-react";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
 export default function Results() {
   const { id } = useParams<{ id: string }>();
   const { getContext } = useContexts();
   const [context, setContext] = useState<Context | null>(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
     if (id) {
@@ -22,10 +21,6 @@ export default function Results() {
   if (!context) return <div className="p-10 text-center">Loading...</div>;
 
   // Mock data for charts
-  const summaryData = [
-    { name: "Correct", value: 65, fill: "#4ade80" },
-    { name: "Incorrect", value: 35, fill: "#f87171" },
-  ];
 
   const engagementData = [
     { name: "Q1", participants: 12 },
@@ -85,7 +80,7 @@ export default function Results() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card className="p-6">
           <CardTitle className="mb-6">Performance per Question</CardTitle>
-          <div className="h-[300px]">
+          <div className="h-75">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={engagementData}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />

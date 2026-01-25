@@ -33,16 +33,19 @@ export function MainLayout() {
   
   const unreadNotifications = 3; // Mock count
   
+  // Check if current route is the create page
+  const isCreatePage = location.pathname === "/create";
+  
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <nav className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <div className="flex items-center">
               <Link to="/" className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                <div className="h-8 w-8 rounded-lg bg-linear-to-br from-primary to-accent flex items-center justify-center">
                   <span className="font-bold text-white">E</span>
                 </div>
                 <span className="font-heading font-bold text-xl">Engage</span>
@@ -185,23 +188,25 @@ export function MainLayout() {
         onClose={() => setShowNotifications(false)}
       />
       
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Main Content - Conditionally remove padding for create page */}
+      <main className={cn(
+        isCreatePage ? "" : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
+      )}>
         <Outlet />
       </main>
       
-      {/* Footer */}
-      <footer className="mt-auto border-t py-8">
-        <div className="max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>© 2024 Engage Interactive. All rights reserved.</p>
-          <div className="mt-4 flex items-center justify-center gap-6">
-            <Link to="/terms" className="hover:text-foreground">Terms</Link>
-            <Link to="/privacy" className="hover:text-foreground">Privacy</Link>
-            <Link to="/contact" className="hover:text-foreground">Contact</Link>
-            <Link to="/help" className="hover:text-foreground">Help Center</Link>
+      {/* Footer - Hide for create page */}
+        <footer className="mt-auto border-t py-8">
+          <div className="max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground">
+            <p>© 2024 Engage Interactive. All rights reserved.</p>
+            <div className="mt-4 flex items-center justify-center gap-6">
+              <Link to="/terms" className="hover:text-foreground">Terms</Link>
+              <Link to="/privacy" className="hover:text-foreground">Privacy</Link>
+              <Link to="/contact" className="hover:text-foreground">Contact</Link>
+              <Link to="/help" className="hover:text-foreground">Help Center</Link>
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
     </div>
   );
 }
