@@ -6,57 +6,9 @@ import { Floating3DShape } from "../components/floating-3d-shape";
 import { TiltCard } from "../components/tilt-card";
 import { LivePreviewMockup } from "../components/live-preview-mockup";
 import { useScrollParallax } from "../hooks/use-scroll-parallax";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 // Animated counter hook
-function useAnimatedCounter(end: number, duration: number = 2000) {
-  const [count, setCount] = useState(0);
-  const [hasStarted, setHasStarted] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !hasStarted) {
-          setHasStarted(true);
-          const startTime = Date.now();
-          const animate = () => {
-            const elapsed = Date.now() - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            const easeOut = 1 - Math.pow(1 - progress, 3);
-            setCount(Math.floor(end * easeOut));
-            if (progress < 1) {
-              requestAnimationFrame(animate);
-            }
-          };
-          requestAnimationFrame(animate);
-        }
-      },
-      { threshold: 0.5 }
-    );
-
-    if (ref.current) {
-      observer.observe(ref.current);
-    }
-
-    return () => observer.disconnect();
-  }, [end, duration, hasStarted]);
-
-  return { count, ref };
-}
-
-// Stat Card Component
-function StatCard({ value, label, suffix = "" }: { value: number; label: string; suffix?: string }) {
-  const { count, ref } = useAnimatedCounter(value);
-  return (
-    <div ref={ref} className="text-center">
-      <div className="text-3xl md:text-4xl font-bold gradient-text tabular-nums">
-        {count.toLocaleString()}{suffix}
-      </div>
-      <div className="text-sm text-muted-foreground mt-1">{label}</div>
-    </div>
-  );
-}
 
 export default function Home() {
   const heroParallax = useScrollParallax<HTMLDivElement>({ speed: 0.3 });
@@ -141,51 +93,12 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* Trust Indicators */}
-          <div 
-            className="flex items-center gap-6 mt-8 text-sm text-muted-foreground animate-slide-up"
-            style={{ animationDelay: '0.5s' }}
-          >
-            <div className="flex items-center gap-2">
-              <div className="flex -space-x-2">
-                {['bg-violet-500', 'bg-pink-500', 'bg-blue-500', 'bg-green-500'].map((color, i) => (
-                  <div key={i} className={`w-8 h-8 rounded-full ${color} border-2 border-background flex items-center justify-center text-white text-xs font-bold`}>
-                    {String.fromCharCode(65 + i)}
-                  </div>
-                ))}
-              </div>
-              <span>Trusted by 10,000+ hosts</span>
-            </div>
-            <div className="hidden sm:flex items-center gap-1">
-              <div className="flex">
-                {[...Array(5)].map((_, i) => (
-                  <Sparkles key={i} className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                ))}
-              </div>
-              <span>4.9/5 rating</span>
-            </div>
-          </div>
+         
         </div>
-
-        {/* Scroll Indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-          <div className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex items-start justify-center p-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50" />
-          </div>
-        </div>
+       
       </section>
 
-      {/* Stats Section */}
-      <section className="px-4">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 p-8 rounded-3xl bg-card/50 border backdrop-blur-sm">
-            <StatCard value={10000} label="Active Hosts" suffix="+" />
-            <StatCard value={5000000} label="Sessions" suffix="+" />
-            <StatCard value={99} label="Uptime" suffix="%" />
-            <StatCard value={50} label="Countries" suffix="+" />
-          </div>
-        </div>
-      </section>
+      
 
       {/* Features Section */}
       <section className="px-4" ref={featuresParallax.ref}>
