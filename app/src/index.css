@@ -355,7 +355,14 @@
   color: hsl(var(--foreground));
 }
 
-/* Reduced Motion Support */
+/* Performance Optimizations */
+.gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* Reduce Motion Support */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

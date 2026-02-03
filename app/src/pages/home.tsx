@@ -6,18 +6,10 @@ import { Floating3DShape } from "../components/floating-3d-shape";
 import { TiltCard } from "../components/tilt-card";
 import { LivePreviewMockup } from "../components/live-preview-mockup";
 import { useScrollParallax } from "../hooks/use-scroll-parallax";
-import { useEffect, useState } from "react";
-
-// Animated counter hook
 
 export default function Home() {
   const heroParallax = useScrollParallax<HTMLDivElement>({ speed: 0.3 });
   const featuresParallax = useScrollParallax<HTMLDivElement>({ speed: 0.15 });
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    setIsVisible(true);
-  }, []);
 
   return (
     <div className="flex flex-col gap-20 pb-20 overflow-hidden">
@@ -36,14 +28,12 @@ export default function Home() {
         {/* Hero Content */}
         <div 
           ref={heroParallax.ref}
-          className={`relative z-10 flex flex-col items-center text-center gap-8 max-w-5xl mx-auto transition-all duration-1000 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}
+          className="relative z-10 flex flex-col items-center text-center gap-8 max-w-5xl mx-auto"
         >
           {/* Badge */}
           <div 
-            className="inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-primary/20 text-primary shadow-lg shadow-primary/10 animate-slide-up"
-            style={{ animationDelay: '0.1s' }}
+            className="inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-primary/20 text-primary shadow-lg shadow-primary/10 animate-slide-up opacity-0"
+            style={{ animationDelay: '0.1s', animationFillMode: 'forwards' }}
           >
             <Sparkles className="w-4 h-4" />
             <span>New: Interactive Games & AI Features</span>
@@ -51,8 +41,8 @@ export default function Home() {
 
           {/* Headline */}
           <h1 
-            className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight text-balance leading-[1.1] animate-slide-up"
-            style={{ animationDelay: '0.2s' }}
+            className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight text-balance leading-[1.1] animate-slide-up opacity-0"
+            style={{ animationDelay: '0.2s', animationFillMode: 'forwards' }}
           >
             Engage your
             <br />
@@ -61,8 +51,8 @@ export default function Home() {
 
           {/* Subtitle */}
           <p 
-            className="text-lg md:text-xl text-muted-foreground text-balance max-w-2xl leading-relaxed animate-slide-up"
-            style={{ animationDelay: '0.3s' }}
+            className="text-lg md:text-xl text-muted-foreground text-balance max-w-2xl leading-relaxed animate-slide-up opacity-0"
+            style={{ animationDelay: '0.3s', animationFillMode: 'forwards' }}
           >
             The all-in-one platform for live quizzes, polls, Q&A, and interactive presentations. 
             Create engaging experiences in seconds—no coding required.
@@ -70,8 +60,8 @@ export default function Home() {
 
           {/* CTA Buttons */}
           <div 
-            className="flex flex-col sm:flex-row gap-4 mt-4 w-full sm:w-auto animate-slide-up"
-            style={{ animationDelay: '0.4s' }}
+            className="flex flex-col sm:flex-row gap-4 mt-4 w-full sm:w-auto animate-slide-up opacity-0"
+            style={{ animationDelay: '0.4s', animationFillMode: 'forwards' }}
           >
             <Link to="/auth">
               <Button 
@@ -169,7 +159,7 @@ export default function Home() {
             </TiltCard>
           </div>
 
-          {/* Additional Features Row */}
+          {/* Second Row - Spanning Cards */}
           <div className="grid md:grid-cols-2 gap-6 mt-6">
             <TiltCard className="h-full" glowColor="rgba(236, 72, 153, 0.15)">
               <div className="h-full p-8 rounded-2xl bg-card border shadow-lg hover:shadow-xl transition-shadow">
@@ -180,7 +170,7 @@ export default function Home() {
                   <div>
                     <h3 className="font-bold text-xl mb-3">Live Q&A & Chat</h3>
                     <p className="text-muted-foreground leading-relaxed">
-                      Enable real-time questions and discussions. Moderate with ease and highlight the best questions for everyone to see.
+                      Enable real-time audience questions and moderated chat. Perfect for webinars, town halls, and interactive presentations.
                     </p>
                   </div>
                 </div>
