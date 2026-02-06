@@ -37,7 +37,7 @@ export function MainLayout() {
   const isCreatePage = location.pathname === "/create";
   
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Navigation */}
       <nav className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -190,13 +190,14 @@ export function MainLayout() {
       
       {/* Main Content - Conditionally remove padding for create page */}
       <main className={cn(
-        isCreatePage ? "" : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
+        isCreatePage ? "flex-1" : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1"
       )}>
         <Outlet />
       </main>
       
       {/* Footer - Hide for create page */}
-        <footer className="mt-auto border-t py-8">
+      {!isCreatePage && (
+        <footer className="border-t py-8">
           <div className="max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground">
             <p>© 2024 Engage Interactive. All rights reserved.</p>
             <div className="mt-4 flex items-center justify-center gap-6">
@@ -207,6 +208,7 @@ export function MainLayout() {
             </div>
           </div>
         </footer>
+      )}
     </div>
   );
 }

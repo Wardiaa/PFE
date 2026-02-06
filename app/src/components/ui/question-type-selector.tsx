@@ -1,127 +1,82 @@
-import { Button } from "./button";
+// question-type-selector.tsx
+import React from "react";
 import { cn } from "../../lib/utils";
-import { 
-  CheckSquare, 
-  AlignLeft, 
-  BarChart2, 
-  Star, 
-  Image as ImageIcon,
-  Type,
-  List,
-  Trophy,
-  Lock
-} from "lucide-react";
-import { Badge } from "./badge";
+import { Card, CardContent } from "./card";
+import { ListChecks, MessageSquare, Cloud, BarChart2, HelpCircle } from "lucide-react";
+
+interface QuestionType {
+  id: string;
+  name: string;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+  color: string;
+}
 
 interface QuestionTypeSelectorProps {
   onSelect: (type: string) => void;
+  selectedType?: string;
 }
 
-const questionTypes = [
-  {
-    id: "SINGLE_CHOICE",
-    name: "Multiple Choice",
-    icon: CheckSquare,
-    color: "text-blue-500 bg-blue-50",
-    description: "Participants choose one correct answer",
-    available: true
-  },
-  {
-    id: "MULTIPLE_CHOICE",
-    name: "Multi-Select",
-    icon: List,
-    color: "text-purple-500 bg-purple-50",
-    description: "Participants choose all correct answers",
-    available: true
-  },
-  {
-    id: "TRUE_FALSE",
-    name: "True or False",
-    icon: Trophy,
-    color: "text-green-500 bg-green-50",
-    description: "Simple binary choice question",
-    available: true
-  },
-  {
-    id: "OPEN_TEXT",
-    name: "Open Ended",
-    icon: AlignLeft,
-    color: "text-orange-500 bg-orange-50",
-    description: "Participants type their own answer",
-    available: true
-  },
-  {
-    id: "POLL",
-    name: "Poll",
-    icon: BarChart2,
-    color: "text-cyan-500 bg-cyan-50",
-    description: "Gather opinions, no correct answer",
-    available: true
-  },
-  {
-    id: "RATING",
-    name: "Rating",
-    icon: Star,
-    color: "text-yellow-500 bg-yellow-50",
-    description: "Rate on a scale of stars or numbers",
-    available: false,
-    comingSoon: true
-  },
-  {
-    id: "IMAGE_CHOICE",
-    name: "Image Choice",
-    icon: ImageIcon,
-    color: "text-pink-500 bg-pink-50",
-    description: "Use images as answer options",
-    available: false,
-    comingSoon: true
-  },
-  {
-    id: "WORD_CLOUD",
-    name: "Word Cloud",
-    icon: Type,
-    color: "text-indigo-500 bg-indigo-50",
-    description: "Visualize popular text answers",
-    available: false,
-    comingSoon: true
-  }
-];
+export function QuestionTypeSelector({ onSelect, selectedType }: QuestionTypeSelectorProps) {
+  const questionTypes: QuestionType[] = [
+    {
+      id: 'multiple-choice',
+      name: 'Multiple Choice',
+      icon: ListChecks,
+      description: 'Single or multiple answer selection',
+      color: 'bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400'
+    },
+    {
+      id: 'open-text',
+      name: 'Open Text',
+      icon: MessageSquare,
+      description: 'Free-form text responses',
+      color: 'bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400'
+    },
+    {
+      id: 'word-cloud',
+      name: 'Word Cloud',
+      icon: Cloud,
+      description: 'Visual word frequency display',
+      color: 'bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400'
+    },
+    {
+      id: 'rating-scale',
+      name: 'Rating Scale',
+      icon: BarChart2,
+      description: 'Numeric or star-based ratings',
+      color: 'bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-400'
+    }
+  ];
 
-export function QuestionTypeSelector({ onSelect }: QuestionTypeSelectorProps) {
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {questionTypes.map((type) => (
-        <Button
-          key={type.id}
-          variant="outline"
-          className={cn(
-            "h-auto py-4 px-3 flex flex-col items-center gap-2 hover:border-primary hover:bg-primary/5 transition-all text-center relative",
-            !type.available && "opacity-60 cursor-not-allowed"
-          )}
-          onClick={() => type.available && onSelect(type.id)}
-          disabled={!type.available}
-        >
-          {type.comingSoon && (
-            <Badge className="absolute -top-2 -right-2 text-xs bg-amber-500">
-              Soon
-            </Badge>
-          )}
-          
-          <div className={cn("p-2 rounded-lg", type.color)}>
-            {type.available ? (
-              <type.icon className="w-5 h-5" />
-            ) : (
-              <Lock className="w-5 h-5" />
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold text-foreground mb-4">Question Types</h3>
+      {questionTypes.map((type) => {
+        const Icon = type.icon;
+        return (
+          <Card
+            key={type.id}
+            className={cn(
+              "cursor-pointer transition-all hover:shadow-md",
+              selectedType === type.id && "ring-2 ring-primary"
             )}
-          </div>
-          <div className="space-y-1">
-            <div className="font-medium text-sm">{type.name}</div>
-            <div className="text-[10px] text-muted-foreground leading-tight max-w-30 mx-auto hidden sm:block">
-              {type.description}
-            </div>
-          </div>
-        </Button>
-      ))}
+            onClick={() => onSelect(type.id)}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className={cn("flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center", type.color)}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium text-foreground">{type.name}</h4>
+                  <p className="text-xs text-muted-foreground mt-1">{type.description}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }
