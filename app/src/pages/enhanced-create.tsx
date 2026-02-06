@@ -1061,11 +1061,7 @@ const PreviewPanel = ({ question, presentationSettings, questions, currentQuesti
         </div>
       </div>
       
-      <div className="p-4 border-t border-border bg-muted/30">
-        <div className="text-xs text-muted-foreground text-center">
-          Changes are reflected in real-time as you edit questions.
-        </div>
-      </div>
+     
     </div>
   );
 };
