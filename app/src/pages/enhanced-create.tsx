@@ -1,4 +1,4 @@
-// enhanced-create.tsx - UPDATED VERSION WITH BUILDER STEP 3
+// enhanced-create.tsx - UPDATED VERSION WITH BUILDER STEP 3 AND OPTION EDITING
 import { useState, useEffect, useCallback, useReducer } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
@@ -1107,14 +1107,52 @@ const SortableQuestionCard = ({
     opacity: isDragging ? 0.5 : 1
   };
 
+  // Helper function to get the appropriate icon based on question type
   const getTypeIcon = (type: string) => {
-    switch(type) {
-      case 'multiple-choice': return ListChecks;
-      case 'open-text': return MessageSquare;
-      case 'word-cloud': return Cloud;
-      case 'rating-scale': return BarChart2;
-      default: return HelpCircle;
-    }
+    // Handle both UI types and constant types
+    if (type === 'multiple-choice' || type === 'SINGLE_CHOICE' || type === 'MULTIPLE_CHOICE' || type === 'TRUE_FALSE' || type === 'POLL') 
+      return ListChecks;
+    if (type === 'open-text' || type === 'OPEN_TEXT') 
+      return MessageSquare;
+    if (type === 'word-cloud' || type === 'WORD_CLOUD') 
+      return Cloud;
+    if (type === 'rating-scale' || type === 'RATING') 
+      return BarChart2;
+    return HelpCircle;
+  };
+
+  // Helper function to get the appropriate color based on question type
+  const getTypeColor = (type: string) => {
+    // Handle both UI types and constant types
+    if (type === 'multiple-choice' || type === 'SINGLE_CHOICE' || type === 'MULTIPLE_CHOICE' || type === 'TRUE_FALSE' || type === 'POLL')
+      return 'bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400';
+    if (type === 'open-text' || type === 'OPEN_TEXT')
+      return 'bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-400';
+    if (type === 'word-cloud' || type === 'WORD_CLOUD')
+      return 'bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400';
+    if (type === 'rating-scale' || type === 'RATING')
+      return 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400';
+    return 'bg-gray-50 dark:bg-gray-950/30 text-gray-700 dark:text-gray-400';
+  };
+
+  // Helper function to get display-friendly type name
+  const getDisplayType = (question: Question) => {
+    const type = question.type;
+    if (type === 'SINGLE_CHOICE' || type === 'MULTIPLE_CHOICE' || type === 'TRUE_FALSE' || type === 'POLL') 
+      return 'multiple choice';
+    if (type === 'OPEN_TEXT') return 'open text';
+    if (type === 'WORD_CLOUD') return 'word cloud';
+    if (type === 'RATING') return 'rating scale';
+    return type.replace(/-/g, ' ');
+  };
+
+  // Helper function to check if question type should have options
+  const shouldHaveOptions = (type: string) => {
+    return type === 'multiple-choice' || 
+           type === 'SINGLE_CHOICE' || 
+           type === 'MULTIPLE_CHOICE' || 
+           type === 'TRUE_FALSE' || 
+           type === 'POLL';
   };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1168,7 +1206,26 @@ const SortableQuestionCard = ({
     onDelete(question.id);
   };
 
+  // Initialize options if they don't exist for multiple choice questions
+  const initializeOptionsIfNeeded = () => {
+    if (shouldHaveOptions(question.type) && (!question.options || question.options.length === 0)) {
+      const defaultOptions = [
+        { id: Date.now().toString() + '-1', text: 'Option 1', isCorrect: false },
+        { id: Date.now().toString() + '-2', text: 'Option 2', isCorrect: true },
+        { id: Date.now().toString() + '-3', text: 'Option 3', isCorrect: false },
+        { id: Date.now().toString() + '-4', text: 'Option 4', isCorrect: false }
+      ];
+      onUpdate(question.id, { options: defaultOptions });
+    }
+  };
+
+  // Initialize options when question becomes current
+  if (isCurrent && shouldHaveOptions(question.type) && (!question.options || question.options.length === 0)) {
+    setTimeout(() => initializeOptionsIfNeeded(), 0);
+  }
+
   const TypeIcon = getTypeIcon(question.type);
+  const typeColor = getTypeColor(question.type);
 
   return (
     <div
@@ -1223,8 +1280,8 @@ const SortableQuestionCard = ({
               <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                 Question {index + 1}
               </span>
-              <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground capitalize">
-                {question?.type?.replace(/-/g, ' ')}
+              <span className={cn("text-xs px-2 py-1 rounded-full capitalize", typeColor)}>
+                {getDisplayType(question)}
               </span>
             </div>
             <div className="flex items-center gap-1">
@@ -1257,6 +1314,8 @@ const SortableQuestionCard = ({
                     value={question.timeLimit || 30} 
                     onChange={handleTimeLimitChange}
                     className="h-8 no-select"
+                    min="5"
+                    max="300"
                   />
                 </div>
                 <div>
@@ -1266,63 +1325,85 @@ const SortableQuestionCard = ({
                     value={question.points || 10} 
                     onChange={handlePointsChange}
                     className="h-8 no-select"
+                    min="0"
+                    max="100"
                   />
                 </div>
               </div>
 
-              {question.options && question.options.length > 0 && (
+              {/* Show options for question types that have options */}
+              {shouldHaveOptions(question.type) && (
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Answer Options</Label>
-                  {question.options.map((opt) => (
-                    <div key={opt.id} className="flex items-center gap-2">
-                      <div 
-                        className={cn(
-                          "w-5 h-5 rounded-full border flex items-center justify-center cursor-pointer transition-colors no-select",
-                          opt.isCorrect ? 'bg-green-500 border-green-500 text-white' : 'border-muted-foreground hover:border-primary'
-                        )}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOptionCorrectToggle(opt.id);
-                        }}
-                      >
-                        {opt.isCorrect && <Check className="w-3 h-3" />}
-                      </div>
-                      <Input 
-                        value={opt.text}
-                        onChange={(e) => handleOptionChange(opt.id, e.target.value)}
-                        className="h-8 no-select"
-                        placeholder="Option text"
-                      />
+                  {question.options && question.options.length > 0 ? (
+                    <>
+                      {question.options.map((opt) => (
+                        <div key={opt.id} className="flex items-center gap-2">
+                          <div 
+                            className={cn(
+                              "w-5 h-5 rounded-full border flex items-center justify-center cursor-pointer transition-colors no-select",
+                              opt.isCorrect ? 'bg-green-500 border-green-500 text-white' : 'border-muted-foreground hover:border-primary'
+                            )}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOptionCorrectToggle(opt.id);
+                            }}
+                          >
+                            {opt.isCorrect && <Check className="w-3 h-3" />}
+                          </div>
+                          <Input 
+                            value={opt.text}
+                            onChange={(e) => handleOptionChange(opt.id, e.target.value)}
+                            className="h-8 no-select"
+                            placeholder="Option text"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground no-select"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteOption(opt.id);
+                            }}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))}
                       <Button 
                         variant="ghost" 
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground no-select"
+                        size="sm"
+                        className="text-primary hover:text-primary/80 p-0 h-auto font-normal no-select"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeleteOption(opt.id);
+                          handleAddOption();
                         }}
                       >
-                        <Trash2 className="w-3 h-3" />
+                        + Add Option
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">No options yet. Click the button below to add options.</p>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          initializeOptionsIfNeeded();
+                        }}
+                      >
+                        Initialize with default options
                       </Button>
                     </div>
-                  ))}
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className="text-primary hover:text-primary/80 p-0 h-auto font-normal no-select"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleAddOption();
-                    }}
-                  >
-                    + Add Option
-                  </Button>
+                  )}
                 </div>
               )}
 
               {question.locked && (
-                <span className="text-xs px-2 py-1 rounded-full bg-yellow-50 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400">
-                  <Lock className="w-3 h-3 mr-1" />
+                <span className="text-xs px-2 py-1 rounded-full bg-yellow-50 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400 inline-flex items-center gap-1">
+                  <Lock className="w-3 h-3" />
                   Locked
                 </span>
               )}
@@ -1920,23 +2001,24 @@ export default function EnhancedCreate() {
   }, [showEditingControls, handleUndo, handleRedo]);
 
   const addQuestion = (type: string) => {
-    const typeInfo = QUESTION_TYPE_DETAILS.find(t => t.id === type);
-    if (typeInfo && !typeInfo.available) {
-      toast({
-        title: "Coming Soon",
-        description: `"${typeInfo.name}" will be available soon!`,
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    const newQuestion = getDefaultQuestion(type, `q${Date.now()}`);
-    dispatch({ type: 'ADD_QUESTION', payload: newQuestion });
-    setCurrentQuestionIndex(context.questions.length);
-    setSelectedQuestions([]);
-    addToHistory(`Add ${type.replace('_', ' ').toLowerCase()} question`);
-  };
-
+  // Map UI type to actual question type constant
+  const typeInfo = QUESTION_TYPE_DETAILS.find(t => t.uiId === type);
+  
+  if (typeInfo && !typeInfo.available) {
+    toast({
+      title: "Coming Soon",
+      description: `"${typeInfo.name}" will be available soon!`,
+      variant: "destructive",
+    });
+    return;
+  }
+  
+  const newQuestion = getDefaultQuestion(type, `q${Date.now()}`);
+  dispatch({ type: 'ADD_QUESTION', payload: newQuestion });
+  setCurrentQuestionIndex(context.questions.length);
+  setSelectedQuestions([]);
+  addToHistory(`Add ${type.replace('-', ' ')} question`);
+};
   const updateQuestion = (id: string, updates: Partial<Question>) => {
     dispatch({ type: 'UPDATE_QUESTION', payload: { id, updates } });
     addToHistory(`Update question`);
