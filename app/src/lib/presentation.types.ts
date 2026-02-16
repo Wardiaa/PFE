@@ -1,6 +1,7 @@
 export interface QuestionOption {
   id: string;
   text: string;
+  isCorrect?: boolean; // Add for quiz functionality
 }
 
 export interface BaseQuestion {
@@ -9,6 +10,8 @@ export interface BaseQuestion {
   type: 'multiple-choice' | 'rating' | 'open-text' | 'word-cloud';
   text: string;
   description?: string;
+  timeLimit?: number; // Add timeLimit in seconds
+  media?: string; // Add optional media URL
 }
 
 export interface MultipleChoiceQuestion extends BaseQuestion {
@@ -40,7 +43,7 @@ export interface Presentation {
 }
 
 export interface Session {
-  id: string | undefined;
+  id: string;
   code: string;
   participantCount: number;
   startTime: Date;
@@ -70,6 +73,7 @@ export interface OpenTextResponses {
 export interface WordCloudWord {
   text: string;
   count: number;
+  color?: string;
 }
 
 export interface WordCloudResponses {
@@ -86,6 +90,14 @@ export type QuestionResponses =
 export interface Participant {
   id: string;
   name: string;
-  score?: number;
+  score: number;
   avatar?: string;
+}
+
+// Context type for the old host session
+export interface Context {
+  id: string;
+  code: string;
+  title: string;
+  questions: (BaseQuestion & { options?: QuestionOption[] })[];
 }

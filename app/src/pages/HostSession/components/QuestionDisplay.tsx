@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import AppIcon from '../../../components/AppIcon';
 import type {
     Question,
@@ -6,16 +7,21 @@ import type {
     MultipleChoiceResponses,
     RatingResponses,
     OpenTextResponses,
-    WordCloudResponses
+    WordCloudResponses,
 } from '../../../lib/presentation.types';
 
 interface QuestionDisplayProps {
   question: Question;
   responses: QuestionResponses;
+  showResults?: boolean;
   onResponseUpdate?: () => void;
 }
 
-const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ question, responses }) => {
+const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ 
+  question, 
+  responses, 
+  showResults = false 
+}) => {
   const renderQuestionContent = () => {
     switch (question.type) {
       case 'multiple-choice':
@@ -35,20 +41,30 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ question, responses }
     question: Question, 
     responses: MultipleChoiceResponses
   ) => {
-    if (!question.options) return null;
+    if (!('options' in question) || !question.options) return null;
     
     const totalResponses = Object.values(responses).reduce((sum, count) => sum + count, 0);
 
     return (
-      <div className="space-y-3 md:space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {question.options.map((option, index) => {
           const responseCount = responses[option.id] || 0;
           const percentage = totalResponses > 0 ? Math.round((responseCount / totalResponses) * 100) : 0;
+          const isCorrect = showResults && option.isCorrect;
 
           return (
-            <div
+            <motion.div
               key={option.id}
-              className="relative bg-card border-2 border-border rounded-xl p-4 md:p-6 transition-all duration-300 hover:border-primary/50"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: index * 0.1 }}
+              className={`
+                relative bg-card border-2 rounded-xl p-4 md:p-6 transition-all duration-300
+                ${isCorrect 
+                  ? 'border-green-500 bg-green-50 dark:bg-green-950/20' 
+                  : 'border-border hover:border-primary/50'
+                }
+              `}
             >
               <div className="flex items-center gap-3 md:gap-4 mb-2">
                 <div className="flex-shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -59,24 +75,30 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ question, responses }
                 <p className="text-base md:text-lg lg:text-xl font-medium text-foreground flex-1">
                   {option.text}
                 </p>
+                {showResults && option.isCorrect && (
+                  <AppIcon name="CheckCircle" size={24} className="text-green-600 flex-shrink-0" />
+                )}
               </div>
-              <div className="ml-13 md:ml-16">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs md:text-sm text-muted-foreground">
-                    {responseCount} {responseCount === 1 ? 'response' : 'responses'}
-                  </span>
-                  <span className="text-sm md:text-base font-semibold text-primary">
-                    {percentage}%
-                  </span>
-                </div>
-                <div className="h-2 md:h-3 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary transition-all duration-500 rounded-full"
-                    style={{ width: `${percentage}%` }}
+              
+              {showResults && (
+                <div className="ml-13 md:ml-16 mt-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs md:text-sm text-muted-foreground">
+                      {responseCount} {responseCount === 1 ? 'response' : 'responses'}
+                    </span>
+                    <span className="text-sm md:text-base font-semibold text-primary">
+                      {percentage}%
+                    </span>
+                  </div>
+                  <div className="h-2 md:h-3 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-500 rounded-full"
+                      style={{ width: `${percentage}%` }}
                     />
+                  </div>
                 </div>
-              </div>
-            </div>
+              )}
+            </motion.div>
           );
         })}
       </div>
@@ -90,14 +112,13 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ question, responses }
       <div className="space-y-4 md:space-y-6">
         <div className="flex justify-center gap-2 md:gap-4 mb-6 md:mb-8">
           {ratings.map((rating) => {
-            const rawCount = responses[rating];
-            const count = typeof rawCount === 'number' ? rawCount : Number(rawCount || 0);
-            const totalResponses = typeof responses.total === 'number' ? responses.total : Number(responses.total || 0);
-            const percentage = totalResponses > 0 ? Math.round((count / totalResponses) * 100) : 0;
+            const count = Number(responses[rating]) || 0;
+            const total = Number(responses.total) || 0;
+            const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
 
             return (
               <div key={rating} className="flex flex-col items-center gap-2">
-                <button
+                <div
                   className={`w-12 h-12 md:w-16 md:h-16 rounded-xl flex items-center justify-center text-xl md:text-2xl font-bold transition-all duration-300 ${
                     count > 0
                       ? 'bg-yellow-500 text-white shadow-lg scale-110'
@@ -105,30 +126,35 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ question, responses }
                   }`}
                 >
                   {rating}
-                </button>
-                <div className="text-center">
-                  <p className="text-xs md:text-sm font-semibold text-foreground">{percentage}%</p>
-                  <p className="text-xs text-muted-foreground">{count}</p>
                 </div>
+                {showResults && (
+                  <div className="text-center">
+                    <p className="text-xs md:text-sm font-semibold text-foreground">{percentage}%</p>
+                    <p className="text-xs text-muted-foreground">{count}</p>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
-        <div className="bg-card border-2 border-border rounded-xl p-4 md:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <AppIcon name="TrendingUp" size={20} />
-              <span className="text-sm md:text-base font-medium text-foreground">Average Rating</span>
+        
+        {showResults && (
+          <div className="bg-card border-2 border-border rounded-xl p-4 md:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <AppIcon name="TrendingUp" size={20} />
+                <span className="text-sm md:text-base font-medium text-foreground">Average Rating</span>
+              </div>
+              <span className="text-2xl md:text-3xl font-bold text-primary">
+                {responses.average || '0.0'}
+              </span>
             </div>
-            <span className="text-2xl md:text-3xl font-bold text-primary">
-              {responses.average || '0.0'}
-            </span>
+            <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground">
+              <AppIcon name="Users" size={16} />
+              <span>Based on {responses.total || 0} responses</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground">
-            <AppIcon name="Users" size={16} />
-            <span>Based on {responses.total || 0} responses</span>
-          </div>
-        </div>
+        )}
       </div>
     );
   };
@@ -142,7 +168,8 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ question, responses }
           </div>
           <div className="flex-1">
             <p className="text-base md:text-lg text-muted-foreground mb-4">
-              Participants can submit their text responses. Recent submissions will appear below.
+              Participants can submit their text responses. 
+              {showResults ? ' Recent submissions appear below.' : ' Waiting for responses...'}
             </p>
             <div className="flex items-center gap-2 text-sm md:text-base text-foreground">
               <AppIcon name="Users" size={18} />
@@ -151,8 +178,9 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ question, responses }
             </div>
           </div>
         </div>
-        {responses.recent && responses.recent.length > 0 && (
-          <div className="space-y-3 max-h-64 md:max-h-80 overflow-y-auto">
+        
+        {showResults && responses.recent && responses.recent.length > 0 && (
+          <div className="space-y-3 max-h-64 md:max-h-80 overflow-y-auto custom-scrollbar">
             {responses.recent.map((response, index) => (
               <div
                 key={index}
@@ -172,7 +200,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ question, responses }
 
   const renderWordCloud = (responses: WordCloudResponses) => {
     const sizes = ['text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl', 'text-3xl'];
-    const colors = ['text-primary', 'text-blue-600', 'text-yellow-600', 'text-green-600'];
+    const colors = ['text-primary', 'text-secondary', 'text-yellow-600', 'text-green-600'];
 
     return (
       <div className="bg-card border-2 border-border rounded-xl p-6 md:p-8">
@@ -191,16 +219,17 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ question, responses }
             </div>
           </div>
         </div>
-        {responses.words && responses.words.length > 0 && (
+        
+        {showResults && responses.words && responses.words.length > 0 && (
           <div className="flex flex-wrap gap-2 md:gap-3 justify-center items-center min-h-40 md:min-h-48">
             {responses.words.map((word, index) => {
               const sizeClass = sizes[Math.min(word.count - 1, sizes.length - 1)] || sizes[0];
-              const colorClass = colors[index % colors.length];
+              const colorClass = word.color || colors[index % colors.length];
 
               return (
                 <span
                   key={index}
-                  className={`${sizeClass} ${colorClass} font-semibold transition-all duration-300 hover:scale-110`}
+                  className={`${sizeClass} ${colorClass} font-semibold transition-all duration-300 hover:scale-110 cursor-default`}
                 >
                   {word.text}
                 </span>
@@ -232,6 +261,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ question, responses }
           </p>
         )}
       </div>
+      
       {renderQuestionContent()}
     </div>
   );
