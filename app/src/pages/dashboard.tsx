@@ -9,7 +9,6 @@ import {
   Edit, 
   BarChart, 
   Users,
-  
   Clock
 } from "lucide-react";
 import { Input } from "../components/ui/input";
@@ -35,7 +34,8 @@ export default function Dashboard() {
   const myContexts = contexts.filter(c => c.creatorId === user.id);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 px-4 sm:px-6 lg:px-8">
+      {/* Header section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-heading font-bold">Dashboard</h1>
@@ -48,6 +48,7 @@ export default function Dashboard() {
         </Link>
       </div>
 
+      {/* Search bar */}
       <div className="flex items-center gap-4 bg-card p-2 rounded-lg border shadow-sm max-w-md">
         <Search className="h-4 w-4 text-muted-foreground ml-2" />
         <Input 
@@ -56,6 +57,7 @@ export default function Dashboard() {
         />
       </div>
 
+      {/* Grid of contexts */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         {myContexts.map(context => (
           <ContextCard 

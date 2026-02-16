@@ -189,15 +189,9 @@ export function MainLayout() {
       />
       
       {/* Main Content - Different handling for auth page */}
-      <main className={cn(
-        "flex-1",
-        // For auth page, we want full width but with proper centering
-        location.pathname === "/auth" 
-          ? "w-full" 
-          : !isFullWidthPage && "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
-      )}>
-        <Outlet />
-      </main>
+      <main className="flex-1">
+  <Outlet />
+</main>
       
       {/* Footer - Show on all pages except create */}
       {location.pathname !== "/create" && (
