@@ -1,4 +1,4 @@
-// question-types.ts - UPDATED WITH COMING SOON TYPES
+// question-types.ts - COMPLETE WITH ALL TYPES AVAILABLE
 import { 
   CheckSquare, 
   AlignLeft, 
@@ -8,7 +8,9 @@ import {
   Type,
   List,
   Trophy,
-  HelpCircle
+  HelpCircle,
+  Cloud,
+  MessageSquare
 } from "lucide-react";
 
 export const QUESTION_TYPES = {
@@ -82,8 +84,8 @@ export const QUESTION_TYPE_DETAILS = [
     icon: Star,
     color: "text-yellow-500 bg-yellow-50",
     description: "Rate on a scale of stars or numbers",
-    available: false,
-    comingSoon: true,
+    available: true,
+    comingSoon: false,
     uiId: 'rating-scale'
   },
   {
@@ -99,11 +101,11 @@ export const QUESTION_TYPE_DETAILS = [
   {
     id: QUESTION_TYPES.WORD_CLOUD,
     name: "Word Cloud",
-    icon: Type,
+    icon: Cloud,
     color: "text-indigo-500 bg-indigo-50",
     description: "Visualize popular text answers",
-    available: false,
-    comingSoon: true,
+    available: true,
+    comingSoon: false,
     uiId: 'word-cloud'
   }
 ];
@@ -122,9 +124,16 @@ export const getDefaultQuestion = (type: string, id: string) => {
     id,
     type: actualType, // Store the actual type constant
     uiType: type, // Also store the UI type for display
-    title: "New Question",
-    points: 100,
-    timeLimit: 30,
+    title: type === 'multiple-choice' ? "New Multiple Choice Question" :
+           type === 'open-text' ? "New Open Text Question" :
+           type === 'word-cloud' ? "New Word Cloud Question" :
+           type === 'rating-scale' ? "New Rating Scale Question" : "New Question",
+    description: "",
+    points: type === 'word-cloud' ? 5 : 
+            type === 'rating-scale' ? 10 :
+            type === 'open-text' ? 10 : 10,
+    timeLimit: type === 'word-cloud' ? 30 :
+               type === 'open-text' ? 60 : 30,
   };
 
   switch (actualType) {
@@ -164,16 +173,32 @@ export const getDefaultQuestion = (type: string, id: string) => {
       return {
         ...base,
         title: "How would you rate this?",
-        maxRating: 5,
-        ratingLabels: ["Poor", "Fair", "Good", "Very Good", "Excellent"],
-        points: 0,
+        description: "Rate from 1 to 5",
+        points: 10,
+        timeLimit: 30,
+        options: [
+          { id: `${id}-1`, text: "1 - Poor", isCorrect: false },
+          { id: `${id}-2`, text: "2 - Fair", isCorrect: false },
+          { id: `${id}-3`, text: "3 - Good", isCorrect: false },
+          { id: `${id}-4`, text: "4 - Very Good", isCorrect: false },
+          { id: `${id}-5`, text: "5 - Excellent", isCorrect: false }
+        ],
       };
     case QUESTION_TYPES.WORD_CLOUD:
       return {
         ...base,
         title: "What comes to mind?",
-        maxWords: 3,
-        points: 50,
+        description: "Enter a word or phrase",
+        points: 5,
+        timeLimit: 30,
+      };
+    case QUESTION_TYPES.OPEN_TEXT:
+      return {
+        ...base,
+        title: "New Open Text Question",
+        description: "Type your answer in the space below",
+        points: 10,
+        timeLimit: 60,
       };
     default:
       return {

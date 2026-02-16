@@ -1,4 +1,4 @@
-// enhanced-create.tsx - UPDATED VERSION WITH BUILDER STEP 3 AND OPTION EDITING
+// enhanced-create.tsx - COMPLETE WITH ORIGINAL DEVICE PREVIEW AND ALL QUESTION TYPES
 import { useState, useEffect, useCallback, useReducer } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
@@ -105,6 +105,7 @@ interface Question {
   timeLimit: number;
   options?: QuestionOption[];
   locked?: boolean;
+  uiType?: string;
 }
 
 interface ContextData {
@@ -722,7 +723,7 @@ const BulkActions = ({
   );
 };
 
-// PreviewPanel Component
+// PreviewPanel Component - ORIGINAL STYLE FROM ATTACHMENT
 interface PreviewPanelProps {
   question?: Question;
   presentationSettings: any;
@@ -754,8 +755,20 @@ const PreviewPanel = ({ question, presentationSettings, questions, currentQuesti
   const displayQuestion = question || defaultQuestion;
   const displayOptions = displayQuestion.options || [];
 
+  const getDisplayType = () => {
+    const type = displayQuestion.type;
+    if (type === 'SINGLE_CHOICE' || type === 'MULTIPLE_CHOICE' || type === 'TRUE_FALSE' || type === 'POLL' || type === 'multiple-choice') 
+      return 'multiple-choice';
+    if (type === 'OPEN_TEXT' || type === 'open-text') return 'open-text';
+    if (type === 'WORD_CLOUD' || type === 'word-cloud') return 'word-cloud';
+    if (type === 'RATING' || type === 'rating-scale') return 'rating-scale';
+    return 'multiple-choice';
+  };
+
   const renderQuestionTypeContent = () => {
-    switch(displayQuestion.type) {
+    const displayType = getDisplayType();
+    
+    switch(displayType) {
       case 'multiple-choice':
         return (
           <div className="space-y-3">
@@ -881,7 +894,7 @@ const PreviewPanel = ({ question, presentationSettings, questions, currentQuesti
   };
 
   const renderDeviceFrame = () => {
-    if (!question) return renderEmptyState();
+    if (!question && questions.length === 0) return renderEmptyState();
 
     return (
       <div className={`relative border-gray-800 shadow-lg overflow-hidden bg-background mx-auto ${
@@ -924,7 +937,7 @@ const PreviewPanel = ({ question, presentationSettings, questions, currentQuesti
                   className={`flex items-center justify-center ${
                     device === "mobile" ? "w-8 h-8" : "w-10 h-10"
                   } rounded-lg`}
-                  style={{ background: presentationSettings.brandColor }}
+                  style={{ background: presentationSettings.brandColor || '#6366f1' }}
                 >
                   <BarChart2 className={device === "mobile" ? "w-4 h-4" : "w-5 h-5"} color="#FFFFFF" />
                 </div>
@@ -1065,8 +1078,6 @@ const PreviewPanel = ({ question, presentationSettings, questions, currentQuesti
           {renderDeviceFrame()}
         </div>
       </div>
-      
-     
     </div>
   );
 };
@@ -1157,7 +1168,9 @@ const SortableQuestionCard = ({
            type === 'SINGLE_CHOICE' || 
            type === 'MULTIPLE_CHOICE' || 
            type === 'TRUE_FALSE' || 
-           type === 'POLL';
+           type === 'POLL' ||
+           type === 'rating-scale' ||
+           type === 'RATING';
   };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1575,9 +1588,24 @@ const QuickActionsPanel = ({
                   <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-2">
                       <MessageSquare className="w-4 h-4 text-orange-500" />
-                      <span>Add Open Question</span>
+                      <span>Add Open Text</span>
                     </div>
                     <span className="text-xs px-1.5 py-0.5 rounded border border-border">O</span>
+                  </div>
+                </Button>
+                
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start mb-1"
+                  onClick={() => handleAddQuickQuestion('word-cloud')}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <Cloud className="w-4 h-4 text-purple-500" />
+                      <span>Add Word Cloud</span>
+                    </div>
+                    <span className="text-xs px-1.5 py-0.5 rounded border border-border">W</span>
                   </div>
                 </Button>
                 
@@ -2006,24 +2034,25 @@ export default function EnhancedCreate() {
   }, [showEditingControls, handleUndo, handleRedo]);
 
   const addQuestion = (type: string) => {
-  // Map UI type to actual question type constant
-  const typeInfo = QUESTION_TYPE_DETAILS.find(t => t.uiId === type);
-  
-  if (typeInfo && !typeInfo.available) {
-    toast({
-      title: "Coming Soon",
-      description: `"${typeInfo.name}" will be available soon!`,
-      variant: "destructive",
-    });
-    return;
-  }
-  
-  const newQuestion = getDefaultQuestion(type, `q${Date.now()}`);
-  dispatch({ type: 'ADD_QUESTION', payload: newQuestion });
-  setCurrentQuestionIndex(context.questions.length);
-  setSelectedQuestions([]);
-  addToHistory(`Add ${type.replace('-', ' ')} question`);
-};
+    // Check if the type is available in QUESTION_TYPE_DETAILS
+    const typeInfo = QUESTION_TYPE_DETAILS.find(t => t.uiId === type);
+    
+    if (typeInfo && !typeInfo.available) {
+      toast({
+        title: "Coming Soon",
+        description: `"${typeInfo.name}" will be available soon!`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const newQuestion = getDefaultQuestion(type, `q${Date.now()}`);
+    dispatch({ type: 'ADD_QUESTION', payload: newQuestion });
+    setCurrentQuestionIndex(context.questions.length);
+    setSelectedQuestions([]);
+    addToHistory(`Add ${type.replace('-', ' ')} question`);
+  };
+
   const updateQuestion = (id: string, updates: Partial<Question>) => {
     dispatch({ type: 'UPDATE_QUESTION', payload: { id, updates } });
     addToHistory(`Update question`);
@@ -2226,33 +2255,58 @@ export default function EnhancedCreate() {
     
     const updatedQuestions = [...context.questions];
     
-    selectedQuestions.forEach((selectedIndex) => {
-      const currentIndex = updatedQuestions.findIndex((_, idx) => idx === selectedIndex);
-      if (currentIndex === -1) return;
-      
-      const question = updatedQuestions[currentIndex];
-      updatedQuestions.splice(currentIndex, 1);
-      
-      let newIndex;
-      switch (direction) {
-        case 'up':
-          newIndex = Math.max(0, currentIndex - 1);
-          break;
-        case 'down':
-          newIndex = Math.min(updatedQuestions.length, currentIndex);
-          break;
-        case 'top':
-          newIndex = 0;
-          break;
-        case 'bottom':
-          newIndex = updatedQuestions.length;
-          break;
-        default:
-          newIndex = currentIndex;
+    // Sort selected indices to process them in order
+    const sortedSelected = [...selectedQuestions].sort((a, b) => a - b);
+    
+    if (direction === 'up' || direction === 'top') {
+      // Process from top to bottom
+      for (let i = 0; i < sortedSelected.length; i++) {
+        const selectedIndex = sortedSelected[i];
+        const currentIndex = updatedQuestions.findIndex((_, idx) => idx === selectedIndex);
+        if (currentIndex === -1) continue;
+        
+        const question = updatedQuestions[currentIndex];
+        updatedQuestions.splice(currentIndex, 1);
+        
+        let newIndex;
+        switch (direction) {
+          case 'up':
+            newIndex = Math.max(0, currentIndex - 1);
+            break;
+          case 'top':
+            newIndex = 0;
+            break;
+          default:
+            newIndex = currentIndex;
+        }
+        
+        updatedQuestions.splice(newIndex, 0, question);
       }
-      
-      updatedQuestions.splice(newIndex, 0, question);
-    });
+    } else {
+      // Process from bottom to top for down/bottom moves
+      for (let i = sortedSelected.length - 1; i >= 0; i--) {
+        const selectedIndex = sortedSelected[i];
+        const currentIndex = updatedQuestions.findIndex((_, idx) => idx === selectedIndex);
+        if (currentIndex === -1) continue;
+        
+        const question = updatedQuestions[currentIndex];
+        updatedQuestions.splice(currentIndex, 1);
+        
+        let newIndex;
+        switch (direction) {
+          case 'down':
+            newIndex = Math.min(updatedQuestions.length, currentIndex);
+            break;
+          case 'bottom':
+            newIndex = updatedQuestions.length;
+            break;
+          default:
+            newIndex = currentIndex;
+        }
+        
+        updatedQuestions.splice(newIndex, 0, question);
+      }
+    }
     
     dispatch({ type: 'SET_QUESTIONS', payload: updatedQuestions });
     addToHistory('Reorder questions');
@@ -2467,7 +2521,7 @@ export default function EnhancedCreate() {
       </div>
     </div>
 
-    {/* Right Panel - Device Preview (hidden on mobile) - EXACTLY LIKE BEFORE */}
+    {/* Right Panel - Device Preview (hidden on mobile) */}
     <div className="hidden lg:block w-[40%] bg-muted/30 border-l relative">
       <div className="absolute inset-0 bg-grid-slate-200/50 mask-[linear-gradient(0deg,white,rgba(255,255,255,0.6))] dark:bg-grid-slate-800/50" />
       
@@ -2498,7 +2552,8 @@ export default function EnhancedCreate() {
     </div>
   </div>
 );
-  // NEW STEP 3 - Using builder interface
+  
+  // STEP 3 - Using builder interface
   const renderStep3 = () => {
     const currentQuestion = context.questions[currentQuestionIndex] || null;
 
@@ -2565,7 +2620,7 @@ export default function EnhancedCreate() {
             {leftPanelTab === 'types' ? (
               <QuestionTypeSelector
                 onSelect={addQuestion}
-                selectedType={currentQuestion?.type}
+                selectedType={currentQuestion?.uiType || currentQuestion?.type}
               />
             ) : (
               <BulkActions
@@ -2595,7 +2650,7 @@ export default function EnhancedCreate() {
               </p>
             </div>
             
-            {/* Save Status and Actions - Moved next to title */}
+            {/* Save Status and Actions */}
             <div className="flex items-center gap-2 ml-4">
               {/* Undo/Redo Controls */}
               <div className="flex items-center gap-1 mr-2">
