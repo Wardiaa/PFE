@@ -33,8 +33,8 @@ export function MainLayout() {
   
   const unreadNotifications = 3; // Mock count
   
-  // Check if current route is the create page
-  const isCreatePage = location.pathname === "/create";
+  // Check if current route is the create page or auth page
+  const isFullWidthPage = location.pathname === "/create" || location.pathname === "/auth";
   
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -188,15 +188,19 @@ export function MainLayout() {
         onClose={() => setShowNotifications(false)}
       />
       
-      {/* Main Content - Conditionally remove padding for create page */}
+      {/* Main Content - Different handling for auth page */}
       <main className={cn(
-        isCreatePage ? "flex-1" : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1"
+        "flex-1",
+        // For auth page, we want full width but with proper centering
+        location.pathname === "/auth" 
+          ? "w-full" 
+          : !isFullWidthPage && "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
       )}>
         <Outlet />
       </main>
       
-      {/* Footer - Hide for create page */}
-      {!isCreatePage && (
+      {/* Footer - Show on all pages except create */}
+      {location.pathname !== "/create" && (
         <footer className="border-t py-8">
           <div className="max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground">
             <p>© 2024 Engage Interactive. All rights reserved.</p>

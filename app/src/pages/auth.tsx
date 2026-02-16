@@ -35,7 +35,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[80vh]">
+    <div className="flex items-center justify-center min-h-[80vh] mt-8">
       <Card className="w-full max-w-md shadow-2xl border-primary/10">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-heading font-bold text-center">
