@@ -6,7 +6,7 @@ import Auth from "./pages/auth";
 import Dashboard from "./pages/dashboard";
 import EnhancedCreate from "./pages/enhanced-create";
 import AdminDashboard from "./pages/admin-dashboard";
-import HostSession from "./pages/host-session";
+import HostSession from "./pages/HostSession/index";
 import ParticipantSession from "./pages/participant-session";
 import Join from "./pages/join";
 import Results from "./pages/results";
