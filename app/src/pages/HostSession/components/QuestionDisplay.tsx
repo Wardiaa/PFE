@@ -71,9 +71,9 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ question, responses }
                 </div>
                 <div className="h-2 md:h-3 bg-muted rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-500 rounded-full"
+                    className="h-full bg-primary transition-all duration-500 rounded-full"
                     style={{ width: `${percentage}%` }}
-                  />
+                    />
                 </div>
               </div>
             </div>
@@ -172,7 +172,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ question, responses }
 
   const renderWordCloud = (responses: WordCloudResponses) => {
     const sizes = ['text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl', 'text-3xl'];
-    const colors = ['text-primary', 'text-secondary', 'text-yellow-600', 'text-green-600'];
+    const colors = ['text-primary', 'text-blue-600', 'text-yellow-600', 'text-green-600'];
 
     return (
       <div className="bg-card border-2 border-border rounded-xl p-6 md:p-8">

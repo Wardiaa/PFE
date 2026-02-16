@@ -233,8 +233,8 @@ const HostSession: React.FC = () => {
             <div className="max-w-7xl mx-auto">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-3 md:gap-4">
-                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center flex-shrink-0">
-                    <AppIcon name="Radio" size={24} color="#FFFFFF" />
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+                    <AppIcon name="Radio" size={24} className="text-primary-foreground" />
                   </div>
                   <div>
                     <h1 className="text-lg md:text-xl lg:text-2xl font-bold text-foreground">

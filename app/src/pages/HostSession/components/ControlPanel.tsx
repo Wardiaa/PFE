@@ -80,7 +80,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             </div>
             <div className="h-2 bg-muted rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-500"
+                className="h-full bg-primary transition-all duration-500"
                 style={{ width: `${(currentQuestion / totalQuestions) * 100}%` }}
               />
             </div>
