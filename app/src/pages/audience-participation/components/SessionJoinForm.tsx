@@ -79,8 +79,8 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({ onJoin }) => {
     <div className="w-full max-w-md mx-auto">
       <div className="bg-card rounded-xl p-6 md:p-8 lg:p-10 shadow-lg border border-border">
         <div className="text-center mb-6 md:mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-full bg-linear-to-br from-primary to-secondary mb-4">
-            <AppIcon name="Users" size={32} color="#FFFFFF" />
+          <div className="inline-flex items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-full bg-primary/10 mb-4">
+            <AppIcon name="Users" size={32} color="var(--color-primary)" />
           </div>
           <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-foreground mb-2">
             Join Session
