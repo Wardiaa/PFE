@@ -56,11 +56,16 @@
   --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
   --color-sidebar-border: hsl(var(--sidebar-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  /* Success/Warning/Info colors */
+  --color-success: hsl(var(--success));
+  --color-warning: hsl(var(--warning));
+  --color-info: hsl(var(--info));
 }
 
 @layer base {
   :root {
-    /* Modern Vibrant Theme */
+    /* Modern Vibrant Theme - Base HSL values */
     --background: 220 20% 97%;
     --foreground: 220 40% 10%;
 
@@ -106,6 +111,11 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Status colors - HSL values only (no hsl() wrapper) */
+    --success: 160 70% 50%;
+    --warning: 45 95% 60%;
+    --info: 190 85% 50%;
   }
 
   .dark {
@@ -151,6 +161,11 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Status colors - Dark mode */
+    --success: 160 70% 60%;
+    --warning: 45 95% 65%;
+    --info: 190 85% 60%;
   }
 
   * {
@@ -208,6 +223,55 @@
 
   .shadow-glow-accent {
     box-shadow: 0 0 40px -10px hsl(var(--accent) / 0.4);
+  }
+
+  /* Status color utilities */
+  .bg-success {
+    background-color: hsl(var(--success));
+  }
+  
+  .bg-success\/10 {
+    background-color: hsl(var(--success) / 0.1);
+  }
+  
+  .text-success {
+    color: hsl(var(--success));
+  }
+  
+  .border-success\/20 {
+    border-color: hsl(var(--success) / 0.2);
+  }
+  
+  .bg-warning {
+    background-color: hsl(var(--warning));
+  }
+  
+  .bg-warning\/10 {
+    background-color: hsl(var(--warning) / 0.1);
+  }
+  
+  .text-warning {
+    color: hsl(var(--warning));
+  }
+  
+  .border-warning\/20 {
+    border-color: hsl(var(--warning) / 0.2);
+  }
+  
+  .bg-info {
+    background-color: hsl(var(--info));
+  }
+  
+  .bg-info\/10 {
+    background-color: hsl(var(--info) / 0.1);
+  }
+  
+  .text-info {
+    color: hsl(var(--info));
+  }
+  
+  .border-info\/20 {
+    border-color: hsl(var(--info) / 0.2);
   }
 }
 
@@ -340,7 +404,7 @@
 /* Firefox support */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(100, 116, 139, 0.3) #f1f5f9;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.3) hsl(var(--muted));
 }
 
 /* Focus Styles */

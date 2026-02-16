@@ -12,6 +12,7 @@ import Join from "./pages/join";
 import Results from "./pages/results";
 import NotFound from "./pages/not-found";
 import { Toaster } from "./components/ui/toaster"; // Add this import
+import AudienceParticipation from "./pages/audience-participation/index";
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
           <Route path="session/:id" element={<ParticipantSession />} />
           <Route path="join" element={<Join />} />
           <Route path="results/:id" element={<Results />} />
+          <Route path="audience-participation" element={<AudienceParticipation />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
