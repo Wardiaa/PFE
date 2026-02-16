@@ -495,47 +495,49 @@ const BulkActions = ({
 
       {selectedQuestionsCount > 0 ? (
         <div className="space-y-3">
+          {/* Duplicate & Delete - side by side */}
           <div className="flex gap-2">
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={() => {
                 setActionType('duplicate');
                 setIsDialogOpen(true);
               }}
-              className="flex-1"
+              className="flex-1 bg-white dark:bg-gray-800 border-0 shadow-sm hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"
             >
               <Copy className="w-4 h-4 mr-2" />
               Duplicate
             </Button>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={() => {
                 setActionType('delete');
                 setIsDialogOpen(true);
               }}
-              className="flex-1 text-destructive"
+              className="flex-1 bg-white dark:bg-gray-800 border-0 shadow-sm hover:shadow-md hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 hover:text-red-700 transition-all"
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Delete
             </Button>
           </div>
 
+          {/* Update Points */}
           <div className="space-y-2">
             <Label className="text-xs font-medium text-foreground">Update Points for All Selected</Label>
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               {[5, 10, 15, 20].map(points => (
                 <Button
                   key={points}
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   onClick={() => {
                     setActionType('points');
                     setPointsValue(points);
                     setIsDialogOpen(true);
                   }}
-                  className="flex-1"
+                  className="flex-1 bg-white dark:bg-gray-800 border-0 shadow-sm hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"
                 >
                   {points}
                 </Button>
@@ -543,20 +545,21 @@ const BulkActions = ({
             </div>
           </div>
 
+          {/* Update Time Limit */}
           <div className="space-y-2">
             <Label className="text-xs font-medium text-foreground">Update Time Limit (seconds)</Label>
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               {[15, 30, 45, 60].map(time => (
                 <Button
                   key={time}
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   onClick={() => {
                     setActionType('time');
                     setTimeLimitValue(time);
                     setIsDialogOpen(true);
                   }}
-                  className="flex-1"
+                  className="flex-1 bg-white dark:bg-gray-800 border-0 shadow-sm hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"
                 >
                   {time}s
                 </Button>
@@ -564,106 +567,106 @@ const BulkActions = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          {/* Lock & Unlock - side by side */}
+          <div className="grid grid-cols-2 gap-3">
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={() => {
                 setActionType('lock');
                 setIsDialogOpen(true);
               }}
+              className="bg-white dark:bg-gray-800 border-0 shadow-sm hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"
             >
               <Lock className="w-4 h-4 mr-2" />
               Lock
             </Button>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={() => {
                 setActionType('unlock');
                 setIsDialogOpen(true);
               }}
+              className="bg-white dark:bg-gray-800 border-0 shadow-sm hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"
             >
               <Lock className="w-4 h-4 mr-2" />
               Unlock
             </Button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          {/* Shuffle Answers & Export Selected - side by side */}
+          <div className="grid grid-cols-2 gap-3">
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={() => {
                 setActionType('shuffle');
                 setIsDialogOpen(true);
               }}
+              className="bg-white dark:bg-gray-800 border-0 shadow-sm hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"
             >
               <Shuffle className="w-4 h-4 mr-2" />
               Shuffle Answers
             </Button>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={handleExportSelected}
+              className="bg-white dark:bg-gray-800 border-0 shadow-sm hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"
             >
               <Download className="w-4 h-4 mr-2" />
               Export Selected
             </Button>
           </div>
 
-          {/* Reorder Controls */}
-          <div className="border rounded-lg overflow-hidden">
-            <div className="grid grid-cols-4 border-b">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="rounded-none border-r"
+          {/* Reorder Controls - keep as is but with cleaner style */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+            <div className="grid grid-cols-4">
+              <button
                 onClick={() => onReorderQuestions('top')}
+                className="p-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-r border-gray-100 dark:border-gray-700"
               >
-                <ArrowUpToLine className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="rounded-none border-r"
+                <ArrowUpToLine className="w-4 h-4 mx-auto text-muted-foreground" />
+              </button>
+              <button
                 onClick={() => onReorderQuestions('up')}
+                className="p-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-r border-gray-100 dark:border-gray-700"
               >
-                <ChevronUp className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="rounded-none border-r"
+                <ChevronUp className="w-4 h-4 mx-auto text-muted-foreground" />
+              </button>
+              <button
                 onClick={() => onReorderQuestions('down')}
+                className="p-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-r border-gray-100 dark:border-gray-700"
               >
-                <ChevronDown className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="rounded-none"
+                <ChevronDown className="w-4 h-4 mx-auto text-muted-foreground" />
+              </button>
+              <button
                 onClick={() => onReorderQuestions('bottom')}
+                className="p-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
-                <ArrowDownToLine className="w-4 h-4" />
-              </Button>
+                <ArrowDownToLine className="w-4 h-4 mx-auto text-muted-foreground" />
+              </button>
             </div>
-            <div className="p-2 text-center text-xs text-muted-foreground">
+            <div className="p-2 text-center text-xs text-muted-foreground border-t border-gray-100 dark:border-gray-700">
               Reorder selected questions
             </div>
           </div>
 
+          {/* Clear Selection */}
           <Button
             variant="ghost"
             size="sm"
             onClick={onClearSelection}
-            className="w-full text-muted-foreground"
+            className="w-full text-muted-foreground hover:text-foreground hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
           >
             Clear Selection
           </Button>
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="text-center p-4 border border-dashed border-border rounded-lg">
+          {/* No selection state */}
+          <div className="text-center p-4 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50/50 dark:bg-gray-800/50">
             <ChevronUp className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
             <p className="text-sm text-muted-foreground mb-3">
               Select questions to perform bulk actions
@@ -672,19 +675,21 @@ const BulkActions = ({
               variant="outline"
               size="sm"
               onClick={onSelectAll}
-              className="w-full"
+              className="w-full bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"
             >
               Select All Questions
             </Button>
           </div>
 
+          {/* Quick Actions */}
           <div className="space-y-2">
             <h4 className="text-xs font-medium text-foreground">Quick Actions</h4>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={handleExportAll}
+                className="bg-white dark:bg-gray-800 border-0 shadow-sm hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Export All
@@ -698,10 +703,10 @@ const BulkActions = ({
                   onChange={handleImportQuestions}
                 />
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   onClick={() => document.getElementById('import-file')?.click()}
-                  className="w-full"
+                  className="w-full bg-white dark:bg-gray-800 border-0 shadow-sm hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"
                 >
                   <Upload className="w-4 h-4 mr-2" />
                   Import
