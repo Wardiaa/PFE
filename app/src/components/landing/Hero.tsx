@@ -1,5 +1,6 @@
 
 import React, { useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 
 const Hero: React.FC = () => {
@@ -68,12 +69,16 @@ const Hero: React.FC = () => {
         </p>
         
         <div className="hero-fade flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
-          <button className="magnetic-btn w-full sm:w-auto px-12 py-6 bg-slate-950 text-white rounded-full font-bold text-lg hover:bg-indigo-600 transition-all shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] hover:shadow-indigo-500/40">
-            Host a Session
-          </button>
-          <button className="magnetic-btn w-full sm:w-auto px-12 py-6 bg-white text-slate-950 border-2 border-slate-100 rounded-full font-bold text-lg hover:border-slate-300 transition-all">
-            Join with Code
-          </button>
+          <Link to="/create">
+            <button className="magnetic-btn w-full sm:w-auto px-12 py-6 bg-slate-950 text-white rounded-full font-bold text-lg hover:bg-indigo-600 transition-all shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] hover:shadow-indigo-500/40">
+              Host a Session
+            </button>
+          </Link>
+          <Link to="/audience-participation">
+            <button className="magnetic-btn w-full sm:w-auto px-12 py-6 bg-white text-slate-950 border-2 border-slate-100 rounded-full font-bold text-lg hover:border-slate-300 transition-all">
+              Join with Code
+            </button>
+          </Link>
         </div>
       </div>
 

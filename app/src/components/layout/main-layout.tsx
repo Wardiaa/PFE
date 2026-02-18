@@ -1,5 +1,5 @@
 // components/layout/main-layout.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { Button } from "../ui/button";
 import { NotificationsPanel } from "../notifications-panel";
@@ -30,106 +30,124 @@ export function MainLayout() {
   const location = useLocation();
   const [showNotifications, setShowNotifications] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
   
   const unreadNotifications = 3; // Mock count
   
-  // Check if current route is the create page or auth page
-  const isFullWidthPage = location.pathname === "/create" || location.pathname === "/auth";
-  
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Navigation */}
-      <nav className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center">
-              <Link to="/" className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-linear-to-br from-primary to-accent flex items-center justify-center">
-                  <span className="font-bold text-white">E</span>
+      {/* Navigation - Sticky like original, styled like Navbar */}
+      <nav className="sticky top-0 z-40 w-full transition-all duration-700">
+        <div 
+          className={cn(
+            "w-full transition-all duration-700",
+            scrolled ? 'bg-background/95 backdrop-blur-xl border-b shadow-sm' : 'bg-background'
+          )}
+        >
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              {/* Logo - Styled like Navbar */}
+              <Link to="/" className="flex items-center gap-3 group cursor-pointer">
+                <div className={cn(
+                  "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500",
+                  scrolled ? 'bg-primary' : 'bg-primary/90'
+                )}>
+                  <span className="font-black text-white text-sm">E</span>
                 </div>
                 <span className="font-heading font-bold text-xl">Engage</span>
               </Link>
-            </div>
-            
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-6">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = location.pathname === item.path;
-                return (
-                  <Link key={item.path} to={item.path}>
-                    <Button
-                      variant={isActive ? "secondary" : "ghost"}
+              
+              {/* Desktop Navigation - Simplified links */}
+              <div className="hidden md:flex items-center gap-6">
+                {navItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname === item.path;
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
                       className={cn(
-                        "gap-2",
-                        isActive && "bg-primary/10 text-primary"
+                        "text-sm font-medium transition-colors hover:text-primary flex items-center gap-2 px-3 py-2 rounded-full",
+                        isActive 
+                          ? "text-primary bg-primary/10" 
+                          : "text-muted-foreground hover:text-foreground"
                       )}
                     >
                       <Icon className="h-4 w-4" />
                       {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* Right Side Actions */}
+              <div className="flex items-center gap-3">
+                {/* Notifications */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="relative rounded-full"
+                  onClick={() => setShowNotifications(!showNotifications)}
+                >
+                  <Bell className="h-5 w-5" />
+                  {unreadNotifications > 0 && (
+                    <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">
+                      {unreadNotifications}
+                    </span>
+                  )}
+                </Button>
+                
+                {/* User Menu */}
+                {user && (
+                  <div className="hidden md:flex items-center gap-3">
+                    <img
+                      src={user.avatar}
+                      alt={user.name}
+                      className="h-8 w-8 rounded-full ring-2 ring-primary/10"
+                    />
+                    <div className="text-sm hidden lg:block">
+                      <div className="font-medium">{user.name}</div>
+                      <div className="text-xs text-muted-foreground">{user.role}</div>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={logout}
+                      className="rounded-full text-muted-foreground hover:text-foreground"
+                    >
+                      <LogOut className="h-4 w-4" />
                     </Button>
-                  </Link>
-                );
-              })}
-            </div>
-            
-            {/* Right Side Actions */}
-            <div className="flex items-center gap-3">
-              {/* Notifications */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative"
-                onClick={() => setShowNotifications(!showNotifications)}
-              >
-                <Bell className="h-5 w-5" />
-                {unreadNotifications > 0 && (
-                  <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">
-                    {unreadNotifications}
-                  </span>
-                )}
-              </Button>
-              
-              {/* User Menu */}
-              {user && (
-                <div className="hidden md:flex items-center gap-3">
-                  <img
-                    src={user.avatar}
-                    alt={user.name}
-                    className="h-8 w-8 rounded-full"
-                  />
-                  <div className="text-sm">
-                    <div className="font-medium">{user.name}</div>
-                    <div className="text-xs text-muted-foreground">{user.role}</div>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={logout}>
-                    <LogOut className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-              
-              {/* Mobile Menu Button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="md:hidden"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              >
-                {mobileMenuOpen ? (
-                  <X className="h-5 w-5" />
-                ) : (
-                  <Menu className="h-5 w-5" />
                 )}
-              </Button>
+                
+                {/* Mobile Menu Button */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden rounded-full"
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                >
+                  {mobileMenuOpen ? (
+                    <X className="h-5 w-5" />
+                  ) : (
+                    <Menu className="h-5 w-5" />
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
         
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t">
-            <div className="px-4 py-3 space-y-1">
+          <div className="md:hidden border-t bg-background">
+            <div className="max-w-7xl mx-auto px-4 py-3 space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
@@ -154,7 +172,7 @@ export function MainLayout() {
               })}
               {user && (
                 <>
-                  <div className="pt-4 border-t">
+                  <div className="pt-4 border-t mt-4">
                     <div className="flex items-center gap-3 px-4 py-3">
                       <img
                         src={user.avatar}
@@ -169,7 +187,7 @@ export function MainLayout() {
                   </div>
                   <Button
                     variant="ghost"
-                    className="w-full justify-start gap-3"
+                    className="w-full justify-start gap-3 text-red-500 hover:text-red-600 hover:bg-red-50"
                     onClick={logout}
                   >
                     <LogOut className="h-4 w-4" />
@@ -188,25 +206,23 @@ export function MainLayout() {
         onClose={() => setShowNotifications(false)}
       />
       
-      {/* Main Content - Different handling for auth page */}
+      {/* Main Content */}
       <main className="flex-1">
-  <Outlet />
-</main>
+        <Outlet />
+      </main>
       
-      {/* Footer - Show on all pages except create */}
-      {location.pathname !== "/create" && (
-        <footer className="border-t py-8">
-          <div className="max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground">
-            <p>© 2024 Engage Interactive. All rights reserved.</p>
-            <div className="mt-4 flex items-center justify-center gap-6">
-              <Link to="/terms" className="hover:text-foreground">Terms</Link>
-              <Link to="/privacy" className="hover:text-foreground">Privacy</Link>
-              <Link to="/contact" className="hover:text-foreground">Contact</Link>
-              <Link to="/help" className="hover:text-foreground">Help Center</Link>
-            </div>
+      {/* Footer */}
+      <footer className="border-t py-8 mt-auto">
+        <div className="max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground">
+          <p>© 2024 Engage Interactive. All rights reserved.</p>
+          <div className="mt-4 flex items-center justify-center gap-6">
+            <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
+            <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+            <Link to="/contact" className="hover:text-foreground transition-colors">Contact</Link>
+            <Link to="/help" className="hover:text-foreground transition-colors">Help Center</Link>
           </div>
-        </footer>
-      )}
+        </div>
+      </footer>
     </div>
   );
 }
