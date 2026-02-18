@@ -6,8 +6,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: 'Inter', sans-serif;
-  --font-heading: 'Outfit', sans-serif;
+  --font-sans: 'Instrument Sans', sans-serif;
+  --font-heading: 'Bricolage Grotesque', sans-serif;
   
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
@@ -76,8 +76,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 220 40% 10%;
 
-    /* Vibrant Violet */
-    --primary: 255 85% 60%;
+    /* indigo */
+    --primary: 239 84% 67%;
     --primary-foreground: 0 0% 100%;
 
     /* Soft Lavender/Blue */
