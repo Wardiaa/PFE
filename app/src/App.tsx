@@ -7,8 +7,6 @@ import Dashboard from "./pages/dashboard";
 import EnhancedCreate from "./pages/enhanced-create";
 import AdminDashboard from "./pages/admin-dashboard";
 import HostSession from "./pages/HostSession/index";
-import ParticipantSession from "./pages/participant-session";
-import Join from "./pages/join";
 import Results from "./pages/results";
 import NotFound from "./pages/not-found";
 import { Toaster } from "./components/ui/toaster"; // Add this import
@@ -26,8 +24,6 @@ function App() {
           <Route path="create" element={<EnhancedCreate />} />
           <Route path="admin" element={<AdminDashboard />} />
           <Route path="session/:id/host" element={<HostSession />} />
-          <Route path="session/:id" element={<ParticipantSession />} />
-          <Route path="join" element={<Join />} />
           <Route path="results/:id" element={<Results />} />
           <Route path="audience-participation" element={<AudienceParticipation />} />
           <Route path="*" element={<NotFound />} />

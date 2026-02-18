@@ -72,7 +72,7 @@ export default function Home() {
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            <Link to="/join">
+            <Link to="/audience-participation">
               <Button 
                 variant="outline" 
                 size="lg" 
@@ -330,7 +330,7 @@ export default function Home() {
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                 </Link>
-                <Link to="/join">
+                <Link to="/audience-participation">
                   <Button 
                     size="lg"
                     variant="outline"
