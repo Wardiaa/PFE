@@ -9,16 +9,19 @@ import AdminDashboard from "./pages/admin-dashboard";
 import HostSession from "./pages/HostSession/index";
 import Results from "./pages/results";
 import NotFound from "./pages/not-found";
-import { Toaster } from "./components/ui/toaster"; // Add this import
+import { Toaster } from "./components/ui/toaster";
 import AudienceParticipation from "./pages/audience-participation/index";
 
 function App() {
   return (
     <BrowserRouter>
-      <Toaster /> {/* Add Toaster here */}
+      <Toaster />
       <Routes>
-        <Route path="/" element={<MainLayout />}>
-          <Route index element={<Home />} />
+        {/* Home route WITHOUT MainLayout */}
+        <Route path="/" element={<Home />} />
+        
+        {/* All other routes WITH MainLayout */}
+        <Route element={<MainLayout />}>
           <Route path="auth" element={<Auth />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="create" element={<EnhancedCreate />} />

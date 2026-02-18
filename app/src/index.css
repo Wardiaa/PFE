@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:wght@300;500;800&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
@@ -116,6 +117,11 @@
     --success: 160 70% 50%;
     --warning: 45 95% 60%;
     --info: 190 85% 50%;
+
+    
+  --brand-indigo: #6366f1;
+  --brand-mint: #10b981;
+  --brand-obsidian: #020617;
   }
 
   .dark {
