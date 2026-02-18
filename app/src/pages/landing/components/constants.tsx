@@ -1,5 +1,5 @@
 
-import type { FeatureSlide, StatItem } from '../../types/index';
+import type { FeatureSlide, StatItem } from '../../../types/index';
 
 export const FEATURES: FeatureSlide[] = [
   {

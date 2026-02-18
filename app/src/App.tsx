@@ -1,7 +1,7 @@
 // App.tsx
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { MainLayout } from "./components/layout/main-layout";
-import Home from "./pages/home";
+import Home from "./pages/landing/index";
 import Auth from "./pages/auth";
 import Dashboard from "./pages/dashboard";
 import EnhancedCreate from "./pages/enhanced-create";
