@@ -21,7 +21,7 @@ const steps = [
     subtitle: "Live Action, Live Results.",
     desc: "Watch insights evolve as your audience votes. Results are beautifully visualized in real-time on your screen and theirs.",
     accent: "text-emerald-500",
-    img: "https://images.unsplash.com/photo-1551288049-bbbda536339a?q=80&w=2070&auto=format&fit=crop"
+    img: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=2015&auto=format&fit=crop"
   }
 ];
 
