@@ -40,6 +40,9 @@ export function MainLayout() {
   
   const unreadNotifications = 3; // Mock count
   
+  // Check if current route is the create page
+  const isCreatePage = location.pathname === "/create";
+  
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Navigation - Sticky like original, styled like Navbar */}
@@ -211,18 +214,20 @@ export function MainLayout() {
         <Outlet />
       </main>
       
-      {/* Footer */}
-      <footer className="border-t py-8 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>© 2024 Engage Interactive. All rights reserved.</p>
-          <div className="mt-4 flex items-center justify-center gap-6">
-            <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
-            <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
-            <Link to="/contact" className="hover:text-foreground transition-colors">Contact</Link>
-            <Link to="/help" className="hover:text-foreground transition-colors">Help Center</Link>
+      {/* Footer - Conditionally hide on create page */}
+      {!isCreatePage && (
+        <footer className="border-t py-8 mt-auto">
+          <div className="max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground">
+            <p>© 2024 Engage Interactive. All rights reserved.</p>
+            <div className="mt-4 flex items-center justify-center gap-6">
+              <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
+              <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+              <Link to="/contact" className="hover:text-foreground transition-colors">Contact</Link>
+              <Link to="/help" className="hover:text-foreground transition-colors">Help Center</Link>
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }
