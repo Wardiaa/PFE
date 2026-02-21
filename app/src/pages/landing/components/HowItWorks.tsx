@@ -137,7 +137,7 @@ const HowItWorksAnimated: React.FC = () => {
   const opacity = useTransform(scrollYProgress, [0, 0.2, 0.8, 1], [0, 1, 1, 0]);
 
   return (
-    <section ref={containerRef} className="py-32 bg-slate-950 relative overflow-hidden">
+    <section ref={containerRef}  id="how-it-works" className="py-32 bg-slate-950 relative overflow-hidden">
       
       {/* Moving Background Elements (Parallax) */}
       <motion.div style={{ y, opacity }} className="absolute top-0 left-0 w-full h-full pointer-events-none">
