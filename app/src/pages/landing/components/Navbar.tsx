@@ -27,7 +27,7 @@ const Navbar: React.FC = () => {
         <div className={`hidden lg:flex items-center space-x-12 text-[11px] font-bold uppercase tracking-[0.2em] transition-colors duration-500 ${scrolled ? 'text-slate-400' : 'text-slate-500'}`}>
           <a href="#features" className="hover:text-indigo-400 transition-colors">The Platform</a>
           <a href="#how-it-works" className="hover:text-indigo-400 transition-colors">Our Process</a>
-          <a href="#pricing" className="hover:text-indigo-400 transition-colors">Pricing</a>
+          <Link to="/auth" className="hover:text-indigo-400 transition-colors">Sign in</Link>
         </div>
 
         <div className="flex items-center space-x-6">
