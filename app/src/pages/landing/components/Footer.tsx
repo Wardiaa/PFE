@@ -68,12 +68,9 @@ const Footer: React.FC = () => {
         </div>
 
         <div className="pt-12 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between text-slate-400 text-sm">
-          <p>© 2024 EngageLive Inc. All rights reserved.</p>
+          <p>© 2026 EngageLive Inc. All rights reserved.</p>
           <div className="flex items-center space-x-6 mt-4 md:mt-0">
-            <span className="flex items-center space-x-2">
-               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-               <span>Systems Operational</span>
-            </span>
+            
           </div>
         </div>
       </div>
