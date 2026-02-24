@@ -4,7 +4,7 @@ import { MainLayout } from "./components/layout/main-layout";
 import Home from "./pages/landing/index";
 import Auth from "./pages/auth";
 import Dashboard from "./pages/dashboard";
-import EnhancedCreate from "./pages/enhanced-create";
+import Create from "./pages/create/index";
 import AdminDashboard from "./pages/admin-dashboard";
 import HostSession from "./pages/HostSession/index";
 import Results from "./pages/results";
@@ -24,7 +24,7 @@ function App() {
         <Route element={<MainLayout />}>
           <Route path="auth" element={<Auth />} />
           <Route path="dashboard" element={<Dashboard />} />
-          <Route path="create" element={<EnhancedCreate />} />
+          <Route path="create" element={<Create />} />
           <Route path="admin" element={<AdminDashboard />} />
           <Route path="session/:id/host" element={<HostSession />} />
           <Route path="results/:id" element={<Results />} />
