@@ -66,7 +66,7 @@ const OpenTextQuestion: React.FC<OpenTextQuestionProps> = ({ question, onSubmit 
             onChange={handleChange}
             placeholder="Type your response here..."
             disabled={isSubmitting}
-            className="w-full min-h-[160px] md:min-h-[200px] px-4 py-3 rounded-xl border-2 border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent resize-none transition-all duration-250 text-base md:text-lg"
+            className="w-full min-h-[160px] md:min-h-[200px] px-4 py-3 rounded-xl border-2 border-border bg-background text-foreground placeholder:text-muted-foreground focus:!outline-none focus:!border-primary focus:!border-2 focus:!ring-0 resize-none transition-all duration-250 text-base md:text-lg"
           />
           <div className="flex items-center justify-between mt-2 px-1">
             <span className="text-xs md:text-sm text-muted-foreground">
