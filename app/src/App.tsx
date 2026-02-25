@@ -19,10 +19,10 @@ function App() {
       <Routes>
         {/* Home route WITHOUT MainLayout */}
         <Route path="/" element={<Home />} />
-        
+        <Route path="auth" element={<Auth />} />
         {/* All other routes WITH MainLayout */}
         <Route element={<MainLayout />}>
-          <Route path="auth" element={<Auth />} />
+          
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="create" element={<Create />} />
           <Route path="admin" element={<AdminDashboard />} />
