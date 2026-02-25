@@ -150,23 +150,23 @@ export function TemplateCustomizationDialog({
         <div className="flex-1 overflow-y-auto">
           <div className="p-6 space-y-6">
             
-            {/* Custom Title Section */}
-            <div className="space-y-3">
-              <Label htmlFor="custom-title" className="text-base font-semibold">
-                Quiz Title
-              </Label>
-              <input
-                id="custom-title"
-                type="text"
-                value={options.customTitle}
-                onChange={(e) => setOptions(prev => ({ ...prev, customTitle: e.target.value }))}
-                className="w-full px-4 py-3 text-lg font-medium border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-background"
-                placeholder="Enter a custom title..."
-              />
-              <p className="text-sm text-muted-foreground">
-                Give your quiz a unique name that participants will see
-              </p>
-            </div>
+           {/* Custom Title Section */}
+<div className="space-y-3">
+  <Label htmlFor="custom-title" className="text-base font-semibold">
+    Quiz Title
+  </Label>
+  <input
+    id="custom-title"
+    type="text"
+    value={options.customTitle}
+    onChange={(e) => setOptions(prev => ({ ...prev, customTitle: e.target.value }))}
+    className="w-full px-4 py-3 text-lg font-medium border rounded-lg focus:!border-primary focus:!border-2 focus:!ring-0 focus:!outline-none bg-background"
+    placeholder="Enter a custom title..."
+  />
+  <p className="text-sm text-muted-foreground">
+    Give your quiz a unique name that participants will see
+  </p>
+</div>
 
             {/* Divider */}
             <div className="border-t" />

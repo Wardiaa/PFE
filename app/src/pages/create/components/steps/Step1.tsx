@@ -34,7 +34,7 @@ export function Step1({
             animate={{ opacity: 1, y: 0 }}
             className="inline-flex items-center space-x-2 px-6 py-2 mb-10 rounded-full border border-slate-200 bg-white/50 backdrop-blur shadow-sm text-[10px] font-black uppercase tracking-[0.4em] text-slate-900"
           >
-            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-indigo-500" />
             <span>Step 01 • The Creative</span>
           </motion.div>
           
