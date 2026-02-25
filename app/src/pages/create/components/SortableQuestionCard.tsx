@@ -12,10 +12,16 @@ import {
   MessageSquare,
   Cloud,
   BarChart2,
-  HelpCircle
+  HelpCircle,
+  Sparkles,
+  Timer,
+  Star,
+  ChevronRight,
+  X
 } from "lucide-react";
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useState } from "react";
 
 interface SortableQuestionCardProps {
   id: string;
@@ -42,6 +48,8 @@ export function SortableQuestionCard({
   onDelete,
   activeDragId
 }: SortableQuestionCardProps) {
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
+  
   const {
     attributes,
     listeners,
@@ -69,16 +77,46 @@ export function SortableQuestionCard({
     return HelpCircle;
   };
 
-  const getTypeColor = (type: string) => {
+  const getTypeStyles = (type: string) => {
     if (type === 'multiple-choice' || type === 'SINGLE_CHOICE' || type === 'MULTIPLE_CHOICE' || type === 'TRUE_FALSE' || type === 'POLL')
-      return 'bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400';
+      return {
+        bg: 'bg-teal-50 dark:bg-teal-950/30',
+        text: 'text-teal-700 dark:text-teal-400',
+        border: 'border-teal-200 dark:border-teal-800',
+        icon: 'text-teal-500',
+        gradient: 'from-teal-500 to-teal-400'
+      };
     if (type === 'open-text' || type === 'OPEN_TEXT')
-      return 'bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-400';
+      return {
+        bg: 'bg-cyan-50 dark:bg-cyan-950/30',
+        text: 'text-cyan-700 dark:text-cyan-400',
+        border: 'border-cyan-200 dark:border-cyan-800',
+        icon: 'text-cyan-500',
+        gradient: 'from-cyan-500 to-cyan-400'
+      };
     if (type === 'word-cloud' || type === 'WORD_CLOUD')
-      return 'bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400';
+      return {
+        bg: 'bg-orange-50 dark:bg-orange-950/30',
+        text: 'text-orange-700 dark:text-orange-400',
+        border: 'border-orange-200 dark:border-orange-800',
+        icon: 'text-orange-500',
+        gradient: 'from-orange-500 to-orange-400'
+      };
     if (type === 'rating-scale' || type === 'RATING')
-      return 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400';
-    return 'bg-gray-50 dark:bg-gray-950/30 text-gray-700 dark:text-gray-400';
+      return {
+        bg: 'bg-emerald-50 dark:bg-emerald-950/30',
+        text: 'text-emerald-700 dark:text-emerald-400',
+        border: 'border-emerald-200 dark:border-emerald-800',
+        icon: 'text-emerald-500',
+        gradient: 'from-emerald-500 to-emerald-400'
+      };
+    return {
+      bg: 'bg-slate-50 dark:bg-slate-950/30',
+      text: 'text-slate-700 dark:text-slate-400',
+      border: 'border-slate-200 dark:border-slate-800',
+      icon: 'text-slate-500',
+      gradient: 'from-slate-500 to-slate-400'
+    };
   };
 
   const getDisplayType = (question: Question) => {
@@ -169,18 +207,28 @@ export function SortableQuestionCard({
   }
 
   const TypeIcon = getTypeIcon(question.type);
-  const typeColor = getTypeColor(question.type);
+  const typeStyles = getTypeStyles(question.type);
+
+  // Determine card border style based on state
+  const getCardBorderStyle = () => {
+    if (isCurrent) {
+      return 'border-indigo-200 ring-2 ring-indigo-100 ring-offset-0';
+    }
+    if (isSelected) {
+      return 'border-blue-200 bg-blue-50/30';
+    }
+    return 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50';
+  };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={cn(
-        "border rounded-lg overflow-hidden transition-all cursor-pointer mb-3",
-        isCurrent ? 'border-primary ring-1 ring-primary/20 shadow-md' : 
-        isSelected ? 'border-blue-500 ring-1 ring-blue-500/20 bg-blue-50/50' :
-        'border-border opacity-80 hover:opacity-100 hover:border-muted-foreground',
-        isDragging && 'shadow-lg scale-105'
+        "relative rounded-2xl border bg-white/90 backdrop-blur-sm transition-all duration-200 mb-3",
+        getCardBorderStyle(),
+        isDragging && 'shadow-xl shadow-indigo-100/50 scale-[1.02] rotate-[0.5deg]',
+        !isCurrent && !isSelected && 'hover:shadow-md'
       )}
       onClick={(e) => {
         if ((e.target as HTMLElement).closest('.no-select')) return;
@@ -190,169 +238,243 @@ export function SortableQuestionCard({
         onQuestionClick(index);
       }}
     >
-      <div className="p-4 flex items-start gap-3">
-        <div 
-          className="mt-1 cursor-grab active:cursor-grabbing text-muted-foreground no-select"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="w-5 h-5" />
-        </div>
-        
-        <div 
-          className="mt-1 cursor-pointer no-select"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleSelect(index);
-          }}
-        >
-          <div className={cn(
-            "w-5 h-5 border rounded flex items-center justify-center transition-colors",
-            isSelected 
-              ? 'bg-blue-500 border-blue-500 text-white' 
-              : 'border-muted-foreground hover:border-primary hover:bg-primary/10'
-          )}>
-            {isSelected && <Check className="w-3 h-3" />}
+      {/* Gradient accent for current question */}
+      {isCurrent && (
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-indigo-400 rounded-l-2xl" />
+      )}
+      
+      <div className="p-5">
+        {/* Header with drag handle, selection, and type */}
+        <div className="flex items-start gap-3 mb-4">
+          <div 
+            className="mt-0.5 cursor-grab active:cursor-grabbing text-slate-400 hover:text-indigo-500 transition-colors no-select"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="w-4 h-4" />
           </div>
-        </div>
-        
-        <div className="flex-1 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                Question {index + 1}
-              </span>
-              <span className={cn("text-xs px-2 py-1 rounded-full capitalize", typeColor)}>
-                {getDisplayType(question)}
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button 
-                variant="ghost" 
-                size="icon"
-                className="h-6 w-6 text-destructive no-select"
-                onClick={handleDeleteQuestion}
-              >
-                <Trash2 className="w-3 h-3" />
-              </Button>
+          
+          <div 
+            className="mt-0.5 cursor-pointer no-select"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelect(index);
+            }}
+          >
+            <div className={cn(
+              "w-4 h-4 rounded-md border flex items-center justify-center transition-all duration-150",
+              isSelected 
+                ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-200' 
+                : 'border-slate-300 hover:border-indigo-400 hover:bg-indigo-50'
+            )}>
+              {isSelected && <Check className="w-3 h-3" />}
             </div>
           </div>
           
-          {isCurrent ? (
-            <div className="space-y-4">
-              <Input 
-                value={question.title} 
-                onChange={handleTitleChange}
-                className="text-lg font-medium border-x-0 border-t-0 border-b rounded-none px-0 focus-visible:ring-0 no-select"
-                placeholder="Type your question..."
-                autoFocus
-              />
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-xs text-muted-foreground">Time Limit (s)</Label>
-                  <Input 
-                    type="number" 
-                    value={question.timeLimit || 30} 
-                    onChange={handleTimeLimitChange}
-                    className="h-8 no-select"
-                    min="5"
-                    max="300"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">Points</Label>
-                  <Input 
-                    type="number" 
-                    value={question.points || 10} 
-                    onChange={handlePointsChange}
-                    className="h-8 no-select"
-                    min="0"
-                    max="100"
-                  />
-                </div>
-              </div>
-
-              {shouldHaveOptions(question.type) && (
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Answer Options</Label>
-                  {question.options && question.options.length > 0 ? (
-                    <>
-                      {question.options.map((opt) => (
-                        <div key={opt.id} className="flex items-center gap-2">
-                          <div 
-                            className={cn(
-                              "w-5 h-5 rounded-full border flex items-center justify-center cursor-pointer transition-colors no-select",
-                              opt.isCorrect ? 'bg-green-500 border-green-500 text-white' : 'border-muted-foreground hover:border-primary'
-                            )}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOptionCorrectToggle(opt.id);
-                            }}
-                          >
-                            {opt.isCorrect && <Check className="w-3 h-3" />}
-                          </div>
-                          <Input 
-                            value={opt.text}
-                            onChange={(e) => handleOptionChange(opt.id, e.target.value)}
-                            className="h-8 no-select"
-                            placeholder="Option text"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground no-select"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteOption(opt.id);
-                            }}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      ))}
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        className="text-primary hover:text-primary/80 p-0 h-auto font-normal no-select"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAddOption();
-                        }}
-                      >
-                        + Add Option
-                      </Button>
-                    </>
-                  ) : (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">No options yet. Click the button below to add options.</p>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          initializeOptionsIfNeeded();
-                        }}
-                      >
-                        Initialize with default options
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-
+          <div className="flex-1 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">
+                Q{index + 1}
+              </span>
+              <span className={cn(
+                "inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[9px] font-bold uppercase tracking-wider",
+                typeStyles.bg,
+                typeStyles.text,
+                typeStyles.border
+              )}>
+                <TypeIcon className={cn("w-3 h-3", typeStyles.icon)} />
+                {getDisplayType(question)}
+              </span>
               {question.locked && (
-                <span className="text-xs px-2 py-1 rounded-full bg-yellow-50 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400 inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 text-[9px] font-bold uppercase tracking-wider">
                   <Lock className="w-3 h-3" />
                   Locked
                 </span>
               )}
             </div>
-          ) : (
-            <div className="text-muted-foreground truncate">{question.title}</div>
-          )}
+            
+            <button
+              onClick={handleDeleteQuestion}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all no-select"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
+
+        {/* Content */}
+        {isCurrent ? (
+          <div className="space-y-5 pl-7">
+            {/* Question Title Input */}
+            <div className="relative">
+              <Input 
+                value={question.title} 
+                onChange={handleTitleChange}
+                onFocus={() => setFocusedInput('title')}
+                onBlur={() => setFocusedInput(null)}
+                className={cn(
+                  "w-full px-4 py-3 bg-slate-50 border rounded-xl text-sm font-medium transition-all",
+                  focusedInput === 'title' 
+                    ? '!border-indigo-500 !border-2 !ring-0 !outline-none bg-white' 
+                    : 'border border-slate-200 hover:border-slate-300'
+                )}
+                placeholder="Type your question here..."
+                autoFocus
+              />
+            </div>
+            
+            {/* Settings Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
+                  <Timer className="w-3 h-3" />
+                  Time Limit
+                </Label>
+                <Input 
+                  type="number" 
+                  value={question.timeLimit || 30} 
+                  onChange={handleTimeLimitChange}
+                  onFocus={() => setFocusedInput('time')}
+                  onBlur={() => setFocusedInput(null)}
+                  className={cn(
+                    "h-9 bg-slate-50 border rounded-lg text-xs font-medium transition-all",
+                    focusedInput === 'time' 
+                      ? '!border-indigo-500 !border-2 !ring-0 !outline-none bg-white' 
+                      : 'border border-slate-200 hover:border-slate-300'
+                  )}
+                  min="5"
+                  max="300"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
+                  <Star className="w-3 h-3" />
+                  Points
+                </Label>
+                <Input 
+                  type="number" 
+                  value={question.points || 10} 
+                  onChange={handlePointsChange}
+                  onFocus={() => setFocusedInput('points')}
+                  onBlur={() => setFocusedInput(null)}
+                  className={cn(
+                    "h-9 bg-slate-50 border rounded-lg text-xs font-medium transition-all",
+                    focusedInput === 'points' 
+                      ? '!border-indigo-500 !border-2 !ring-0 !outline-none bg-white' 
+                      : 'border border-slate-200 hover:border-slate-300'
+                  )}
+                  min="0"
+                  max="100"
+                />
+              </div>
+            </div>
+
+            {/* Options Section */}
+            {shouldHaveOptions(question.type) && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                    Answer Options
+                  </Label>
+                  <span className="text-[8px] text-slate-400">
+                    {question.options?.length || 0} options
+                  </span>
+                </div>
+
+                {question.options && question.options.length > 0 ? (
+                  <div className="space-y-2">
+                    {question.options.map((opt, optIndex) => (
+                      <div key={opt.id} className="flex items-center gap-2 group">
+                        <div 
+                          className={cn(
+                            "w-5 h-5 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all no-select shrink-0",
+                            opt.isCorrect 
+                              ? 'border-emerald-500 bg-emerald-500 shadow-sm shadow-emerald-200' 
+                              : 'border-slate-300 hover:border-indigo-400 hover:bg-indigo-50'
+                          )}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOptionCorrectToggle(opt.id);
+                          }}
+                        >
+                          {opt.isCorrect && <Check className="w-2.5 h-2.5 text-white" />}
+                        </div>
+                        <Input 
+                          value={opt.text}
+                          onChange={(e) => handleOptionChange(opt.id, e.target.value)}
+                          onFocus={() => setFocusedInput(`option-${optIndex}`)}
+                          onBlur={() => setFocusedInput(null)}
+                          className={cn(
+                            "h-9 bg-slate-50 border rounded-lg text-xs transition-all",
+                            focusedInput === `option-${optIndex}`
+                              ? '!border-indigo-500 !border-2 !ring-0 !outline-none bg-white' 
+                              : 'border border-slate-200 hover:border-slate-300 group-hover:bg-white'
+                          )}
+                          placeholder={`Option ${optIndex + 1}`}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <button 
+                          className="p-1.5 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100 no-select"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteOption(opt.id);
+                          }}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddOption();
+                      }}
+                      className="mt-2 w-full py-2.5 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 hover:bg-indigo-50 hover:border-indigo-300 transition-all group flex items-center justify-center gap-2 text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400 hover:text-indigo-600"
+                    >
+                      <Sparkles className="w-3 h-3 group-hover:text-indigo-500" />
+                      Add Option
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-center">
+                    <p className="text-xs text-slate-500 mb-3">No options yet</p>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        initializeOptionsIfNeeded();
+                      }}
+                      className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-black uppercase tracking-[0.2em] transition-all shadow-sm shadow-indigo-200"
+                    >
+                      Initialize with defaults
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="pl-7 flex items-center justify-between">
+            <p className="text-sm text-slate-600 truncate max-w-[70%]">
+              {question.title || 'Untitled question'}
+            </p>
+            <div className="flex items-center gap-3">
+              {question.points !== undefined && question.points > 0 && (
+                <span className="flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">
+                  <Star className="w-2.5 h-2.5 fill-amber-400" />
+                  {question.points}
+                </span>
+              )}
+              {question.timeLimit && (
+                <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
+                  <Timer className="w-2.5 h-2.5" />
+                  {question.timeLimit}s
+                </span>
+              )}
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

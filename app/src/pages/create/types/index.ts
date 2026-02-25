@@ -5,6 +5,7 @@ export interface QuestionOption {
 }
 
 export interface Question {
+  isVisible: boolean;
   id: string;
   type: string;
   title: string;
