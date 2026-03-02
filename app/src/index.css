@@ -413,10 +413,18 @@
   scrollbar-color: hsl(var(--muted-foreground) / 0.3) hsl(var(--muted));
 }
 
-/* Focus Styles */
-:focus-visible {
+/* Focus Styles - More specific to avoid conflicts */
+button:focus-visible,
+a:focus-visible {
   outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
+}
+
+/* Remove outline from inputs since we handle them separately */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
 }
 
 /* Selection */
