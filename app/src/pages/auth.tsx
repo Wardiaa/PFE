@@ -47,7 +47,7 @@ const Tile = () => {
     const iconColor = bgColor === 'bg-zinc-700' ? 'text-zinc-900' : 'text-zinc-500';
     if (content.type === 'icon') {
       const Icon = content.data.icon;
-      return <Icon size={20} className={`${iconColor} transition-colors duration-300 group-hover:text-white group-hover:scale-110`} />;
+      return <Icon size={32} className={`${iconColor} transition-colors duration-300 group-hover:text-white group-hover:scale-110`} />;
     }
     if (content.type === 'abstract') {
       const abstractColor = bgColor === 'bg-zinc-700' ? 'bg-black/20' : 'bg-zinc-400/20';
