@@ -242,7 +242,7 @@ export default function SignInPage() {
 
         <div className="mt-auto pt-10">
           <p className={`text-[11px] font-medium transition-colors ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>
-            Building the future of engagement. &copy; 2024
+            Building the future of engagement. &copy; 2026
           </p>
         </div>
       </div>
