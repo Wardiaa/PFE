@@ -65,12 +65,27 @@ const interactionIcons = [
   { icon: Share2, label: 'Share' }, { icon: Bell, label: 'Notify' }
 ];
 
-const Tile = ({ index }: { index: number }) => {
+const Tile = ({ index, isDark }: { index: number; isDark: boolean }) => {
   const bgColor = tileColors[index];
   const tileConfig = tileTypes[index];
 
+  // Check if this is a quarter circle tile (ids 0, 1, and also parts of 5, 6, 7)
+  const isQuarterCircle = tileConfig.type === 'abstract' && (
+    tileConfig.id === 0 || 
+    tileConfig.id === 1 || 
+    tileConfig.id === 5 || 
+    tileConfig.id === 6 || 
+    tileConfig.id === 7
+  );
+
+  // Check if this is a bar chart (id 8) or three dots with bars (id 12)
+  const shouldTurnWhite = tileConfig.type === 'abstract' && (
+    tileConfig.id === 8 || tileConfig.id === 12
+  );
+
   const renderContent = () => {
-    const iconColor = bgColor === 'bg-zinc-700' ? 'text-zinc-900' : 'text-zinc-500';
+    // Icon colors
+    const iconColor = isDark ? 'text-zinc-500' : 'text-zinc-700';
     
     if (tileConfig.type === 'icon') {
       const Icon = interactionIcons[tileConfig.iconIndex].icon;
@@ -78,26 +93,110 @@ const Tile = ({ index }: { index: number }) => {
     }
     
     if (tileConfig.type === 'abstract') {
-      const abstractColor = bgColor === 'bg-zinc-700' ? 'bg-black/20' : 'bg-zinc-400/20';
+      // Base colors
+      const baseAbstractColor = isDark ? 'bg-zinc-400/20' : 'bg-zinc-600/10';
+      const baseBorderColor = isDark ? 'border-zinc-700' : 'border-zinc-500';
+      const baseDotColor = isDark ? 'bg-zinc-500' : 'bg-zinc-600';
       
-      // Abstract shapes - cases 0-12
+      // Quarter circles become white in light mode
+      // Bar chart and three dots also become white in light mode
+      // Other elements get a mix
+      let abstractColor = baseAbstractColor;
+      let borderColor = baseBorderColor;
+      let dotColor = baseDotColor;
+      
+      if (!isDark) {
+        if (isQuarterCircle || shouldTurnWhite) {
+          // These elements become white in light mode
+          abstractColor = 'bg-white';
+          borderColor = 'border-white';
+          dotColor = 'bg-white';
+        } else {
+          // Other elements get a mix (every 2nd, 3rd, etc.)
+          const shouldBeWhite = (
+            index % 2 === 0 ||
+            index % 3 === 1 ||
+            index % 5 === 2
+          );
+          if (shouldBeWhite) {
+            abstractColor = 'bg-white';
+            borderColor = 'border-white';
+            dotColor = 'bg-white';
+          }
+        }
+      }
+      
       switch (tileConfig.id) {
-        case 0: return <div className="relative h-full w-full"><div className={`absolute top-0 left-0 h-1/2 w-1/2 rounded-br-full ${abstractColor} group-hover:bg-white/20`} /></div>;
-        case 1: return <div className="relative h-full w-full"><div className={`absolute bottom-0 right-0 h-1/2 w-1/2 rounded-tl-full ${abstractColor} group-hover:bg-white/20`} /></div>;
-        case 2: return <div className="relative flex items-center justify-center h-full w-full"><div className={`absolute h-3 w-3 rounded-full border border-zinc-700 group-hover:border-white/50`} /><div className={`absolute h-6 w-6 rounded-full border border-zinc-700 group-hover:border-white/50`} /><div className={`absolute h-9 w-9 rounded-full border border-zinc-700 group-hover:border-white/50`} /></div>;
-        case 3: return <div className="grid grid-cols-3 gap-1 opacity-40 group-hover:opacity-100">{[...Array(9)].map((_, i) => (<div key={i} className="h-1.5 w-1.5 rounded-full bg-zinc-500 group-hover:bg-white transition-colors" />))}</div>;
-        case 4: return <div className={`h-6 w-6 rotate-45 border-2 border-zinc-700 group-hover:border-white/50`} />;
-        case 5: return <div className="relative h-8 w-8"><div className={`absolute inset-0 rounded-tl-full border-2 border-zinc-700 group-hover:border-white/50`} /><div className={`absolute inset-0 rounded-br-full border-2 border-zinc-700 rotate-90 group-hover:border-white/50`} /></div>;
-        case 6: return <div className="relative h-8 w-8"><div className={`absolute top-0 left-0 h-5 w-5 rounded-br-full border-2 border-zinc-700 group-hover:border-white/50`} /><div className={`absolute bottom-0 right-0 h-5 w-5 rounded-tl-full border-2 border-zinc-700 group-hover:border-white/50`} /></div>;
-        case 7: return <div className="relative h-full w-full"><div className={`absolute top-0 left-0 h-1/3 w-1/3 rounded-br-full border border-zinc-700 group-hover:border-white/50`} /><div className={`absolute top-0 left-0 h-2/3 w-2/3 rounded-br-full border border-zinc-700 group-hover:border-white/50`} /><div className={`absolute top-0 left-0 h-full w-full rounded-br-full border border-zinc-700 group-hover:border-white/50`} /></div>;
-        case 8: return (
-          <div className="flex items-end justify-center gap-1 h-8 w-8">
-            <div className="w-2 h-3 bg-zinc-600/50 group-hover:bg-white/70 rounded-t" />
-            <div className="w-2 h-5 bg-zinc-600/70 group-hover:bg-white/90 rounded-t" />
-            <div className="w-2 h-4 bg-zinc-600/60 group-hover:bg-white/80 rounded-t" />
-            <div className="w-2 h-6 bg-zinc-600/80 group-hover:bg-white/100 rounded-t" />
+        // Quarter circle top-left
+        case 0: return (
+          <div className="relative h-full w-full">
+            <div className={`absolute top-0 left-0 h-1/2 w-1/2 rounded-br-full ${abstractColor} group-hover:bg-white/20`} />
           </div>
         );
+        
+        // Quarter circle bottom-right
+        case 1: return (
+          <div className="relative h-full w-full">
+            <div className={`absolute bottom-0 right-0 h-1/2 w-1/2 rounded-tl-full ${abstractColor} group-hover:bg-white/20`} />
+          </div>
+        );
+        
+        // Concentric circles
+        case 2: return (
+          <div className="relative flex items-center justify-center h-full w-full">
+            <div className={`absolute h-3 w-3 rounded-full border ${borderColor} group-hover:border-white/50`} />
+            <div className={`absolute h-6 w-6 rounded-full border ${borderColor} group-hover:border-white/50`} />
+            <div className={`absolute h-9 w-9 rounded-full border ${borderColor} group-hover:border-white/50`} />
+          </div>
+        );
+        
+        // Dot grid
+        case 3: return (
+          <div className="grid grid-cols-3 gap-1 opacity-40 group-hover:opacity-100">
+            {[...Array(9)].map((_, i) => (
+              <div key={i} className={`h-1.5 w-1.5 rounded-full ${dotColor} group-hover:bg-white transition-colors`} />
+            ))}
+          </div>
+        );
+        
+        // Rotated square
+        case 4: return <div className={`h-6 w-6 rotate-45 border-2 ${borderColor} group-hover:border-white/50`} />;
+        
+        // Double quarter circles (both corners)
+        case 5: return (
+          <div className="relative h-8 w-8">
+            <div className={`absolute inset-0 rounded-tl-full border-2 ${borderColor} group-hover:border-white/50`} />
+            <div className={`absolute inset-0 rounded-br-full border-2 ${borderColor} rotate-90 group-hover:border-white/50`} />
+          </div>
+        );
+        
+        // Corner brackets (two quarter circles)
+        case 6: return (
+          <div className="relative h-8 w-8">
+            <div className={`absolute top-0 left-0 h-5 w-5 rounded-br-full border-2 ${borderColor} group-hover:border-white/50`} />
+            <div className={`absolute bottom-0 right-0 h-5 w-5 rounded-tl-full border-2 ${borderColor} group-hover:border-white/50`} />
+          </div>
+        );
+        
+        // Nested quarter circles
+        case 7: return (
+          <div className="relative h-full w-full">
+            <div className={`absolute top-0 left-0 h-1/3 w-1/3 rounded-br-full border ${borderColor} group-hover:border-white/50`} />
+            <div className={`absolute top-0 left-0 h-2/3 w-2/3 rounded-br-full border ${borderColor} group-hover:border-white/50`} />
+          </div>
+        );
+        
+        // Bar chart - turns white in light mode
+        case 8: return (
+          <div className="flex items-end justify-center gap-1 h-8 w-8">
+            <div className={`w-2 h-3 ${dotColor}/70 group-hover:bg-white/70 rounded-t`} />
+            <div className={`w-2 h-5 ${dotColor} group-hover:bg-white/100 rounded-t`} />
+            <div className={`w-2 h-4 ${dotColor}/80 group-hover:bg-white/80 rounded-t`} />
+            <div className={`w-2 h-6 ${dotColor} group-hover:bg-white/100 rounded-t`} />
+          </div>
+        );
+        
+        // YES/NO/? - preserved original styling
         case 9: return (
           <div className="relative h-8 w-8">
             <div className="absolute top-0 left-0 text-[8px] font-bold text-zinc-600/70 group-hover:text-white/90">YES</div>
@@ -105,6 +204,8 @@ const Tile = ({ index }: { index: number }) => {
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-bold text-zinc-600/80 group-hover:text-white/100">?</div>
           </div>
         );
+        
+        // Four dots border
         case 10: return (
           <div className="grid grid-cols-2 gap-1.5">
             {[...Array(4)].map((_, i) => (
@@ -112,6 +213,8 @@ const Tile = ({ index }: { index: number }) => {
             ))}
           </div>
         );
+        
+        // Line chart
         case 11: return (
           <svg className="h-8 w-8" viewBox="0 0 24 24">
             <polyline points="4 16 8 12 12 14 16 8 20 12" stroke="currentColor" strokeWidth="2" fill="none" className="text-zinc-600/80 group-hover:text-white/100" />
@@ -119,16 +222,19 @@ const Tile = ({ index }: { index: number }) => {
             <circle cx="16" cy="8" r="1.5" fill="currentColor" className="text-zinc-600/70 group-hover:text-white/90" />
           </svg>
         );
+        
+        // Three dots with bars - turns white in light mode
         case 12: return (
           <div className="flex gap-0.5">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="flex flex-col items-center">
-                <div className="h-2 w-2 rounded-full bg-zinc-600/60 group-hover:bg-white/80" />
-                <div className="h-3 w-2.5 bg-zinc-600/70 group-hover:bg-white/90 rounded-t-lg mt-0.5" />
+                <div className={`h-2 w-2 rounded-full ${dotColor}/60 group-hover:bg-white/80`} />
+                <div className={`h-3 w-2.5 ${dotColor}/70 group-hover:bg-white/90 rounded-t-lg mt-0.5`} />
               </div>
             ))}
           </div>
         );
+        
         default: return null;
       }
     }
@@ -142,9 +248,9 @@ const Tile = ({ index }: { index: number }) => {
   );
 };
 
-const DecorativeGrid = () => (
-  <div className="grid h-full w-full grid-cols-6 grid-rows-10 gap-px bg-zinc-900/50">
-    {[...Array(60)].map((_, i) => <Tile key={i} index={i} />)}
+const DecorativeGrid = ({ isDark }: { isDark: boolean }) => (
+  <div className={`grid h-full w-full grid-cols-6 grid-rows-10 gap-px ${isDark ? 'bg-zinc-900/50' : 'bg-zinc-300/50'}`}>
+    {[...Array(60)].map((_, i) => <Tile key={i} index={i} isDark={isDark} />)}
   </div>
 );
 
@@ -247,19 +353,31 @@ export default function SignInPage() {
         </div>
       </div>
 
-      {/* RIGHT SIDE: Decorative Grid with margins - Only padding area responds to theme */}
+      {/* RIGHT SIDE: Decorative Grid */}
       <div className={`hidden flex-1 lg:block relative transition-colors duration-500 overflow-hidden`}>
-        {/* Container with padding to create margins - THIS NOW RESPONDS TO THEME */}
+        {/* Container with padding */}
         <div className={`absolute inset-0 p-8 transition-colors duration-500 ${
           isDark ? 'bg-black' : 'bg-zinc-100'
         }`}>
-          {/* Inner container with border-radius for the grid - ALWAYS BLACK/DARK */}
-          <div className="relative h-full w-full rounded-2xl overflow-hidden bg-black">
-            <DecorativeGrid />
+          {/* Inner container with the grid */}
+          <div className={`relative h-full w-full rounded-2xl overflow-hidden transition-colors duration-500 ${
+            isDark ? 'bg-black' : 'bg-white shadow-xl'
+          }`}>
+            <DecorativeGrid isDark={isDark} />
+            
+            {/* Gradient overlays */}
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent" />
             <div className="pointer-events-none absolute -inset-[10%] bg-[radial-gradient(circle_at_50%_50%,rgba(79,70,229,0.05)_0%,transparent_50%)]" />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-transparent" />
+            <div className={`pointer-events-none absolute inset-0 transition-opacity duration-500 ${
+              isDark 
+                ? 'bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-100' 
+                : 'bg-gradient-to-t from-black/10 via-transparent to-transparent opacity-30'
+            }`} />
+            <div className={`pointer-events-none absolute inset-0 transition-opacity duration-500 ${
+              isDark 
+                ? 'bg-gradient-to-r from-black/30 via-transparent to-transparent opacity-100' 
+                : 'bg-gradient-to-r from-black/5 via-transparent to-transparent opacity-30'
+            }`} />
           </div>
         </div>
       </div>
