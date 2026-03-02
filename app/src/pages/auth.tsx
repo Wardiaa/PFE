@@ -12,6 +12,25 @@ import {
   Hash          // Contexts
 } from 'lucide-react';
 
+type IconContent = {
+  type: 'icon';
+  data: {
+    icon: React.ElementType;
+    label: string;
+  };
+};
+
+type AbstractContent = {
+  type: 'abstract';
+  id: number;
+};
+
+type EmptyContent = {
+  type: 'empty';
+};
+
+type TileContent = IconContent | AbstractContent | EmptyContent;
+
 const Tile = () => {
   // Weighted color selection favoring deep blacks
   const bgColor = useMemo(() => {
@@ -34,12 +53,18 @@ const Tile = () => {
   ];
 
   // Determine if this tile shows an interaction icon or an abstract shape
-  const content = useMemo(() => {
+  const content = useMemo((): TileContent => {
     const rand = Math.random();
     if (rand > 0.7) {
-      return { type: 'icon', data: interactionIcons[Math.floor(Math.random() * interactionIcons.length)] };
+      return { 
+        type: 'icon', 
+        data: interactionIcons[Math.floor(Math.random() * interactionIcons.length)] 
+      };
     } else if (rand > 0.2) {
-      return { type: 'abstract', id: Math.floor(Math.random() * 8) };
+      return { 
+        type: 'abstract', 
+        id: Math.floor(Math.random() * 8) 
+      };
     }
     return { type: 'empty' };
   }, []);
