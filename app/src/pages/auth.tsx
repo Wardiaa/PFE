@@ -242,17 +242,19 @@ export default function SignInPage() {
 
         <div className="mt-auto pt-10">
           <p className={`text-[11px] font-medium transition-colors ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>
-            Building the future of engagement. &copy; 2026
+            Building the future of engagement. &copy; 2024
           </p>
         </div>
       </div>
 
-      {/* RIGHT SIDE: Decorative Grid with margins */}
-      <div className="hidden flex-1 lg:block relative bg-black overflow-hidden">
-        {/* Container with padding to create margins */}
-        <div className="absolute inset-0 p-8">
-          {/* Inner container with border-radius for the grid */}
-          <div className="relative h-full w-full rounded-2xl overflow-hidden">
+      {/* RIGHT SIDE: Decorative Grid with margins - Only padding area responds to theme */}
+      <div className={`hidden flex-1 lg:block relative transition-colors duration-500 overflow-hidden`}>
+        {/* Container with padding to create margins - THIS NOW RESPONDS TO THEME */}
+        <div className={`absolute inset-0 p-8 transition-colors duration-500 ${
+          isDark ? 'bg-black' : 'bg-zinc-100'
+        }`}>
+          {/* Inner container with border-radius for the grid - ALWAYS BLACK/DARK */}
+          <div className="relative h-full w-full rounded-2xl overflow-hidden bg-black">
             <DecorativeGrid />
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent" />
             <div className="pointer-events-none absolute -inset-[10%] bg-[radial-gradient(circle_at_50%_50%,rgba(79,70,229,0.05)_0%,transparent_50%)]" />
