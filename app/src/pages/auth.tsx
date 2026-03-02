@@ -61,7 +61,7 @@ const Tile = () => {
     
     if (content.type === 'icon') {
       const Icon = content.data.icon;
-      return <Icon size={28} className={`${iconColor} transition-colors duration-300 group-hover:text-white group-hover:scale-110`} />;
+      return <Icon size={32} className={`${iconColor} transition-colors duration-300 group-hover:text-white group-hover:scale-110`} />;
     }
     
     if (content.type === 'abstract') {
