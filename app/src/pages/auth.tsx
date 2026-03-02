@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { 
   ArrowLeft, 
   ArrowUpRight, 
@@ -22,54 +22,66 @@ import {
   Bell
 } from 'lucide-react';
 
-type IconContent = { type: 'icon'; data: { icon: React.ElementType; label: string; }; };
+type IconContent = { type: 'icon'; iconIndex: number; };
 type AbstractContent = { type: 'abstract'; id: number; };
 type TileContent = IconContent | AbstractContent;
 
-const Tile = () => {
-  const bgColor = useMemo(() => {
-    const rand = Math.random();
-    if (rand > 0.98) return 'bg-zinc-700';
-    if (rand > 0.85) return 'bg-zinc-800'; 
-    if (rand > 0.60) return 'bg-zinc-900'; 
-    return 'bg-black';
-  }, []);
+// Predefined colors for each tile (60 tiles)
+const tileColors = [
+  'bg-black', 'bg-zinc-900', 'bg-zinc-800', 'bg-black', 'bg-zinc-900', 'bg-black',
+  'bg-zinc-800', 'bg-black', 'bg-zinc-900', 'bg-black', 'bg-zinc-900', 'bg-zinc-800',
+  'bg-black', 'bg-zinc-900', 'bg-black', 'bg-zinc-800', 'bg-black', 'bg-zinc-900',
+  'bg-zinc-800', 'bg-black', 'bg-zinc-900', 'bg-black', 'bg-zinc-900', 'bg-zinc-800',
+  'bg-black', 'bg-zinc-900', 'bg-zinc-800', 'bg-black', 'bg-zinc-900', 'bg-black',
+  'bg-zinc-800', 'bg-black', 'bg-zinc-900', 'bg-black', 'bg-zinc-800', 'bg-zinc-900',
+  'bg-black', 'bg-zinc-900', 'bg-zinc-800', 'bg-black', 'bg-zinc-900', 'bg-black',
+  'bg-zinc-800', 'bg-black', 'bg-zinc-900', 'bg-black', 'bg-zinc-800', 'bg-zinc-900',
+  'bg-black', 'bg-zinc-900', 'bg-zinc-800', 'bg-black', 'bg-zinc-900', 'bg-black',
+  'bg-zinc-800', 'bg-black', 'bg-zinc-900', 'bg-black', 'bg-zinc-800', 'bg-zinc-900'
+];
 
-  const interactionIcons = [
-    { icon: BarChart2, label: 'Poll' }, { icon: CheckSquare, label: 'Quiz' },
-    { icon: Heart, label: 'React' }, { icon: MessageSquare, label: 'Chat' },
-    { icon: Zap, label: 'Live' }, { icon: Users, label: 'Groups' },
-    { icon: Vote, label: 'Vote' }, { icon: Hash, label: 'Topic' },
-    { icon: PieChart, label: 'Results' }, { icon: TrendingUp, label: 'Trending' },
-    { icon: Award, label: 'Leaderboard' }, { icon: Star, label: 'Favorite' },
-    { icon: ThumbsUp, label: 'Like' }, { icon: MessageCircle, label: 'Discuss' },
-    { icon: Share2, label: 'Share' }, { icon: Bell, label: 'Notify' }
-  ];
+// Predefined content types for each tile (icon or abstract)
+const tileTypes: TileContent[] = [
+  { type: 'abstract', id: 0 }, { type: 'icon', iconIndex: 0 }, { type: 'abstract', id: 1 }, { type: 'abstract', id: 2 }, { type: 'icon', iconIndex: 1 }, { type: 'abstract', id: 3 },
+  { type: 'abstract', id: 4 }, { type: 'icon', iconIndex: 2 }, { type: 'abstract', id: 5 }, { type: 'abstract', id: 6 }, { type: 'icon', iconIndex: 3 }, { type: 'abstract', id: 7 },
+  { type: 'abstract', id: 8 }, { type: 'icon', iconIndex: 4 }, { type: 'abstract', id: 9 }, { type: 'abstract', id: 10 }, { type: 'icon', iconIndex: 5 }, { type: 'abstract', id: 11 },
+  { type: 'abstract', id: 12 }, { type: 'icon', iconIndex: 6 }, { type: 'abstract', id: 0 }, { type: 'abstract', id: 1 }, { type: 'icon', iconIndex: 7 }, { type: 'abstract', id: 2 },
+  { type: 'abstract', id: 3 }, { type: 'icon', iconIndex: 8 }, { type: 'abstract', id: 4 }, { type: 'abstract', id: 5 }, { type: 'icon', iconIndex: 9 }, { type: 'abstract', id: 6 },
+  { type: 'abstract', id: 7 }, { type: 'icon', iconIndex: 10 }, { type: 'abstract', id: 8 }, { type: 'abstract', id: 9 }, { type: 'icon', iconIndex: 11 }, { type: 'abstract', id: 10 },
+  { type: 'abstract', id: 11 }, { type: 'icon', iconIndex: 12 }, { type: 'abstract', id: 12 }, { type: 'abstract', id: 0 }, { type: 'icon', iconIndex: 13 }, { type: 'abstract', id: 1 },
+  { type: 'abstract', id: 2 }, { type: 'icon', iconIndex: 14 }, { type: 'abstract', id: 3 }, { type: 'abstract', id: 4 }, { type: 'icon', iconIndex: 15 }, { type: 'abstract', id: 5 },
+  { type: 'abstract', id: 6 }, { type: 'icon', iconIndex: 0 }, { type: 'abstract', id: 7 }, { type: 'abstract', id: 8 }, { type: 'icon', iconIndex: 1 }, { type: 'abstract', id: 9 },
+  { type: 'abstract', id: 10 }, { type: 'icon', iconIndex: 2 }, { type: 'abstract', id: 11 }, { type: 'abstract', id: 12 }, { type: 'icon', iconIndex: 3 }, { type: 'abstract', id: 0 }
+];
 
-  const content = useMemo((): TileContent => {
-    const rand = Math.random();
-    // 30% icons, 70% abstract shapes (more arcs!)
-    if (rand > 0.7) {
-      return { type: 'icon', data: interactionIcons[Math.floor(Math.random() * interactionIcons.length)] };
-    } else {
-      return { type: 'abstract', id: Math.floor(Math.random() * 13) }; // 13 total abstract shapes (8 arcs + 5 engagement)
-    }
-  }, []);
+const interactionIcons = [
+  { icon: BarChart2, label: 'Poll' }, { icon: CheckSquare, label: 'Quiz' },
+  { icon: Heart, label: 'React' }, { icon: MessageSquare, label: 'Chat' },
+  { icon: Zap, label: 'Live' }, { icon: Users, label: 'Groups' },
+  { icon: Vote, label: 'Vote' }, { icon: Hash, label: 'Topic' },
+  { icon: PieChart, label: 'Results' }, { icon: TrendingUp, label: 'Trending' },
+  { icon: Award, label: 'Leaderboard' }, { icon: Star, label: 'Favorite' },
+  { icon: ThumbsUp, label: 'Like' }, { icon: MessageCircle, label: 'Discuss' },
+  { icon: Share2, label: 'Share' }, { icon: Bell, label: 'Notify' }
+];
+
+const Tile = ({ index }: { index: number }) => {
+  const bgColor = tileColors[index];
+  const tileConfig = tileTypes[index];
 
   const renderContent = () => {
     const iconColor = bgColor === 'bg-zinc-700' ? 'text-zinc-900' : 'text-zinc-500';
     
-    if (content.type === 'icon') {
-      const Icon = content.data.icon;
+    if (tileConfig.type === 'icon') {
+      const Icon = interactionIcons[tileConfig.iconIndex].icon;
       return <Icon size={32} className={`${iconColor} transition-colors duration-300 group-hover:text-white group-hover:scale-110`} />;
     }
     
-    if (content.type === 'abstract') {
+    if (tileConfig.type === 'abstract') {
       const abstractColor = bgColor === 'bg-zinc-700' ? 'bg-black/20' : 'bg-zinc-400/20';
       
-      // FIRST 8 CASES - Original arcs (these will appear most frequently)
-      switch (content.id) {
-        // ORIGINAL ARC SHAPES - Cases 0-7 (8 shapes)
+      // Abstract shapes - cases 0-12
+      switch (tileConfig.id) {
         case 0: return <div className="relative h-full w-full"><div className={`absolute top-0 left-0 h-1/2 w-1/2 rounded-br-full ${abstractColor} group-hover:bg-white/20`} /></div>;
         case 1: return <div className="relative h-full w-full"><div className={`absolute bottom-0 right-0 h-1/2 w-1/2 rounded-tl-full ${abstractColor} group-hover:bg-white/20`} /></div>;
         case 2: return <div className="relative flex items-center justify-center h-full w-full"><div className={`absolute h-3 w-3 rounded-full border border-zinc-700 group-hover:border-white/50`} /><div className={`absolute h-6 w-6 rounded-full border border-zinc-700 group-hover:border-white/50`} /><div className={`absolute h-9 w-9 rounded-full border border-zinc-700 group-hover:border-white/50`} /></div>;
@@ -78,9 +90,6 @@ const Tile = () => {
         case 5: return <div className="relative h-8 w-8"><div className={`absolute inset-0 rounded-tl-full border-2 border-zinc-700 group-hover:border-white/50`} /><div className={`absolute inset-0 rounded-br-full border-2 border-zinc-700 rotate-90 group-hover:border-white/50`} /></div>;
         case 6: return <div className="relative h-8 w-8"><div className={`absolute top-0 left-0 h-5 w-5 rounded-br-full border-2 border-zinc-700 group-hover:border-white/50`} /><div className={`absolute bottom-0 right-0 h-5 w-5 rounded-tl-full border-2 border-zinc-700 group-hover:border-white/50`} /></div>;
         case 7: return <div className="relative h-full w-full"><div className={`absolute top-0 left-0 h-1/3 w-1/3 rounded-br-full border border-zinc-700 group-hover:border-white/50`} /><div className={`absolute top-0 left-0 h-2/3 w-2/3 rounded-br-full border border-zinc-700 group-hover:border-white/50`} /><div className={`absolute top-0 left-0 h-full w-full rounded-br-full border border-zinc-700 group-hover:border-white/50`} /></div>;
-        
-        // YOUR FAVORITE ENGAGEMENT SHAPES - Cases 8-12 (5 shapes - reduced to make arcs more prominent)
-        // Bar chart / poll results
         case 8: return (
           <div className="flex items-end justify-center gap-1 h-8 w-8">
             <div className="w-2 h-3 bg-zinc-600/50 group-hover:bg-white/70 rounded-t" />
@@ -89,8 +98,6 @@ const Tile = () => {
             <div className="w-2 h-6 bg-zinc-600/80 group-hover:bg-white/100 rounded-t" />
           </div>
         );
-        
-        // Word cloud / text bubble
         case 9: return (
           <div className="relative h-8 w-8">
             <div className="absolute top-0 left-0 text-[8px] font-bold text-zinc-600/70 group-hover:text-white/90">YES</div>
@@ -98,8 +105,6 @@ const Tile = () => {
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-bold text-zinc-600/80 group-hover:text-white/100">?</div>
           </div>
         );
-        
-        // Multiple choice dots
         case 10: return (
           <div className="grid grid-cols-2 gap-1.5">
             {[...Array(4)].map((_, i) => (
@@ -107,8 +112,6 @@ const Tile = () => {
             ))}
           </div>
         );
-        
-        // Rising trend / growth
         case 11: return (
           <svg className="h-8 w-8" viewBox="0 0 24 24">
             <polyline points="4 16 8 12 12 14 16 8 20 12" stroke="currentColor" strokeWidth="2" fill="none" className="text-zinc-600/80 group-hover:text-white/100" />
@@ -116,8 +119,6 @@ const Tile = () => {
             <circle cx="16" cy="8" r="1.5" fill="currentColor" className="text-zinc-600/70 group-hover:text-white/90" />
           </svg>
         );
-        
-        // Live audience / people
         case 12: return (
           <div className="flex gap-0.5">
             {[...Array(3)].map((_, i) => (
@@ -128,22 +129,7 @@ const Tile = () => {
             ))}
           </div>
         );
-        
-        // If any ID falls through (shouldn't happen), show a random arc from the original set
-        default: {
-          const arcId = Math.floor(Math.random() * 8);
-          switch (arcId) {
-            case 0: return <div className="relative h-full w-full"><div className={`absolute top-0 left-0 h-1/2 w-1/2 rounded-br-full ${abstractColor} group-hover:bg-white/20`} /></div>;
-            case 1: return <div className="relative h-full w-full"><div className={`absolute bottom-0 right-0 h-1/2 w-1/2 rounded-tl-full ${abstractColor} group-hover:bg-white/20`} /></div>;
-            case 2: return <div className="relative flex items-center justify-center h-full w-full"><div className={`absolute h-3 w-3 rounded-full border border-zinc-700 group-hover:border-white/50`} /><div className={`absolute h-6 w-6 rounded-full border border-zinc-700 group-hover:border-white/50`} /><div className={`absolute h-9 w-9 rounded-full border border-zinc-700 group-hover:border-white/50`} /></div>;
-            case 3: return <div className="grid grid-cols-3 gap-1 opacity-40 group-hover:opacity-100">{[...Array(9)].map((_, i) => (<div key={i} className="h-1.5 w-1.5 rounded-full bg-zinc-500 group-hover:bg-white transition-colors" />))}</div>;
-            case 4: return <div className={`h-6 w-6 rotate-45 border-2 border-zinc-700 group-hover:border-white/50`} />;
-            case 5: return <div className="relative h-8 w-8"><div className={`absolute inset-0 rounded-tl-full border-2 border-zinc-700 group-hover:border-white/50`} /><div className={`absolute inset-0 rounded-br-full border-2 border-zinc-700 rotate-90 group-hover:border-white/50`} /></div>;
-            case 6: return <div className="relative h-8 w-8"><div className={`absolute top-0 left-0 h-5 w-5 rounded-br-full border-2 border-zinc-700 group-hover:border-white/50`} /><div className={`absolute bottom-0 right-0 h-5 w-5 rounded-tl-full border-2 border-zinc-700 group-hover:border-white/50`} /></div>;
-            case 7: return <div className="relative h-full w-full"><div className={`absolute top-0 left-0 h-1/3 w-1/3 rounded-br-full border border-zinc-700 group-hover:border-white/50`} /><div className={`absolute top-0 left-0 h-2/3 w-2/3 rounded-br-full border border-zinc-700 group-hover:border-white/50`} /><div className={`absolute top-0 left-0 h-full w-full rounded-br-full border border-zinc-700 group-hover:border-white/50`} /></div>;
-            default: return null;
-          }
-        }
+        default: return null;
       }
     }
     return null;
@@ -158,7 +144,7 @@ const Tile = () => {
 
 const DecorativeGrid = () => (
   <div className="grid h-full w-full grid-cols-6 grid-rows-10 gap-px bg-zinc-900/50">
-    {[...Array(60)].map((_, i) => <Tile key={i} />)}
+    {[...Array(60)].map((_, i) => <Tile key={i} index={i} />)}
   </div>
 );
 
