@@ -242,19 +242,23 @@ export default function SignInPage() {
 
         <div className="mt-auto pt-10">
           <p className={`text-[11px] font-medium transition-colors ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>
-            Building the future of engagement. &copy; 2024
+            Building the future of engagement. &copy; 2026
           </p>
         </div>
       </div>
 
-      {/* RIGHT SIDE: Remains DARK always */}
+      {/* RIGHT SIDE: Decorative Grid with margins */}
       <div className="hidden flex-1 lg:block relative bg-black overflow-hidden">
-        <div className="absolute inset-0">
-           <DecorativeGrid />
-           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent" />
-           <div className="pointer-events-none absolute -inset-[10%] bg-[radial-gradient(circle_at_50%_50%,rgba(79,70,229,0.05)_0%,transparent_50%)]" />
-           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-           <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-transparent" />
+        {/* Container with padding to create margins */}
+        <div className="absolute inset-0 p-8">
+          {/* Inner container with border-radius for the grid */}
+          <div className="relative h-full w-full rounded-2xl overflow-hidden">
+            <DecorativeGrid />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent" />
+            <div className="pointer-events-none absolute -inset-[10%] bg-[radial-gradient(circle_at_50%_50%,rgba(79,70,229,0.05)_0%,transparent_50%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-transparent" />
+          </div>
         </div>
       </div>
 
