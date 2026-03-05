@@ -1,6 +1,8 @@
-import { useEffect, useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
+import { BarChart3, HelpCircle, Users, BrainCircuit, ArrowRight } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { motion } from 'framer-motion';
 
 // Register ScrollTrigger plugin
 gsap.registerPlugin(ScrollTrigger);
@@ -9,43 +11,57 @@ interface Feature {
   id: number;
   title: string;
   description: string;
-  gradient: string;
+  icon: React.ReactNode;
+  color: string;
+  image: string;
+  tag: string;
+  accent: string;
 }
 
-const features: Feature[] = [
+const FEATURES: Feature[] = [
   {
     id: 1,
-    title: "Interactive Polls",
-    description: "Create engaging real-time polls that capture audience opinions instantly",
-    gradient: "gradient-primary",
+    title: "AI that thinks with you.",
+    description: "Our engine analyzes response patterns in real-time, suggesting follow-up questions that probe deeper into user intent.",
+    icon: <BrainCircuit className="w-5 h-5" />,
+    color: "bg-[#111111]",
+    accent: "text-blue-500",
+    image: "https://images.unsplash.com/photo-1639322537228-f710d846310a?auto=format&fit=crop&q=80&w=1200",
+    tag: "Intelligence"
   },
   {
     id: 2,
-    title: "Live Q&A",
-    description: "Let your audience ask questions and vote on the best ones",
-    gradient: "gradient-accent",
+    title: "Polls at the speed of light.",
+    description: "Zero-latency data visualization. Transform thousands of concurrent votes into beautiful, high-fidelity heatmaps instantly.",
+    icon: <BarChart3 className="w-5 h-5" />,
+    color: "bg-[#161617]",
+    accent: "text-purple-500",
+    image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=1200",
+    tag: "Real-time"
   },
   {
     id: 3,
-    title: "Word Clouds",
-    description: "Visualize audience responses in beautiful, animated word clouds",
-    gradient: "gradient-success",
+    title: "Retention through play.",
+    description: "Move beyond static forms. Our gamified quiz logic increases completion rates by an average of 62% across all industries.",
+    icon: <HelpCircle className="w-5 h-5" />,
+    color: "bg-[#1c1c1e]",
+    accent: "text-emerald-500",
+    image: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=1200",
+    tag: "Gamification"
   },
   {
     id: 4,
-    title: "Quiz Games",
-    description: "Host competitive quizzes with leaderboards and instant feedback",
-    gradient: "gradient-info",
-  },
-  {
-    id: 5,
-    title: "Analytics Dashboard",
-    description: "Get deep insights into audience engagement and participation",
-    gradient: "gradient-warning",
-  },
+    title: "Unified Team Sync.",
+    description: "Collaborative interaction tools built for the modern remote workspace. Sync up, speak out, and move forward together.",
+    icon: <Users className="w-5 h-5" />,
+    color: "bg-[#252529]",
+    accent: "text-orange-500",
+    image: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&q=80&w=1200",
+    tag: "Collaboration"
+  }
 ];
 
-export default function FeaturesPinned() {
+const FeaturesPinned: React.FC = () => {
   const sectionRef = useRef<HTMLElement>(null);
   const cardsWrapperRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -56,15 +72,16 @@ export default function FeaturesPinned() {
       const cards = cardRefs.current.filter(Boolean) as HTMLDivElement[];
       
       cards.forEach((card, i) => {
-        // Skip the last card or handle it differently if needed
+        // Skip the last card (it stays normal)
         if (i === cards.length - 1) return;
         
         const wrapper = card.parentElement;
         if (!wrapper) return;
         
         // Calculate scale based on position (smaller for earlier cards)
+        // This creates the stacked effect
         const scale = 0.9 + 0.025 * i;
-        const rotation = -5; // Slight rotation
+        const rotation = -3; // Slight rotation for depth
         
         // Create the scroll-triggered animation
         gsap.to(card, {
@@ -74,8 +91,8 @@ export default function FeaturesPinned() {
           ease: "none",
           scrollTrigger: {
             trigger: wrapper,
-            start: `top ${60 + 10 * i}`,
-            end: "bottom 550",
+            start: `top ${70 + 5 * i}`,
+            end: "bottom 600",
             endTrigger: cardsWrapperRef.current,
             scrub: true,
             pin: wrapper,
@@ -85,7 +102,7 @@ export default function FeaturesPinned() {
           }
         });
       });
-    }, sectionRef); // Scope everything to this component
+    }, sectionRef);
 
     // Refresh ScrollTrigger after setup
     setTimeout(() => {
@@ -102,35 +119,125 @@ export default function FeaturesPinned() {
   };
 
   return (
-    <section ref={sectionRef} className="relative bg-background">
-      {/* Minimal header - just enough to create scroll space */}
-      <div className="h-32" />
-      
-      {/* Cards wrapper - contains all cards */}
-      <div ref={cardsWrapperRef} className="cards-wrapper">
-        <div className="cards-container">
-          {features.map((feature, index) => (
-            <div 
-              key={feature.id} 
-              className="card-wrapper"
-            >
-              <div
-                ref={setCardRef(index)}
-                className={`feature-card ${feature.gradient}`}
+    <div className="bg-black text-white antialiased">
+       {/* Intro section - Your original with faster, smoother animation */}
+      <section className="h-[70vh] flex flex-col items-center justify-center px-6 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ 
+            duration: 0.5,
+            ease: [0.25, 0.1, 0.25, 1], // Cubic bezier for smoother easing
+            delay: 0.1
+          }}
+          viewport={{ once: true, amount: 0.3 }}
+        >
+          <motion.h2 
+            className="text-zinc-500 font-medium text-xl md:text-2xl mb-6"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.2 }}
+          >
+            Designed for creators
+          </motion.h2>
+          
+          <motion.h1 
+            className="text-6xl md:text-8xl font-bold tracking-tighter mb-8 leading-[0.85]"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+          >
+            Powerfully simple. <br />
+            <span className="text-zinc-600">Deeply interactive.</span>
+          </motion.h1>
+          
+          <motion.p 
+            className="text-zinc-500 text-xl max-w-xl mx-auto font-medium tracking-tight"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+          >
+            The world's most sophisticated toolkit for quizzes, polls, and live engagement.
+          </motion.p>
+        </motion.div>
+      </section>
+
+      {/* GSAP Sticky Stack Section */}
+      <section ref={sectionRef} className="relative bg-black">
+        {/* Top spacer for scroll room */}
+        <div className="h-48" />
+        
+        {/* Cards wrapper */}
+        <div ref={cardsWrapperRef} className="cards-wrapper">
+          <div className="cards-container">
+            {FEATURES.map((feature, index) => (
+              <div 
+                key={feature.id} 
+                className="card-wrapper"
               >
-                <div className="card-content">
-                  <h3 className="card-title">{feature.title}</h3>
-                  <p className="card-description">{feature.description}</p>
+                <div
+                  ref={setCardRef(index)}
+                  className={`feature-card ${feature.color}`}
+                >
+                  <div className="flex w-full h-full flex-col md:flex-row overflow-hidden">
+                    {/* Left Side: Content */}
+                    <div className="flex-[1.3] p-10 md:p-16 flex flex-col justify-between">
+                      <div>
+                        <div className={`flex items-center gap-2 mb-8 ${feature.accent}`}>
+                          <span className="p-2 rounded-lg bg-white/5 border border-white/10">
+                            {feature.icon}
+                          </span>
+                          <span className="text-[10px] font-black uppercase tracking-[0.3em]">
+                            {feature.tag}
+                          </span>
+                        </div>
+                        
+                        <h3 className="text-4xl md:text-5xl font-semibold text-white tracking-tight leading-tight mb-6">
+                          {feature.title}
+                        </h3>
+                        
+                        <p className="text-lg text-zinc-400 leading-relaxed max-w-sm">
+                          {feature.description}
+                        </p>
+                      </div>
+
+                      <button className="group flex items-center gap-2 text-white font-medium text-sm hover:text-zinc-300 transition-colors">
+                        Get an interactive demo
+                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                      </button>
+                    </div>
+
+                    {/* Right Side: Image */}
+                    <div className="flex-1 relative overflow-hidden bg-zinc-900 border-l border-white/5">
+                      <img 
+                        src={feature.image} 
+                        alt={feature.title}
+                        className="w-full h-full object-cover brightness-100"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+                    </div>
+                  </div>
                 </div>
-                <div className="card-overlay" />
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
-      
-      {/* Minimal footer - just enough to create scroll space */}
-      <div className="h-32" />
-    </section>
+        
+        {/* Bottom spacer for scroll room */}
+        <div className="h-48" />
+      </section>
+
+      {/* Outro */}
+      <section className="h-screen flex flex-col items-center justify-center bg-white text-black rounded-t-[60px] relative z-[50]">
+        <h2 className="text-5xl md:text-8xl font-bold tracking-tighter mb-12 text-center">
+          Elevate your <br/> interaction.
+        </h2>
+        <button className="px-12 py-6 bg-black text-white rounded-full font-bold text-xl hover:scale-110 transition-transform active:scale-95 shadow-2xl">
+          Get Started Now
+        </button>
+      </section>
+    </div>
   );
-}
+};
+
+export default FeaturesPinned;
