@@ -55,10 +55,7 @@ const Hero: React.FC = () => {
       <div className="absolute bottom-[10%] right-[10%] w-[40vw] h-[40vw] bg-rose-50/40 rounded-full blur-[120px] -z-10"></div>
 
       <div className="max-w-6xl mx-auto text-center z-10 mb-20">
-        <div className="hero-fade inline-flex items-center space-x-2 px-6 py-2 mb-12 rounded-full border border-slate-200 bg-white/50 backdrop-blur shadow-sm text-[10px] font-black uppercase tracking-[0.4em] text-slate-900">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>Zero Friction • Sub-100ms Latency</span>
-        </div>
+        
         
         <h1 className="text-[clamp(3.5rem,10vw,8.5rem)] font-display text-slate-950 leading-[0.8] mb-14 tracking-tighter text-balance">
           <div className="overflow-hidden">
