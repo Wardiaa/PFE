@@ -189,9 +189,9 @@ const Tile = ({ index, isDark }: { index: number; isDark: boolean }) => {
         // Bar chart - turns white in light mode
         case 8: return (
           <div className="flex items-end justify-center gap-1 h-8 w-8">
-            <div className={`w-2 h-3 ${dotColor}/70 group-hover:bg-white/70 rounded-t`} />
+            <div className={`w-2 h-3 ${dotColor} group-hover:bg-white/100 rounded-t`} />
             <div className={`w-2 h-5 ${dotColor} group-hover:bg-white/100 rounded-t`} />
-            <div className={`w-2 h-4 ${dotColor}/80 group-hover:bg-white/80 rounded-t`} />
+            <div className={`w-2 h-4 ${dotColor} group-hover:bg-white/100 rounded-t`} />
             <div className={`w-2 h-6 ${dotColor} group-hover:bg-white/100 rounded-t`} />
           </div>
         );
@@ -224,16 +224,25 @@ const Tile = ({ index, isDark }: { index: number; isDark: boolean }) => {
         );
         
         // Three dots with bars - turns white in light mode
-        case 12: return (
-          <div className="flex gap-0.5">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="flex flex-col items-center">
-                <div className={`h-2 w-2 rounded-full ${dotColor}/60 group-hover:bg-white/80`} />
-                <div className={`h-3 w-2.5 ${dotColor}/70 group-hover:bg-white/90 rounded-t-lg mt-0.5`} />
-              </div>
-            ))}
-          </div>
-        );
+        // Three dots with bars - improved visibility
+case 12: return (
+  <div className="flex gap-0.5">
+    {[...Array(3)].map((_, i) => (
+      <div key={i} className="flex flex-col items-center">
+        <div className={`h-2 w-2 rounded-full ${
+          isDark 
+            ? 'bg-zinc-300/70 group-hover:bg-white/80' 
+            : 'bg-zinc-700/70 group-hover:bg-white/90'
+        }`} />
+        <div className={`h-3 w-2.5 rounded-t-lg mt-0.5 ${
+          isDark 
+            ? 'bg-zinc-300/80 group-hover:bg-white/90' 
+            : 'bg-zinc-700/80 group-hover:bg-white/100'
+        }`} />
+      </div>
+    ))}
+  </div>
+);
         
         default: return null;
       }
