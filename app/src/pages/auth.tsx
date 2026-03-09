@@ -260,16 +260,16 @@ export default function SignInPage() {
   return (
     <div className={`flex min-h-screen font-sans transition-colors duration-500 ${isDark ? 'bg-zinc-950 selection:bg-indigo-500' : 'bg-zinc-50 selection:bg-indigo-200'}`}>
       
-      {/* LEFT SIDE: Sign In Form */}
+      {/* LEFT SIDE: Sign In Form - Balanced sizing */}
       <div className={`
-        flex w-full flex-col px-8 py-10 lg:w-[480px] xl:w-[540px] lg:px-16 lg:py-16 transition-all duration-500 z-10
+        flex w-full flex-col px-8 py-8 lg:w-[480px] xl:w-[540px] lg:px-14 lg:py-10 transition-all duration-500 z-10
         ${isDark 
           ? 'bg-black/40 backdrop-blur-3xl border-r border-zinc-900/50 text-zinc-100' 
           : 'bg-white border-r border-zinc-200 text-zinc-900 shadow-xl'}
       `}>
         
         {/* Top Navigation & Toggle */}
-        <div className="mb-20 flex items-center justify-between">
+        <div className="mb-12 flex items-center justify-between">
           <button className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] transition-colors ${isDark ? 'text-zinc-600 hover:text-indigo-400' : 'text-zinc-400 hover:text-indigo-600'}`}>
             <ArrowLeft size={14} strokeWidth={3} />
             Back to home
@@ -287,18 +287,18 @@ export default function SignInPage() {
         <div className="mx-auto flex w-full max-w-sm flex-col justify-center">
           
           {/* Stylized Logo Icon */}
-          <div className={`mb-8 flex h-14 w-14 items-center justify-center rounded-xl ring-1 shadow-sm transition-colors ${isDark ? 'bg-zinc-900 ring-zinc-800' : 'bg-zinc-50 ring-zinc-200'}`}>
+          <div className={`mb-6 flex h-12 w-12 items-center justify-center rounded-xl ring-1 shadow-sm transition-colors ${isDark ? 'bg-zinc-900 ring-zinc-800' : 'bg-zinc-50 ring-zinc-200'}`}>
             <div className="relative">
                <div className="absolute -right-1 -top-1 h-2 w-2 bg-indigo-500" />
-               <ArrowUpRight size={28} className={isDark ? 'text-zinc-400' : 'text-zinc-600'} />
+               <ArrowUpRight size={26} className={isDark ? 'text-zinc-400' : 'text-zinc-600'} />
             </div>
           </div>
 
-          <h1 className={`mb-2 text-[32px] font-bold tracking-tight transition-colors ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-            Sign in to your account
+          <h1 className={`mb-1 text-3xl font-bold tracking-tight transition-colors ${isDark ? 'text-white' : 'text-zinc-900'}`}>
+            Sign in
           </h1>
-          <p className={`mb-10 text-[15px] font-medium transition-colors ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>
-            Please continue to sign in to your business account
+          <p className={`mb-8 text-[15px] font-medium transition-colors ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>
+            Continue to your business account
           </p>
 
           <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
@@ -319,7 +319,7 @@ export default function SignInPage() {
           </form>
 
           {/* Divider */}
-          <div className="relative my-10 flex items-center">
+          <div className="relative my-8 flex items-center">
             <div className={`flex-grow border-t ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}></div>
             <span className={`px-4 text-[11px] font-bold uppercase tracking-[0.2em] ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>Or</span>
             <div className={`flex-grow border-t ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}></div>
@@ -331,14 +331,14 @@ export default function SignInPage() {
               ${isDark 
                 ? 'border-zinc-800 bg-transparent text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100 hover:border-zinc-700' 
                 : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:border-zinc-300'}`}>
-              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className={`h-5 w-5 ${isDark ? 'grayscale opacity-70' : ''}`} alt="Google" />
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="h-5 w-5" alt="Google" />
               Continue with Google
             </button>
             <button className={`flex w-full items-center justify-center gap-3 rounded-xl border py-4 text-[15px] font-bold transition-all active:scale-[0.98]
               ${isDark 
                 ? 'border-zinc-800 bg-transparent text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100 hover:border-zinc-700' 
                 : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:border-zinc-300'}`}>
-              <svg className="h-5 w-5 fill-[#5865F2] opacity-80" viewBox="0 0 24 24">
+              <svg className="h-5 w-5 fill-[#5865F2]" viewBox="0 0 24 24">
                 <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.06.06 0 0 0-.031-.03z" />
               </svg>
               Continue with Discord
@@ -346,11 +346,7 @@ export default function SignInPage() {
           </div>
         </div>
 
-        <div className="mt-auto pt-10">
-          <p className={`text-[11px] font-medium transition-colors ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>
-            Building the future of engagement. &copy; 2026
-          </p>
-        </div>
+      
       </div>
 
       {/* RIGHT SIDE: Decorative Grid */}
