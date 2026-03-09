@@ -227,15 +227,7 @@ const FeaturesPinned: React.FC = () => {
         <div className="h-48" />
       </section>
 
-      {/* Outro */}
-      <section className="h-screen flex flex-col items-center justify-center bg-white text-black rounded-t-[60px] relative z-[50]">
-        <h2 className="text-5xl md:text-8xl font-bold tracking-tighter mb-12 text-center">
-          Elevate your <br/> interaction.
-        </h2>
-        <button className="px-12 py-6 bg-black text-white rounded-full font-bold text-xl hover:scale-110 transition-transform active:scale-95 shadow-2xl">
-          Get Started Now
-        </button>
-      </section>
+
     </div>
   );
 };
