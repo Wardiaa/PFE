@@ -78,14 +78,9 @@ const Tile = ({ index, isDark }: { index: number; isDark: boolean }) => {
     tileConfig.id === 7
   );
 
-  // Check if this is a bar chart (id 8) or three dots with bars (id 12)
-  const shouldTurnWhite = tileConfig.type === 'abstract' && (
-    tileConfig.id === 8 || tileConfig.id === 12
-  );
-
   const renderContent = () => {
-    // Icon colors
-    const iconColor = isDark ? 'text-zinc-500' : 'text-zinc-700';
+    // Icon colors - always white in light mode, muted in dark mode
+    const iconColor = isDark ? 'text-zinc-500' : 'text-white';
     
     if (tileConfig.type === 'icon') {
       const Icon = interactionIcons[tileConfig.iconIndex].icon;
@@ -93,38 +88,15 @@ const Tile = ({ index, isDark }: { index: number; isDark: boolean }) => {
     }
     
     if (tileConfig.type === 'abstract') {
-      // Base colors
-      const baseAbstractColor = isDark ? 'bg-zinc-400/20' : 'bg-zinc-600/10';
-      const baseBorderColor = isDark ? 'border-zinc-700' : 'border-zinc-500';
-      const baseDotColor = isDark ? 'bg-zinc-500' : 'bg-zinc-600';
+      // Base colors - always white in light mode
+      const baseAbstractColor = isDark ? 'bg-zinc-400/20' : 'bg-white';
+      const baseBorderColor = isDark ? 'border-zinc-700' : 'border-white';
+      const baseDotColor = isDark ? 'bg-zinc-500' : 'bg-white';
       
-      // Quarter circles become white in light mode
-      // Bar chart and three dots also become white in light mode
-      // Other elements get a mix
+      // For dark mode, use muted colors. For light mode, always white
       let abstractColor = baseAbstractColor;
       let borderColor = baseBorderColor;
       let dotColor = baseDotColor;
-      
-      if (!isDark) {
-        if (isQuarterCircle || shouldTurnWhite) {
-          // These elements become white in light mode
-          abstractColor = 'bg-white';
-          borderColor = 'border-white';
-          dotColor = 'bg-white';
-        } else {
-          // Other elements get a mix (every 2nd, 3rd, etc.)
-          const shouldBeWhite = (
-            index % 2 === 0 ||
-            index % 3 === 1 ||
-            index % 5 === 2
-          );
-          if (shouldBeWhite) {
-            abstractColor = 'bg-white';
-            borderColor = 'border-white';
-            dotColor = 'bg-white';
-          }
-        }
-      }
       
       switch (tileConfig.id) {
         // Quarter circle top-left
@@ -186,7 +158,7 @@ const Tile = ({ index, isDark }: { index: number; isDark: boolean }) => {
           </div>
         );
         
-        // Bar chart - turns white in light mode
+        // Bar chart
         case 8: return (
           <div className="flex items-end justify-center gap-1 h-8 w-8">
             <div className={`w-2 h-3 ${dotColor} group-hover:bg-white/100 rounded-t`} />
@@ -196,12 +168,12 @@ const Tile = ({ index, isDark }: { index: number; isDark: boolean }) => {
           </div>
         );
         
-        // YES/NO/? - preserved original styling
+        // YES/NO/?
         case 9: return (
           <div className="relative h-8 w-8">
-            <div className="absolute top-0 left-0 text-[8px] font-bold text-zinc-600/70 group-hover:text-white/90">YES</div>
-            <div className="absolute bottom-0 right-0 text-[8px] font-bold text-zinc-600/60 group-hover:text-white/80">NO</div>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-bold text-zinc-600/80 group-hover:text-white/100">?</div>
+            <div className={`absolute top-0 left-0 text-[8px] font-bold ${isDark ? 'text-zinc-600/70' : 'text-white/90'} group-hover:text-white/90`}>YES</div>
+            <div className={`absolute bottom-0 right-0 text-[8px] font-bold ${isDark ? 'text-zinc-600/60' : 'text-white/80'} group-hover:text-white/80`}>NO</div>
+            <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-bold ${isDark ? 'text-zinc-600/80' : 'text-white/100'} group-hover:text-white/100`}>?</div>
           </div>
         );
         
@@ -209,7 +181,7 @@ const Tile = ({ index, isDark }: { index: number; isDark: boolean }) => {
         case 10: return (
           <div className="grid grid-cols-2 gap-1.5">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-2.5 w-2.5 rounded-full border border-zinc-600/70 group-hover:border-white/90" />
+              <div key={i} className={`h-2.5 w-2.5 rounded-full border ${isDark ? 'border-zinc-600/70' : 'border-white/90'} group-hover:border-white/90`} />
             ))}
           </div>
         );
@@ -217,32 +189,31 @@ const Tile = ({ index, isDark }: { index: number; isDark: boolean }) => {
         // Line chart
         case 11: return (
           <svg className="h-8 w-8" viewBox="0 0 24 24">
-            <polyline points="4 16 8 12 12 14 16 8 20 12" stroke="currentColor" strokeWidth="2" fill="none" className="text-zinc-600/80 group-hover:text-white/100" />
-            <circle cx="8" cy="12" r="1.5" fill="currentColor" className="text-zinc-600/70 group-hover:text-white/90" />
-            <circle cx="16" cy="8" r="1.5" fill="currentColor" className="text-zinc-600/70 group-hover:text-white/90" />
+            <polyline points="4 16 8 12 12 14 16 8 20 12" stroke="currentColor" strokeWidth="2" fill="none" className={isDark ? 'text-zinc-600/80' : 'text-white/100'} />
+            <circle cx="8" cy="12" r="1.5" fill="currentColor" className={isDark ? 'text-zinc-600/70' : 'text-white/90'} />
+            <circle cx="16" cy="8" r="1.5" fill="currentColor" className={isDark ? 'text-zinc-600/70' : 'text-white/90'} />
           </svg>
         );
         
-        // Three dots with bars - turns white in light mode
-        // Three dots with bars - improved visibility
-case 12: return (
-  <div className="flex gap-0.5">
-    {[...Array(3)].map((_, i) => (
-      <div key={i} className="flex flex-col items-center">
-        <div className={`h-2 w-2 rounded-full ${
-          isDark 
-            ? 'bg-zinc-300/70 group-hover:bg-white/80' 
-            : 'bg-zinc-700/70 group-hover:bg-white/90'
-        }`} />
-        <div className={`h-3 w-2.5 rounded-t-lg mt-0.5 ${
-          isDark 
-            ? 'bg-zinc-300/80 group-hover:bg-white/90' 
-            : 'bg-zinc-700/80 group-hover:bg-white/100'
-        }`} />
-      </div>
-    ))}
-  </div>
-);
+        // Three dots with bars
+        case 12: return (
+          <div className="flex gap-0.5">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="flex flex-col items-center">
+                <div className={`h-2 w-2 rounded-full ${
+                  isDark 
+                    ? 'bg-zinc-300/70 group-hover:bg-white/80' 
+                    : 'bg-white/90 group-hover:bg-white/100'
+                }`} />
+                <div className={`h-3 w-2.5 rounded-t-lg mt-0.5 ${
+                  isDark 
+                    ? 'bg-zinc-300/80 group-hover:bg-white/90' 
+                    : 'bg-white/90 group-hover:bg-white/100'
+                }`} />
+              </div>
+            ))}
+          </div>
+        );
         
         default: return null;
       }
