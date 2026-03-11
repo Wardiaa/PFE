@@ -348,12 +348,7 @@ export function PreviewPanel({ question, presentationSettings, questions, curren
         <div className="flex items-center gap-2.5">
           <Eye className="w-3.5 h-3.5 text-slate-400" />
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Preview</span>
-          {hasRealQuestion && (
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200">
-              <div className="w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
-              <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest">Live</span>
-            </div>
-          )}
+          {hasRealQuestion}
         </div>
         <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 border border-slate-200">
           {(["mobile", "desktop"] as const).map((d) => (
