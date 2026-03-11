@@ -49,7 +49,7 @@ const Navbar: React.FC = () => {
               <path d="M52.0032727,91.1841818 L45.484,84.6649091 L85.3654545,84.6649091 L85.3654545,17.5625455 L80.836,17.5625455 L80.836,80.1354545 L45.484,80.1354545 L52.0032727,73.6161818 L48.8009091,70.4138182 L36.8161818,82.4001818 L48.8009091,94.3865455 L52.0032727,91.1841818 L52.0032727,91.1841818 Z M55.7456364,19.8272727 L48.8009091,26.7703636 L52.0032727,29.9727273 L63.9912727,17.988 L52.0032727,6 L48.8009091,9.20236364 L54.8963636,15.2994545 L16,15.2994545 L16,82.4001818 L20.5278182,82.4001818 L20.5278182,19.8272727 L55.7456364,19.8272727 L55.7456364,19.8272727 Z" />
             </svg>
           </div>
-          <span className={`text-2xl font-display font-bold tracking-tight transition-colors duration-300 ${scrolled ? 'text-white' : 'text-slate-950'}`}>EngageLive</span>
+          <span className={`text-2xl font-display font-bold tracking-tight transition-colors duration-300 ${scrolled ? 'text-white' : 'text-slate-950'}`}>Syncra</span>
         </Link>
         
         <div className={`hidden lg:flex items-center space-x-12 text-[11px] font-bold uppercase tracking-[0.2em] transition-colors duration-300 ${scrolled ? 'text-slate-400' : 'text-slate-500'}`}>
