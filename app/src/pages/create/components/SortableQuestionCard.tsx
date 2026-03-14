@@ -17,11 +17,12 @@ import {
   Timer,
   Star,
   ChevronRight,
-  X
+  X,
+  Palette
 } from "lucide-react";
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface SortableQuestionCardProps {
   id: string;
@@ -134,9 +135,7 @@ export function SortableQuestionCard({
            type === 'SINGLE_CHOICE' || 
            type === 'MULTIPLE_CHOICE' || 
            type === 'TRUE_FALSE' || 
-           type === 'POLL' ||
-           type === 'rating-scale' ||
-           type === 'RATING';
+           type === 'POLL';
   };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -151,9 +150,9 @@ export function SortableQuestionCard({
     onUpdate(question.id, { timeLimit: parseInt(e.target.value) || 30 });
   };
 
+  // Options handlers (only for multiple choice types)
   const handleOptionChange = (optionId: string, text: string) => {
     if (!question.options) return;
-    
     const newOptions = question.options.map(opt =>
       opt.id === optionId ? { ...opt, text } : opt
     );
@@ -162,7 +161,6 @@ export function SortableQuestionCard({
 
   const handleOptionCorrectToggle = (optionId: string) => {
     if (!question.options) return;
-    
     const newOptions = question.options.map(opt => ({
       ...opt,
       isCorrect: opt.id === optionId ? !opt.isCorrect : false
@@ -180,9 +178,31 @@ export function SortableQuestionCard({
 
   const handleDeleteOption = (optionId: string) => {
     if (!question.options) return;
-    
     const newOptions = question.options.filter(opt => opt.id !== optionId);
     onUpdate(question.id, { options: newOptions });
+  };
+
+  // Rating scale specific handlers
+  const handleMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const max = parseInt(e.target.value) || 5;
+    // Clamp max to be at least 2 and at most 10
+    const clampedMax = Math.max(2, Math.min(10, max));
+    // Always keep min at 1
+    onUpdate(question.id, { scale: { min: 1, max: clampedMax } });
+  };
+
+  const handleMinLabelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const labels = { ...(question.labels || {}), min: e.target.value };
+    onUpdate(question.id, { labels });
+  };
+
+  const handleMaxLabelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const labels = { ...(question.labels || {}), max: e.target.value };
+    onUpdate(question.id, { labels });
+  };
+
+  const handleDisplayStyleChange = (style: 'numbers' | 'stars' | 'hearts' | 'smileys') => {
+    onUpdate(question.id, { displayStyle: style });
   };
 
   const handleDeleteQuestion = (e: React.MouseEvent) => {
@@ -202,14 +222,46 @@ export function SortableQuestionCard({
     }
   };
 
-  if (isCurrent && shouldHaveOptions(question.type) && (!question.options || question.options.length === 0)) {
-    setTimeout(() => initializeOptionsIfNeeded(), 0);
-  }
+  // Initialize scale with min=1 for rating questions
+  useEffect(() => {
+    if (isCurrent && (question.type === 'rating-scale' || question.type === 'RATING')) {
+      const currentScale = question.scale;
+      
+      // If no scale exists, create one with min=1, max=5
+      if (!currentScale) {
+        onUpdate(question.id, { scale: { min: 1, max: 5 } });
+      } 
+      // If scale exists but min is not 1, update it to 1
+      else if (currentScale.min !== 1) {
+        onUpdate(question.id, { 
+          scale: { 
+            min: 1, 
+            max: currentScale.max || 5
+          } 
+        });
+      }
+      // If scale exists but max is undefined, set a default
+      else if (currentScale.max === undefined) {
+        onUpdate(question.id, { 
+          scale: { 
+            min: 1, 
+            max: 5 
+          } 
+        });
+      }
+    }
+  }, [isCurrent, question.id, question.type, question.scale, onUpdate]);
+
+  // Only auto-initialize options for multiple choice
+  useEffect(() => {
+    if (isCurrent && shouldHaveOptions(question.type) && (!question.options || question.options.length === 0)) {
+      initializeOptionsIfNeeded();
+    }
+  }, [isCurrent, question.type, question.options]);
 
   const TypeIcon = getTypeIcon(question.type);
   const typeStyles = getTypeStyles(question.type);
 
-  // Determine card border style based on state
   const getCardBorderStyle = () => {
     if (isCurrent) {
       return 'border-indigo-200 ring-2 ring-indigo-100 ring-offset-0';
@@ -219,6 +271,8 @@ export function SortableQuestionCard({
     }
     return 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50';
   };
+
+  const isRatingScale = question.type === 'rating-scale' || question.type === 'RATING';
 
   return (
     <div
@@ -238,13 +292,11 @@ export function SortableQuestionCard({
         onQuestionClick(index);
       }}
     >
-      {/* Gradient accent for current question */}
       {isCurrent && (
         <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-indigo-400 rounded-l-2xl" />
       )}
       
       <div className="p-5">
-        {/* Header with drag handle, selection, and type */}
         <div className="flex items-start gap-3 mb-4">
           <div 
             className="mt-0.5 cursor-grab active:cursor-grabbing text-slate-400 hover:text-indigo-500 transition-colors no-select"
@@ -302,10 +354,8 @@ export function SortableQuestionCard({
           </div>
         </div>
 
-        {/* Content */}
         {isCurrent ? (
           <div className="space-y-5 pl-7">
-            {/* Question Title Input */}
             <div className="relative">
               <Input 
                 value={question.title} 
@@ -323,7 +373,6 @@ export function SortableQuestionCard({
               />
             </div>
             
-            {/* Settings Grid */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
@@ -369,8 +418,98 @@ export function SortableQuestionCard({
               </div>
             </div>
 
-            {/* Options Section */}
-            {shouldHaveOptions(question.type) && (
+            {isRatingScale && (
+              <>
+                {/* Max Value Input Only - Min Value is fixed at 1 */}
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                    Maximum Rating Value
+                  </Label>
+                  <Input 
+                    type="number" 
+                    value={question.scale?.max || 5} 
+                    onChange={handleMaxChange}
+                    onFocus={() => setFocusedInput('max')}
+                    onBlur={() => setFocusedInput(null)}
+                    className={cn(
+                      "h-9 bg-slate-50 border rounded-lg text-xs font-medium transition-all",
+                      focusedInput === 'max' 
+                        ? '!border-indigo-500 !border-2 !ring-0 !outline-none bg-white' 
+                        : 'border border-slate-200 hover:border-slate-300'
+                    )}
+                    min="2"
+                    max="10"
+                  />
+                  <p className="text-[8px] text-slate-400 mt-1">
+                    Scale from 1 to {question.scale?.max || 5} ({question.scale?.max || 5} options)
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                      Min Label
+                    </Label>
+                    <Input 
+                      value={question.labels?.min || ''} 
+                      onChange={handleMinLabelChange}
+                      onFocus={() => setFocusedInput('minLabel')}
+                      onBlur={() => setFocusedInput(null)}
+                      className={cn(
+                        "h-9 bg-slate-50 border rounded-lg text-xs font-medium transition-all",
+                        focusedInput === 'minLabel' 
+                          ? '!border-indigo-500 !border-2 !ring-0 !outline-none bg-white' 
+                          : 'border border-slate-200 hover:border-slate-300'
+                      )}
+                      placeholder="e.g., Poor"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                      Max Label
+                    </Label>
+                    <Input 
+                      value={question.labels?.max || ''} 
+                      onChange={handleMaxLabelChange}
+                      onFocus={() => setFocusedInput('maxLabel')}
+                      onBlur={() => setFocusedInput(null)}
+                      className={cn(
+                        "h-9 bg-slate-50 border rounded-lg text-xs font-medium transition-all",
+                        focusedInput === 'maxLabel' 
+                          ? '!border-indigo-500 !border-2 !ring-0 !outline-none bg-white' 
+                          : 'border border-slate-200 hover:border-slate-300'
+                      )}
+                      placeholder="e.g., Excellent"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
+                    <Palette className="w-3 h-3" />
+                    Display Style
+                  </Label>
+                  <div className="flex gap-2">
+                    {(['numbers', 'stars', 'hearts', 'smileys'] as const).map((style) => (
+                      <button
+                        key={style}
+                        onClick={() => handleDisplayStyleChange(style)}
+                        className={cn(
+                          "flex-1 py-2 rounded-lg border text-[9px] font-bold uppercase tracking-wider transition-all",
+                          (question.displayStyle || 'numbers') === style
+                            ? 'bg-indigo-600 border-indigo-600 text-white'
+                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-indigo-50 hover:border-indigo-300'
+                        )}
+                      >
+                        {style}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {!isRatingScale && shouldHaveOptions(question.type) && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
@@ -459,6 +598,11 @@ export function SortableQuestionCard({
               {question.title || 'Untitled question'}
             </p>
             <div className="flex items-center gap-3">
+              {isRatingScale && question.displayStyle && (
+                <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-200">
+                  {question.displayStyle}
+                </span>
+              )}
               {question.points !== undefined && question.points > 0 && (
                 <span className="flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">
                   <Star className="w-2.5 h-2.5 fill-amber-400" />

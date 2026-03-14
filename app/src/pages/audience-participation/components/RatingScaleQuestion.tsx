@@ -18,6 +18,7 @@ interface Question {
   scale?: Scale;
   labels?: Labels;
   responseCount?: number;
+  displayStyle?: 'numbers' | 'stars' | 'hearts' | 'smileys';
 }
 
 interface RatingScaleQuestionProps {
@@ -27,13 +28,21 @@ interface RatingScaleQuestionProps {
 
 const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onSubmit }) => {
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
+  const [hoveredRating, setHoveredRating] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  const scale = question?.scale || { min: 1, max: 5 };
+  // Min is fixed at 1, max is adjustable
+  const scale = { 
+    min: 1, 
+    max: question?.scale?.max || 5 
+  };
+  
   const ratings = Array.from(
-    { length: scale?.max - scale?.min + 1 },
-    (_, i) => scale?.min + i
+    { length: scale.max - scale.min + 1 },
+    (_, i) => scale.min + i
   );
+
+  const displayStyle = question?.displayStyle || 'numbers';
 
   const handleRatingSelect = (rating: number): void => {
     if (!isSubmitting) {
@@ -43,7 +52,6 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
 
   const handleSubmit = (): void => {
     if (selectedRating === null) return;
-    
     setIsSubmitting(true);
     setTimeout(() => {
       onSubmit({ rating: selectedRating });
@@ -51,10 +59,108 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
   };
 
   const getRatingColor = (rating: number): string => {
-    const percentage = ((rating - scale?.min) / (scale?.max - scale?.min)) * 100;
+    const percentage = ((rating - scale.min) / (scale.max - scale.min)) * 100;
     if (percentage <= 33) return 'hsl(var(--destructive))';
     if (percentage <= 66) return 'hsl(var(--warning, 45 95% 60%))';
     return 'hsl(var(--success, 160 70% 50%))';
+  };
+
+  const renderRatingButton = (rating: number) => {
+    const isSelected = selectedRating === rating;
+    const isHovered = hoveredRating === rating;
+    
+    const baseClass = `w-10 h-10 md:w-12 md:h-12 rounded-xl border-2 flex items-center justify-center transition-all duration-250 ${
+      isSelected
+        ? 'border-primary bg-primary shadow-lg scale-105'
+        : isHovered
+        ? 'border-primary/70 bg-primary/10 scale-105 shadow-md'
+        : 'border-border bg-background hover:border-primary/50 hover:bg-muted hover:scale-102'
+    } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`;
+
+    if (displayStyle === 'stars') {
+      return (
+        <button
+          key={rating}
+          onClick={() => handleRatingSelect(rating)}
+          onMouseEnter={() => setHoveredRating(rating)}
+          onMouseLeave={() => setHoveredRating(null)}
+          disabled={isSubmitting}
+          className={baseClass}
+        >
+          <AppIcon
+            name="Star"
+            size={16}
+            color={isSelected ? 'hsl(var(--primary-foreground))' : 'currentColor'}
+            className={isSelected ? '' : 'text-amber-400 fill-amber-400'}
+          />
+        </button>
+      );
+    }
+
+    if (displayStyle === 'hearts') {
+      return (
+        <button
+          key={rating}
+          onClick={() => handleRatingSelect(rating)}
+          onMouseEnter={() => setHoveredRating(rating)}
+          onMouseLeave={() => setHoveredRating(null)}
+          disabled={isSubmitting}
+          className={baseClass}
+        >
+          <AppIcon
+            name="Heart"
+            size={16}
+            color={isSelected ? 'hsl(var(--primary-foreground))' : 'currentColor'}
+            className={isSelected ? '' : 'text-rose-400 fill-rose-400'}
+          />
+        </button>
+      );
+    }
+
+    if (displayStyle === 'smileys') {
+      return (
+        <button
+          key={rating}
+          onClick={() => handleRatingSelect(rating)}
+          onMouseEnter={() => setHoveredRating(rating)}
+          onMouseLeave={() => setHoveredRating(null)}
+          disabled={isSubmitting}
+          className={baseClass}
+        >
+          <AppIcon
+            name="Smile"
+            size={16}
+            color={isSelected ? 'hsl(var(--primary-foreground))' : 'currentColor'}
+            className={isSelected ? '' : 'text-yellow-500'}
+          />
+        </button>
+      );
+    }
+
+    // Default: numbers
+    return (
+      <button
+        key={rating}
+        onClick={() => handleRatingSelect(rating)}
+        onMouseEnter={() => setHoveredRating(rating)}
+        onMouseLeave={() => setHoveredRating(null)}
+        disabled={isSubmitting}
+        className={baseClass}
+      >
+        <span
+          className="text-base md:text-lg font-bold"
+          style={{
+            color: isSelected
+              ? 'hsl(var(--primary-foreground))'
+              : isHovered
+              ? 'hsl(var(--primary))'
+              : getRatingColor(rating),
+          }}
+        >
+          {rating}
+        </span>
+      </button>
+    );
   };
 
   return (
@@ -80,39 +186,13 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
         </div>
 
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-3 px-2">
-            <span className="text-xs md:text-sm font-medium text-muted-foreground">
-              {question?.labels?.min || 'Low'}
-            </span>
-            <span className="text-xs md:text-sm font-medium text-muted-foreground">
-              {question?.labels?.max || 'High'}
-            </span>
+          <div className="grid gap-2 md:gap-3" style={{ gridTemplateColumns: `repeat(${ratings.length}, minmax(0, 1fr))` }}>
+            {ratings.map((rating) => renderRatingButton(rating))}
           </div>
 
-          <div className="grid gap-2 md:gap-3" style={{ gridTemplateColumns: `repeat(${ratings?.length}, minmax(0, 1fr))` }}>
-            {ratings?.map((rating) => (
-              <button
-                key={rating}
-                onClick={() => handleRatingSelect(rating)}
-                disabled={isSubmitting}
-                className={`aspect-square min-h-[56px] md:min-h-[72px] rounded-xl border-2 transition-all duration-250 flex flex-col items-center justify-center gap-1 ${
-                  selectedRating === rating
-                    ? 'border-primary bg-primary shadow-lg scale-105'
-                    : 'border-border bg-background hover:border-primary/50 hover:bg-muted hover:scale-102'
-                } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                <span
-                  className="text-2xl md:text-3xl lg:text-4xl font-bold transition-colors duration-250"
-                  style={{
-                    color: selectedRating === rating 
-                      ? 'hsl(var(--primary-foreground))' 
-                      : getRatingColor(rating)
-                  }}
-                >
-                  {rating}
-                </span>
-              </button>
-            ))}
+          <div className="flex items-center justify-between mt-3 px-2 text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
+            <span>{question?.labels?.min || 'Low'}</span>
+            <span>{question?.labels?.max || 'High'}</span>
           </div>
 
           {selectedRating !== null && (

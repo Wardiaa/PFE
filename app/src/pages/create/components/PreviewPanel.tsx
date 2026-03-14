@@ -9,8 +9,8 @@ import {
   Clock,
   BarChart2,
   FileText,
-  ChevronLeft,
-  ChevronRight,
+  Heart,
+  Smile,
 } from "lucide-react";
 
 interface PreviewPanelProps {
@@ -20,7 +20,7 @@ interface PreviewPanelProps {
   currentQuestionIndex: number;
 }
 
-// ─── Question type renderers (all original logic preserved) ───────────────────
+// ─── Question type renderers ─────────────────────────────────────────────────
 
 const MultipleChoiceRenderer = ({ options }: { options: any[] }) => (
   <div className="space-y-2.5">
@@ -29,12 +29,12 @@ const MultipleChoiceRenderer = ({ options }: { options: any[] }) => (
         className={`w-full p-3 rounded-xl border-2 text-left transition-all ${
           opt.isCorrect
             ? "border-emerald-300 bg-emerald-50"
-            : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/50"
+            : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/50 hover:shadow-md"
         }`}
       >
         <div className="flex items-center gap-3">
           <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-            opt.isCorrect ? "border-emerald-500 bg-emerald-500 shadow-md shadow-emerald-100" : "border-slate-300"
+            opt.isCorrect ? "border-emerald-500 bg-emerald-500 shadow-md shadow-emerald-100" : "border-slate-300 group-hover:border-indigo-400"
           }`}>
             {opt.isCorrect && <Check className="w-2.5 h-2.5 text-white" />}
           </div>
@@ -52,7 +52,7 @@ const OpenTextRenderer = () => (
         className="w-full min-h-[90px] p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-xs resize-none focus:outline-none placeholder:text-slate-400" disabled />
       <span className="absolute bottom-2 right-3 text-[9px] text-slate-400">0 / 500</span>
     </div>
-    <button className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-md shadow-indigo-200">
+    <button className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-md shadow-indigo-200 hover:bg-indigo-500 transition-colors">
       Submit Response
     </button>
   </div>
@@ -62,33 +62,128 @@ const WordCloudRenderer = () => (
   <div className="space-y-3">
     <input type="text" placeholder="Enter a word or phrase..."
       className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-xs focus:outline-none placeholder:text-slate-400" disabled />
-    <button className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-md shadow-indigo-200">
+    <button className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-md shadow-indigo-200 hover:bg-indigo-500 transition-colors">
       Submit Word
     </button>
   </div>
 );
 
-const RatingRenderer = () => (
-  <div className="space-y-3">
-    <div className="flex justify-center gap-2">
-      {[1, 2, 3, 4, 5].map((rating) => (
-        <button key={rating}
-          className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all ${
-            rating <= 3
-              ? "border-amber-300 bg-amber-50"
-              : "border-slate-200 bg-white hover:border-amber-300"
-          }`}
+// Enhanced RatingRenderer with hover effects and min=1
+const RatingRenderer = ({ question }: { question: Question }) => {
+  const [hoveredRating, setHoveredRating] = useState<number | null>(null);
+  
+  // Min fixed at 1, max adjustable
+  const scale = { 
+    min: 1, 
+    max: question.scale?.max || 5 
+  };
+  
+  const minLabel = question.labels?.min || 'Low';
+  const maxLabel = question.labels?.max || 'High';
+  const displayStyle = question.displayStyle || 'numbers';
+  const ratings = Array.from(
+    { length: scale.max - scale.min + 1 },
+    (_, i) => scale.min + i
+  );
+
+  const getRatingColor = (rating: number): string => {
+    const percentage = ((rating - scale.min) / (scale.max - scale.min)) * 100;
+    if (percentage <= 33) return 'hsl(var(--destructive))';
+    if (percentage <= 66) return 'hsl(var(--warning, 45 95% 60%))';
+    return 'hsl(var(--success, 160 70% 50%))';
+  };
+
+  const renderButton = (rating: number) => {
+    const isHovered = hoveredRating === rating;
+    
+    const baseClass = `w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all duration-200 ${
+      isHovered
+        ? 'border-indigo-400 bg-indigo-50 scale-110 shadow-md'
+        : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/50 hover:scale-105'
+    }`;
+
+    if (displayStyle === 'stars') {
+      return (
+        <button 
+          key={rating} 
+          className={baseClass}
+          onMouseEnter={() => setHoveredRating(rating)}
+          onMouseLeave={() => setHoveredRating(null)}
+          disabled
         >
-          <Star className={`w-4 h-4 ${rating <= 3 ? "text-amber-500 fill-amber-400" : "text-slate-400"}`} />
+          <Star className={`w-4 h-4 transition-all ${
+            isHovered ? 'text-amber-500 fill-amber-500 scale-110' : 'text-amber-400 fill-amber-400'
+          }`} />
         </button>
-      ))}
+      );
+    }
+    if (displayStyle === 'hearts') {
+      return (
+        <button 
+          key={rating} 
+          className={baseClass}
+          onMouseEnter={() => setHoveredRating(rating)}
+          onMouseLeave={() => setHoveredRating(null)}
+          disabled
+        >
+          <Heart className={`w-4 h-4 transition-all ${
+            isHovered ? 'text-rose-500 fill-rose-500 scale-110' : 'text-rose-400 fill-rose-400'
+          }`} />
+        </button>
+      );
+    }
+    if (displayStyle === 'smileys') {
+      return (
+        <button 
+          key={rating} 
+          className={baseClass}
+          onMouseEnter={() => setHoveredRating(rating)}
+          onMouseLeave={() => setHoveredRating(null)}
+          disabled
+        >
+          <Smile className={`w-4 h-4 transition-all ${
+            isHovered ? 'text-yellow-600 scale-110' : 'text-yellow-500'
+          }`} />
+        </button>
+      );
+    }
+    // numbers
+    return (
+      <button 
+        key={rating} 
+        className={baseClass}
+        onMouseEnter={() => setHoveredRating(rating)}
+        onMouseLeave={() => setHoveredRating(null)}
+        disabled
+      >
+        <span 
+          className="text-base font-bold transition-all"
+          style={{ 
+            color: isHovered ? 'hsl(var(--primary))' : getRatingColor(rating),
+            transform: isHovered ? 'scale(1.1)' : 'scale(1)'
+          }}
+        >
+          {rating}
+        </span>
+      </button>
+    );
+  };
+
+  return (
+    <div className="space-y-3">
+      <div
+        className="grid gap-2"
+        style={{ gridTemplateColumns: `repeat(${ratings.length}, minmax(0, 1fr))` }}
+      >
+        {ratings.map(renderButton)}
+      </div>
+      <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+        <span>{minLabel}</span>
+        <span>{maxLabel}</span>
+      </div>
     </div>
-    <div className="flex justify-between text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-      <span>Poor</span>
-      <span>Excellent</span>
-    </div>
-  </div>
-);
+  );
+};
 
 const getDisplayType = (q: Question) => {
   const t = q.type;
@@ -106,12 +201,12 @@ const QuestionContent = ({ question }: { question: Question }) => {
     case "multiple-choice": return options.length > 0 ? <MultipleChoiceRenderer options={options} /> : <div className="text-center py-4 text-xs text-slate-400">No options added yet</div>;
     case "open-text": return <OpenTextRenderer />;
     case "word-cloud": return <WordCloudRenderer />;
-    case "rating-scale": return <RatingRenderer />;
+    case "rating-scale": return <RatingRenderer question={question} />;
     default: return <MultipleChoiceRenderer options={options} />;
   }
 };
 
-// ─── Phone Frame (Updated to match reference style) ───────────────────────────
+// ─── Phone Frame ─────────────────────────────────────────────────
 
 const PhoneFrame = ({ question, settings, totalQuestions, currentIndex }: { question: Question; settings: any; totalQuestions: number; currentIndex: number }) => (
   <div className="w-full max-w-[280px] mx-auto">
@@ -366,8 +461,6 @@ export function PreviewPanel({ question, presentationSettings, questions, curren
         </div>
       </div>
 
-    
-
       {/* Preview Area */}
       <div className="flex-1 overflow-y-auto flex items-start justify-center p-6"
         style={{ scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
@@ -398,8 +491,6 @@ export function PreviewPanel({ question, presentationSettings, questions, curren
           <DesktopFrame question={displayQuestion} settings={presentationSettings} totalQuestions={questions.length} currentIndex={currentQuestionIndex} />
         )}
       </div>
-
-    
     </div>
   );
 }

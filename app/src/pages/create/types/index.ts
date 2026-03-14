@@ -4,8 +4,17 @@ export interface QuestionOption {
   isCorrect: boolean;
 }
 
+export interface Scale {
+  min: number;
+  max: number;
+}
+
+export interface Labels {
+  min?: string;
+  max?: string;
+}
+
 export interface Question {
-  isVisible: boolean;
   id: string;
   type: string;
   title: string;
@@ -15,6 +24,11 @@ export interface Question {
   options?: QuestionOption[];
   locked?: boolean;
   uiType?: string;
+  isVisible: boolean;
+  // Optional rating‑specific fields
+  scale?: Scale;
+  labels?: Labels;
+  displayStyle?: 'numbers' | 'stars' | 'hearts' | 'smileys';
 }
 
 export interface ContextData {
