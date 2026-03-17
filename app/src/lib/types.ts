@@ -1,4 +1,3 @@
-
 export type UserRole = 'USER' | 'ADMIN' | 'SUPER-ADMIN';
 
 export type User = {
@@ -39,6 +38,8 @@ export type Question = {
 
 export type ContextType = 'QUIZ' | 'VOTE' | 'POLL' | 'GAME';
 
+export type ContextStatus = 'DRAFT' | 'ACTIVE' | 'CLOSED';
+
 export type Context = {
   id: string;
   title: string;
@@ -46,11 +47,15 @@ export type Context = {
   type: ContextType;
   creatorId: string;
   questions: Question[];
-  status: 'DRAFT' | 'ACTIVE' | 'CLOSED';
+  status: ContextStatus;
   code: string;
   createdAt: string;
+  updatedAt?: string; // Add this field
   participantsCount: number;
   coverImage?: string;
+  questionCount?: number; // Add for UI convenience
+  sessionCount?: number; // Add for UI convenience
+  lastModified?: string; // Add for UI convenience
 };
 
 export type Participation = {
@@ -94,8 +99,11 @@ export const MOCK_CONTEXTS: Context[] = [
     status: 'ACTIVE',
     code: 'QUIZ24',
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     participantsCount: 12,
     coverImage: 'https://images.unsplash.com/photo-1606326608606-aa0b62935f2b?auto=format&fit=crop&q=80&w=1000',
+    questionCount: 2,
+    sessionCount: 5,
     questions: [
       {
         id: 'q1',
@@ -133,8 +141,11 @@ export const MOCK_CONTEXTS: Context[] = [
     status: 'DRAFT',
     code: 'TEAM01',
     createdAt: new Date(Date.now() - 86400000).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000).toISOString(),
     participantsCount: 0,
     coverImage: 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&q=80&w=1000',
+    questionCount: 2,
+    sessionCount: 0,
     questions: [
       {
         id: 'q1',

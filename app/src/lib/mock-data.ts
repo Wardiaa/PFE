@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { type User, type Context, type Participation, MOCK_USERS, MOCK_CONTEXTS, MOCK_PARTICIPATIONS } from './types';
+import { useState, useCallback } from 'react';
+import { type User, type Context, MOCK_USERS, MOCK_CONTEXTS } from './types';
 
 // Re-export types for convenience
 export * from './types';
@@ -7,14 +7,12 @@ export * from './types';
 // Simple in-memory storage simulation
 let users = [...MOCK_USERS];
 let contexts = [...MOCK_CONTEXTS];
-let participations = [...MOCK_PARTICIPATIONS];
 let currentUser: User | null = MOCK_USERS[0]; // Default logged in as Alice
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(currentUser);
 
   const login = useCallback((email: string) => {
-    // Mock login
     const found = users.find(u => u.email === email);
     if (found) {
       currentUser = found;
@@ -51,13 +49,18 @@ export function useContexts() {
 
   const refresh = () => setData([...contexts]);
 
-  const createContext = (newContext: Omit<Context, 'id' | 'createdAt' | 'participantsCount' | 'status'>) => {
+  const createContext = (newContext: Omit<Context, 'id' | 'createdAt' | 'updatedAt' | 'participantsCount' | 'status' | 'code' | 'questions'> & { questions?: Context['questions'] }) => {
     const context: Context = {
       ...newContext,
       id: `c${contexts.length + 1}`,
+      code: Math.random().toString(36).substring(2, 8).toUpperCase(),
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       participantsCount: 0,
       status: 'DRAFT',
+      questions: newContext.questions || [],
+      questionCount: 0,
+      sessionCount: 0,
     };
     contexts = [...contexts, context];
     refresh();
@@ -65,7 +68,7 @@ export function useContexts() {
   };
 
   const updateContext = (id: string, updates: Partial<Context>) => {
-    contexts = contexts.map(c => c.id === id ? { ...c, ...updates } : c);
+    contexts = contexts.map(c => c.id === id ? { ...c, ...updates, updatedAt: new Date().toISOString() } : c);
     refresh();
   };
 
@@ -77,50 +80,12 @@ export function useContexts() {
   const getContext = (id: string) => contexts.find(c => c.id === id);
   const getContextByCode = (code: string) => contexts.find(c => c.code === code);
 
-  return { contexts: data, createContext, updateContext, deleteContext, getContext, getContextByCode };
-}
-
-export function useParticipation(contextId?: string) {
-  const [contextParticipations, setContextParticipations] = useState<Participation[]>([]);
-
-  useEffect(() => {
-    if (contextId) {
-      setContextParticipations(participations.filter(p => p.contextId === contextId));
-    }
-  }, [contextId]);
-
-  const joinContext = (contextId: string, userName: string, userId?: string) => {
-    const newParticipation: Participation = {
-      id: `p${participations.length + 1}`,
-      contextId,
-      userId: userId || `guest-${Date.now()}`,
-      userName,
-      answers: {},
-      score: 0,
-      joinedAt: new Date().toISOString(),
-    };
-    participations = [...participations, newParticipation];
-    
-    // Update participant count
-    contexts = contexts.map(c => 
-      c.id === contextId 
-        ? { ...c, participantsCount: c.participantsCount + 1 } 
-        : c
-    );
-    
-    return newParticipation;
+  return { 
+    contexts: data, 
+    createContext, 
+    updateContext, 
+    deleteContext, 
+    getContext, 
+    getContextByCode 
   };
-
-  const submitAnswer = (participationId: string, questionId: string, answer: any) => {
-    participations = participations.map(p => 
-      p.id === participationId 
-        ? { ...p, answers: { ...p.answers, [questionId]: answer } }
-        : p
-    );
-    if (contextId) {
-      setContextParticipations(participations.filter(p => p.contextId === contextId));
-    }
-  };
-
-  return { participations: contextParticipations, joinContext, submitAnswer };
 }
