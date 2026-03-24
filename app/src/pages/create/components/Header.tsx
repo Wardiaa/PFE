@@ -188,7 +188,7 @@ export function Header({
         )}
 
         {/* Preview Button - Icon only, with hover fix */}
-        {step >= 2 && step <= 3 && onPreview && (
+        {step === 3 && onPreview && (
           <button
             onClick={onPreview}
             className="
