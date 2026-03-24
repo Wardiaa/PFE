@@ -1,12 +1,15 @@
+import { useState } from "react";
 import { Button } from "../../components/ui/button";
-import { ArrowLeft, ChevronRight, Save, LayoutDashboard } from "lucide-react";
+import { ArrowLeft, ChevronRight, Save } from "lucide-react";
 import { useQuizBuilder } from "./hooks/useQuizBuilder";
 import { renderStep } from "./components/steps";
-import { Header } from "./components/Header";
 import { useNavigate } from "react-router-dom";
+import { Header } from "./components/Header";
+import { PreviewModal } from "./components/PreviewModal";
 
 export default function EnhancedCreate() {
   const navigate = useNavigate();
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   
   const {
     step,
@@ -103,12 +106,22 @@ export default function EnhancedCreate() {
     onHandleCreate: handleCreate
   });
 
+  const currentQuestion = context.questions[currentQuestionIndex] || null;
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header 
-        step={step} 
-        setStep={setStep} 
+        step={step}
+        setStep={setStep}
         onPublish={handleCreate}
+        onSaveDraft={handleManualSave}
+        saveStatus={saveStatus}
+        lastSaved={lastSaved}
+        onPreview={() => setIsPreviewOpen(true)}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={historyIndex > 0}
+        canRedo={historyIndex < history.length - 1}
       />
 
       <main className="flex-1 overflow-hidden w-full">
@@ -116,6 +129,16 @@ export default function EnhancedCreate() {
           {currentStep}
         </div>
       </main>
+
+      {/* Preview Modal */}
+      <PreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        question={currentQuestion}
+        presentationSettings={context.settings}
+        questions={context.questions}
+        currentQuestionIndex={currentQuestionIndex}
+      />
     </div>
   );
 }
