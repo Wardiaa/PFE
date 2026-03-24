@@ -42,32 +42,118 @@ export function MainLayout() {
   
   // Check if current route is the create page
   const isCreatePage = location.pathname === "/create";
+  // Check if we're in the create process (any step)
+  const isCreateProcess = location.pathname.startsWith("/create");
   
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Navigation - Sticky like original, styled like Navbar */}
-      <nav className="sticky top-0 z-40 w-full transition-all duration-700">
-        <div 
-          className={cn(
-            "w-full transition-all duration-700",
-            scrolled ? 'bg-background/95 backdrop-blur-xl border-b shadow-sm' : 'bg-background'
-          )}
-        >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between h-16">
-              {/* Logo - Styled like Navbar */}
-              <Link to="/" className="flex items-center gap-3 group cursor-pointer">
-                <div className={cn(
-                  "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500",
-                  scrolled ? 'bg-primary' : 'bg-primary/90'
-                )}>
-                  <span className="font-black text-white text-sm">E</span>
+      {/* Navigation - Hide on create page */}
+      {!isCreateProcess && (
+        <nav className="sticky top-0 z-40 w-full transition-all duration-700">
+          <div 
+            className={cn(
+              "w-full transition-all duration-700",
+              scrolled ? 'bg-background/95 backdrop-blur-xl border-b shadow-sm' : 'bg-background'
+            )}
+          >
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex items-center justify-between h-16">
+                {/* Logo */}
+                <Link to="/" className="flex items-center gap-3 group cursor-pointer">
+                  <div className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500",
+                    scrolled ? 'bg-primary' : 'bg-primary/90'
+                  )}>
+                    <span className="font-black text-white text-sm">E</span>
+                  </div>
+                  <span className="font-heading font-bold text-xl">Engage</span>
+                </Link>
+                
+                {/* Desktop Navigation */}
+                <div className="hidden md:flex items-center gap-6">
+                  {navItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = location.pathname === item.path;
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        className={cn(
+                          "text-sm font-medium transition-colors hover:text-primary flex items-center gap-2 px-3 py-2 rounded-full",
+                          isActive 
+                            ? "text-primary bg-primary/10" 
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
                 </div>
-                <span className="font-heading font-bold text-xl">Engage</span>
-              </Link>
-              
-              {/* Desktop Navigation - Simplified links */}
-              <div className="hidden md:flex items-center gap-6">
+
+                {/* Right Side Actions */}
+                <div className="flex items-center gap-3">
+                  {/* Notifications */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="relative rounded-full"
+                    onClick={() => setShowNotifications(!showNotifications)}
+                  >
+                    <Bell className="h-5 w-5" />
+                    {unreadNotifications > 0 && (
+                      <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">
+                        {unreadNotifications}
+                      </span>
+                    )}
+                  </Button>
+                  
+                  {/* User Menu */}
+                  {user && (
+                    <div className="hidden md:flex items-center gap-3">
+                      <img
+                        src={user.avatar}
+                        alt={user.name}
+                        className="h-8 w-8 rounded-full ring-2 ring-primary/10"
+                      />
+                      <div className="text-sm hidden lg:block">
+                        <div className="font-medium">{user.name}</div>
+                        <div className="text-xs text-muted-foreground">{user.role}</div>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={logout}
+                        className="rounded-full text-muted-foreground hover:text-foreground"
+                      >
+                        <LogOut className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {/* Mobile Menu Button */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="md:hidden rounded-full"
+                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  >
+                    {mobileMenuOpen ? (
+                      <X className="h-5 w-5" />
+                    ) : (
+                      <Menu className="h-5 w-5" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Mobile Menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden border-t bg-background">
+              <div className="max-w-7xl mx-auto px-4 py-3 space-y-1">
                 {navItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = location.pathname === item.path;
@@ -75,133 +161,51 @@ export function MainLayout() {
                     <Link
                       key={item.path}
                       to={item.path}
-                      className={cn(
-                        "text-sm font-medium transition-colors hover:text-primary flex items-center gap-2 px-3 py-2 rounded-full",
-                        isActive 
-                          ? "text-primary bg-primary/10" 
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
+                      onClick={() => setMobileMenuOpen(false)}
                     >
-                      <Icon className="h-4 w-4" />
-                      {item.label}
+                      <Button
+                        variant={isActive ? "secondary" : "ghost"}
+                        className={cn(
+                          "w-full justify-start gap-3",
+                          isActive && "bg-primary/10 text-primary"
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {item.label}
+                      </Button>
                     </Link>
                   );
                 })}
-              </div>
-
-              {/* Right Side Actions */}
-              <div className="flex items-center gap-3">
-                {/* Notifications */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="relative rounded-full"
-                  onClick={() => setShowNotifications(!showNotifications)}
-                >
-                  <Bell className="h-5 w-5" />
-                  {unreadNotifications > 0 && (
-                    <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">
-                      {unreadNotifications}
-                    </span>
-                  )}
-                </Button>
-                
-                {/* User Menu */}
                 {user && (
-                  <div className="hidden md:flex items-center gap-3">
-                    <img
-                      src={user.avatar}
-                      alt={user.name}
-                      className="h-8 w-8 rounded-full ring-2 ring-primary/10"
-                    />
-                    <div className="text-sm hidden lg:block">
-                      <div className="font-medium">{user.name}</div>
-                      <div className="text-xs text-muted-foreground">{user.role}</div>
-                    </div>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={logout}
-                      className="rounded-full text-muted-foreground hover:text-foreground"
-                    >
-                      <LogOut className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-                
-                {/* Mobile Menu Button */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="md:hidden rounded-full"
-                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                >
-                  {mobileMenuOpen ? (
-                    <X className="h-5 w-5" />
-                  ) : (
-                    <Menu className="h-5 w-5" />
-                  )}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t bg-background">
-            <div className="max-w-7xl mx-auto px-4 py-3 space-y-1">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = location.pathname === item.path;
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    <Button
-                      variant={isActive ? "secondary" : "ghost"}
-                      className={cn(
-                        "w-full justify-start gap-3",
-                        isActive && "bg-primary/10 text-primary"
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {item.label}
-                    </Button>
-                  </Link>
-                );
-              })}
-              {user && (
-                <>
-                  <div className="pt-4 border-t mt-4">
-                    <div className="flex items-center gap-3 px-4 py-3">
-                      <img
-                        src={user.avatar}
-                        alt={user.name}
-                        className="h-8 w-8 rounded-full"
-                      />
-                      <div className="text-sm">
-                        <div className="font-medium">{user.name}</div>
-                        <div className="text-xs text-muted-foreground">{user.role}</div>
+                  <>
+                    <div className="pt-4 border-t mt-4">
+                      <div className="flex items-center gap-3 px-4 py-3">
+                        <img
+                          src={user.avatar}
+                          alt={user.name}
+                          className="h-8 w-8 rounded-full"
+                        />
+                        <div className="text-sm">
+                          <div className="font-medium">{user.name}</div>
+                          <div className="text-xs text-muted-foreground">{user.role}</div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start gap-3 text-red-500 hover:text-red-600 hover:bg-red-50"
-                    onClick={logout}
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Logout
-                  </Button>
-                </>
-              )}
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-3 text-red-500 hover:text-red-600 hover:bg-red-50"
+                      onClick={logout}
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Logout
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        )}
-      </nav>
+          )}
+        </nav>
+      )}
       
       {/* Notifications Panel */}
       <NotificationsPanel
