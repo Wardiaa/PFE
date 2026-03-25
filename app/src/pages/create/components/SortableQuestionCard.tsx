@@ -1,3 +1,4 @@
+// SortableQuestionCard.tsx (updated - fully responsive)
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { Button } from "../../../components/ui/button";
@@ -150,7 +151,6 @@ export function SortableQuestionCard({
     onUpdate(question.id, { timeLimit: parseInt(e.target.value) || 30 });
   };
 
-  // Options handlers (only for multiple choice types)
   const handleOptionChange = (optionId: string, text: string) => {
     if (!question.options) return;
     const newOptions = question.options.map(opt =>
@@ -182,12 +182,9 @@ export function SortableQuestionCard({
     onUpdate(question.id, { options: newOptions });
   };
 
-  // Rating scale specific handlers
   const handleMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const max = parseInt(e.target.value) || 5;
-    // Clamp max to be at least 2 and at most 10
     const clampedMax = Math.max(2, Math.min(10, max));
-    // Always keep min at 1
     onUpdate(question.id, { scale: { min: 1, max: clampedMax } });
   };
 
@@ -222,16 +219,13 @@ export function SortableQuestionCard({
     }
   };
 
-  // Initialize scale with min=1 for rating questions
   useEffect(() => {
     if (isCurrent && (question.type === 'rating-scale' || question.type === 'RATING')) {
       const currentScale = question.scale;
       
-      // If no scale exists, create one with min=1, max=5
       if (!currentScale) {
         onUpdate(question.id, { scale: { min: 1, max: 5 } });
       } 
-      // If scale exists but min is not 1, update it to 1
       else if (currentScale.min !== 1) {
         onUpdate(question.id, { 
           scale: { 
@@ -240,7 +234,6 @@ export function SortableQuestionCard({
           } 
         });
       }
-      // If scale exists but max is undefined, set a default
       else if (currentScale.max === undefined) {
         onUpdate(question.id, { 
           scale: { 
@@ -252,7 +245,6 @@ export function SortableQuestionCard({
     }
   }, [isCurrent, question.id, question.type, question.scale, onUpdate]);
 
-  // Only auto-initialize options for multiple choice
   useEffect(() => {
     if (isCurrent && shouldHaveOptions(question.type) && (!question.options || question.options.length === 0)) {
       initializeOptionsIfNeeded();
@@ -279,7 +271,7 @@ export function SortableQuestionCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "relative rounded-2xl border bg-white/90 backdrop-blur-sm transition-all duration-200 mb-3",
+        "relative rounded-xl sm:rounded-2xl border bg-white/90 backdrop-blur-sm transition-all duration-200 mb-2 sm:mb-3",
         getCardBorderStyle(),
         isDragging && 'shadow-xl shadow-indigo-100/50 scale-[1.02] rotate-[0.5deg]',
         !isCurrent && !isSelected && 'hover:shadow-md'
@@ -293,17 +285,17 @@ export function SortableQuestionCard({
       }}
     >
       {isCurrent && (
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-indigo-400 rounded-l-2xl" />
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-indigo-400 rounded-l-xl sm:rounded-l-2xl" />
       )}
       
-      <div className="p-5">
-        <div className="flex items-start gap-3 mb-4">
+      <div className="p-3 sm:p-4 md:p-5">
+        <div className="flex items-start gap-2 sm:gap-3 mb-3 sm:mb-4">
           <div 
             className="mt-0.5 cursor-grab active:cursor-grabbing text-slate-400 hover:text-indigo-500 transition-colors no-select"
             {...attributes}
             {...listeners}
           >
-            <GripVertical className="w-4 h-4" />
+            <GripVertical className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </div>
           
           <div 
@@ -314,48 +306,49 @@ export function SortableQuestionCard({
             }}
           >
             <div className={cn(
-              "w-4 h-4 rounded-md border flex items-center justify-center transition-all duration-150",
+              "w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-md border flex items-center justify-center transition-all duration-150",
               isSelected 
                 ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-200' 
                 : 'border-slate-300 hover:border-indigo-400 hover:bg-indigo-50'
             )}>
-              {isSelected && <Check className="w-3 h-3" />}
+              {isSelected && <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3" />}
             </div>
           </div>
           
-          <div className="flex-1 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">
+          <div className="flex-1 flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap">
+              <span className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] sm:tracking-[0.25em]">
                 Q{index + 1}
               </span>
               <span className={cn(
-                "inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[9px] font-bold uppercase tracking-wider",
+                "inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg border text-[8px] sm:text-[9px] font-bold uppercase tracking-wider",
                 typeStyles.bg,
                 typeStyles.text,
                 typeStyles.border
               )}>
-                <TypeIcon className={cn("w-3 h-3", typeStyles.icon)} />
-                {getDisplayType(question)}
+                <TypeIcon className={cn("w-2.5 h-2.5 sm:w-3 sm:h-3", typeStyles.icon)} />
+                <span className="hidden sm:inline">{getDisplayType(question)}</span>
+                <span className="sm:hidden">{getDisplayType(question).substring(0, 3)}</span>
               </span>
               {question.locked && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 text-[9px] font-bold uppercase tracking-wider">
-                  <Lock className="w-3 h-3" />
-                  Locked
+                <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 text-[8px] sm:text-[9px] font-bold uppercase tracking-wider">
+                  <Lock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                  <span className="hidden sm:inline">Locked</span>
                 </span>
               )}
             </div>
             
             <button
               onClick={handleDeleteQuestion}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all no-select"
+              className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all no-select"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             </button>
           </div>
         </div>
 
         {isCurrent ? (
-          <div className="space-y-5 pl-7">
+          <div className="space-y-3 sm:space-y-4 md:space-y-5 pl-5 sm:pl-6 md:pl-7">
             <div className="relative">
               <Input 
                 value={question.title} 
@@ -363,7 +356,7 @@ export function SortableQuestionCard({
                 onFocus={() => setFocusedInput('title')}
                 onBlur={() => setFocusedInput(null)}
                 className={cn(
-                  "w-full px-4 py-3 bg-slate-50 border rounded-xl text-sm font-medium transition-all",
+                  "w-full px-3 sm:px-4 py-2 sm:py-3 bg-slate-50 border rounded-lg sm:rounded-xl text-sm font-medium transition-all",
                   focusedInput === 'title' 
                     ? '!border-indigo-500 !border-2 !ring-0 !outline-none bg-white' 
                     : 'border border-slate-200 hover:border-slate-300'
@@ -373,11 +366,11 @@ export function SortableQuestionCard({
               />
             </div>
             
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
-                  <Timer className="w-3 h-3" />
-                  Time Limit
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <div className="space-y-1 sm:space-y-1.5">
+                <Label className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] flex items-center gap-1">
+                  <Timer className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                  Time
                 </Label>
                 <Input 
                   type="number" 
@@ -386,7 +379,7 @@ export function SortableQuestionCard({
                   onFocus={() => setFocusedInput('time')}
                   onBlur={() => setFocusedInput(null)}
                   className={cn(
-                    "h-9 bg-slate-50 border rounded-lg text-xs font-medium transition-all",
+                    "h-8 sm:h-9 bg-slate-50 border rounded-lg text-xs font-medium transition-all",
                     focusedInput === 'time' 
                       ? '!border-indigo-500 !border-2 !ring-0 !outline-none bg-white' 
                       : 'border border-slate-200 hover:border-slate-300'
@@ -395,10 +388,10 @@ export function SortableQuestionCard({
                   max="300"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
-                  <Star className="w-3 h-3" />
-                  Points
+              <div className="space-y-1 sm:space-y-1.5">
+                <Label className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] flex items-center gap-1">
+                  <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                  Pts
                 </Label>
                 <Input 
                   type="number" 
@@ -407,7 +400,7 @@ export function SortableQuestionCard({
                   onFocus={() => setFocusedInput('points')}
                   onBlur={() => setFocusedInput(null)}
                   className={cn(
-                    "h-9 bg-slate-50 border rounded-lg text-xs font-medium transition-all",
+                    "h-8 sm:h-9 bg-slate-50 border rounded-lg text-xs font-medium transition-all",
                     focusedInput === 'points' 
                       ? '!border-indigo-500 !border-2 !ring-0 !outline-none bg-white' 
                       : 'border border-slate-200 hover:border-slate-300'
@@ -420,10 +413,9 @@ export function SortableQuestionCard({
 
             {isRatingScale && (
               <>
-                {/* Max Value Input Only - Min Value is fixed at 1 */}
-                <div className="space-y-1.5">
-                  <Label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                    Maximum Rating Value
+                <div className="space-y-1 sm:space-y-1.5">
+                  <Label className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em]">
+                    Max Rating
                   </Label>
                   <Input 
                     type="number" 
@@ -432,7 +424,7 @@ export function SortableQuestionCard({
                     onFocus={() => setFocusedInput('max')}
                     onBlur={() => setFocusedInput(null)}
                     className={cn(
-                      "h-9 bg-slate-50 border rounded-lg text-xs font-medium transition-all",
+                      "h-8 sm:h-9 bg-slate-50 border rounded-lg text-xs font-medium transition-all",
                       focusedInput === 'max' 
                         ? '!border-indigo-500 !border-2 !ring-0 !outline-none bg-white' 
                         : 'border border-slate-200 hover:border-slate-300'
@@ -440,14 +432,11 @@ export function SortableQuestionCard({
                     min="2"
                     max="10"
                   />
-                  <p className="text-[8px] text-slate-400 mt-1">
-                    Scale from 1 to {question.scale?.max || 5} ({question.scale?.max || 5} options)
-                  </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                  <div className="space-y-1 sm:space-y-1.5">
+                    <Label className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em]">
                       Min Label
                     </Label>
                     <Input 
@@ -456,16 +445,16 @@ export function SortableQuestionCard({
                       onFocus={() => setFocusedInput('minLabel')}
                       onBlur={() => setFocusedInput(null)}
                       className={cn(
-                        "h-9 bg-slate-50 border rounded-lg text-xs font-medium transition-all",
+                        "h-8 sm:h-9 bg-slate-50 border rounded-lg text-xs font-medium transition-all",
                         focusedInput === 'minLabel' 
                           ? '!border-indigo-500 !border-2 !ring-0 !outline-none bg-white' 
                           : 'border border-slate-200 hover:border-slate-300'
                       )}
-                      placeholder="e.g., Poor"
+                      placeholder="Low"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                  <div className="space-y-1 sm:space-y-1.5">
+                    <Label className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em]">
                       Max Label
                     </Label>
                     <Input 
@@ -474,34 +463,35 @@ export function SortableQuestionCard({
                       onFocus={() => setFocusedInput('maxLabel')}
                       onBlur={() => setFocusedInput(null)}
                       className={cn(
-                        "h-9 bg-slate-50 border rounded-lg text-xs font-medium transition-all",
+                        "h-8 sm:h-9 bg-slate-50 border rounded-lg text-xs font-medium transition-all",
                         focusedInput === 'maxLabel' 
                           ? '!border-indigo-500 !border-2 !ring-0 !outline-none bg-white' 
                           : 'border border-slate-200 hover:border-slate-300'
                       )}
-                      placeholder="e.g., Excellent"
+                      placeholder="High"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
-                    <Palette className="w-3 h-3" />
-                    Display Style
+                <div className="space-y-1.5 sm:space-y-2">
+                  <Label className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] flex items-center gap-1">
+                    <Palette className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                    Style
                   </Label>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5 sm:gap-2">
                     {(['numbers', 'stars', 'hearts', 'smileys'] as const).map((style) => (
                       <button
                         key={style}
                         onClick={() => handleDisplayStyleChange(style)}
                         className={cn(
-                          "flex-1 py-2 rounded-lg border text-[9px] font-bold uppercase tracking-wider transition-all",
+                          "flex-1 py-1.5 sm:py-2 rounded-lg border text-[8px] sm:text-[9px] font-bold uppercase tracking-wider transition-all",
                           (question.displayStyle || 'numbers') === style
                             ? 'bg-indigo-600 border-indigo-600 text-white'
                             : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-indigo-50 hover:border-indigo-300'
                         )}
                       >
-                        {style}
+                        <span className="hidden sm:inline">{style}</span>
+                        <span className="sm:hidden">{style.charAt(0)}</span>
                       </button>
                     ))}
                   </div>
@@ -510,23 +500,23 @@ export function SortableQuestionCard({
             )}
 
             {!isRatingScale && shouldHaveOptions(question.type) && (
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                    Answer Options
+                  <Label className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em]">
+                    Options
                   </Label>
-                  <span className="text-[8px] text-slate-400">
-                    {question.options?.length || 0} options
+                  <span className="text-[7px] sm:text-[8px] text-slate-400">
+                    {question.options?.length || 0}
                   </span>
                 </div>
 
                 {question.options && question.options.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5 sm:space-y-2">
                     {question.options.map((opt, optIndex) => (
-                      <div key={opt.id} className="flex items-center gap-2 group">
+                      <div key={opt.id} className="flex items-center gap-1.5 sm:gap-2 group">
                         <div 
                           className={cn(
-                            "w-5 h-5 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all no-select shrink-0",
+                            "w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all no-select shrink-0",
                             opt.isCorrect 
                               ? 'border-emerald-500 bg-emerald-500 shadow-sm shadow-emerald-200' 
                               : 'border-slate-300 hover:border-indigo-400 hover:bg-indigo-50'
@@ -536,7 +526,7 @@ export function SortableQuestionCard({
                             handleOptionCorrectToggle(opt.id);
                           }}
                         >
-                          {opt.isCorrect && <Check className="w-2.5 h-2.5 text-white" />}
+                          {opt.isCorrect && <Check className="w-2 h-2 sm:w-2.5 sm:h-2.5 text-white" />}
                         </div>
                         <Input 
                           value={opt.text}
@@ -544,7 +534,7 @@ export function SortableQuestionCard({
                           onFocus={() => setFocusedInput(`option-${optIndex}`)}
                           onBlur={() => setFocusedInput(null)}
                           className={cn(
-                            "h-9 bg-slate-50 border rounded-lg text-xs transition-all",
+                            "h-7 sm:h-9 bg-slate-50 border rounded-lg text-xs transition-all",
                             focusedInput === `option-${optIndex}`
                               ? '!border-indigo-500 !border-2 !ring-0 !outline-none bg-white' 
                               : 'border border-slate-200 hover:border-slate-300 group-hover:bg-white'
@@ -553,13 +543,13 @@ export function SortableQuestionCard({
                           onClick={(e) => e.stopPropagation()}
                         />
                         <button 
-                          className="p-1.5 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100 no-select"
+                          className="p-1 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100 no-select"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDeleteOption(opt.id);
                           }}
                         >
-                          <X className="w-3 h-3" />
+                          <X className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                         </button>
                       </div>
                     ))}
@@ -569,23 +559,23 @@ export function SortableQuestionCard({
                         e.stopPropagation();
                         handleAddOption();
                       }}
-                      className="mt-2 w-full py-2.5 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 hover:bg-indigo-50 hover:border-indigo-300 transition-all group flex items-center justify-center gap-2 text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400 hover:text-indigo-600"
+                      className="mt-1.5 sm:mt-2 w-full py-2 sm:py-2.5 rounded-lg sm:rounded-xl border border-dashed border-slate-300 bg-slate-50/50 hover:bg-indigo-50 hover:border-indigo-300 transition-all group flex items-center justify-center gap-1.5 sm:gap-2 text-[8px] sm:text-[9px] font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-slate-400 hover:text-indigo-600"
                     >
-                      <Sparkles className="w-3 h-3 group-hover:text-indigo-500" />
-                      Add Option
+                      <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 group-hover:text-indigo-500" />
+                      Add
                     </button>
                   </div>
                 ) : (
-                  <div className="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-center">
-                    <p className="text-xs text-slate-500 mb-3">No options yet</p>
+                  <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-slate-50 border border-dashed border-slate-200 text-center">
+                    <p className="text-[10px] sm:text-xs text-slate-500 mb-2 sm:mb-3">No options yet</p>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         initializeOptionsIfNeeded();
                       }}
-                      className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-black uppercase tracking-[0.2em] transition-all shadow-sm shadow-indigo-200"
+                      className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[8px] sm:text-[9px] font-black uppercase tracking-[0.15em] sm:tracking-[0.2em] transition-all shadow-sm shadow-indigo-200"
                     >
-                      Initialize with defaults
+                      Initialize
                     </button>
                   </div>
                 )}
@@ -593,29 +583,29 @@ export function SortableQuestionCard({
             )}
           </div>
         ) : (
-          <div className="pl-7 flex items-center justify-between">
-            <p className="text-sm text-slate-600 truncate max-w-[70%]">
+          <div className="pl-5 sm:pl-6 md:pl-7 flex items-center justify-between flex-wrap gap-2">
+            <p className="text-xs sm:text-sm text-slate-600 truncate max-w-[60%] sm:max-w-[70%]">
               {question.title || 'Untitled question'}
             </p>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-3 flex-wrap">
               {isRatingScale && question.displayStyle && (
-                <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-200">
+                <span className="text-[8px] sm:text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg border border-indigo-200">
                   {question.displayStyle}
                 </span>
               )}
               {question.points !== undefined && question.points > 0 && (
-                <span className="flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">
-                  <Star className="w-2.5 h-2.5 fill-amber-400" />
+                <span className="flex items-center gap-0.5 sm:gap-1 text-[8px] sm:text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg border border-amber-200">
+                  <Star className="w-2 h-2 sm:w-2.5 sm:h-2.5 fill-amber-400" />
                   {question.points}
                 </span>
               )}
               {question.timeLimit && (
-                <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
-                  <Timer className="w-2.5 h-2.5" />
+                <span className="flex items-center gap-0.5 sm:gap-1 text-[8px] sm:text-[9px] font-bold text-slate-500 bg-slate-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg border border-slate-200">
+                  <Timer className="w-2 h-2 sm:w-2.5 sm:h-2.5" />
                   {question.timeLimit}s
                 </span>
               )}
-              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400" />
             </div>
           </div>
         )}

@@ -1,3 +1,4 @@
+// EnhancedCreate.tsx (updated)
 import { useState } from "react";
 import { Button } from "../../components/ui/button";
 import { ArrowLeft, ChevronRight, Save } from "lucide-react";
@@ -89,9 +90,7 @@ export default function EnhancedCreate() {
     onAddQuestion: addQuestion,
     onUpdateQuestion: updateQuestion,
     onDeleteQuestion: deleteQuestion,
-    onReorderQuestions: (questions) => {
-      // This will be handled by the reducer
-    },
+    onReorderQuestions: (questions) => {},
     onToggleQuestionSelection: toggleQuestionSelection,
     onBulkUpdate: handleBulkUpdate,
     onSelectAllQuestions: handleSelectAllQuestions,
@@ -130,7 +129,6 @@ export default function EnhancedCreate() {
         </div>
       </main>
 
-      {/* Preview Modal */}
       <PreviewModal
         isOpen={isPreviewOpen}
         onClose={() => setIsPreviewOpen(false)}
