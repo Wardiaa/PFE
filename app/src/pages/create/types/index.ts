@@ -14,6 +14,16 @@ export interface Labels {
   max?: string;
 }
 
+export interface QuestionSettings {
+  liveChat?: boolean;
+  qaEnabled?: boolean;
+  showReactions?: boolean;
+  theme?: string;
+  font?: string;
+  background?: string;
+  animation?: string;
+}
+
 export interface Question {
   id: string;
   type: string;
@@ -29,6 +39,11 @@ export interface Question {
   scale?: Scale;
   labels?: Labels;
   displayStyle?: 'numbers' | 'stars' | 'hearts' | 'smileys';
+  questionSettings?: QuestionSettings;
+  theme?: string;
+  font?: string;
+  background?: string;
+  animation?: string;
 }
 
 export interface ContextData {

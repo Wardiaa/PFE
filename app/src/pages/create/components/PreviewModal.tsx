@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Smartphone, Monitor, Eye } from "lucide-react";
+import { X, Smartphone, Monitor, Eye, Heart, Smile, Star } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Question } from "../types";
 
@@ -43,31 +43,136 @@ const OpenTextRenderer = () => (
 );
 
 const RatingRenderer = ({ question }: { question: Question }) => {
-  const scale = { min: 1, max: question.scale?.max || 5 };
-  const ratings = Array.from({ length: scale.max - scale.min + 1 }, (_, i) => scale.min + i);
+  const [hoveredRating, setHoveredRating] = useState<number | null>(null);
   
+  // Min fixed at 1, max adjustable
+  const scale = { 
+    min: 1, 
+    max: question.scale?.max || 5 
+  };
+  
+  const minLabel = question.labels?.min || 'Low';
+  const maxLabel = question.labels?.max || 'High';
+  const displayStyle = question.displayStyle || 'numbers';
+  const ratings = Array.from(
+    { length: scale.max - scale.min + 1 },
+    (_, i) => scale.min + i
+  );
+
+  const getRatingColor = (rating: number): string => {
+    const percentage = ((rating - scale.min) / (scale.max - scale.min)) * 100;
+    if (percentage <= 33) return 'hsl(var(--destructive))';
+    if (percentage <= 66) return 'hsl(var(--warning, 45 95% 60%))';
+    return 'hsl(var(--success, 160 70% 50%))';
+  };
+
+  const renderButton = (rating: number) => {
+    const isHovered = hoveredRating === rating;
+    
+    const baseClass = `w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all duration-200 ${
+      isHovered
+        ? 'border-indigo-400 bg-indigo-50 scale-110 shadow-md'
+        : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/50 hover:scale-105'
+    }`;
+
+    if (displayStyle === 'stars') {
+      return (
+        <button 
+          key={rating} 
+          className={baseClass}
+          onMouseEnter={() => setHoveredRating(rating)}
+          onMouseLeave={() => setHoveredRating(null)}
+          disabled
+        >
+          <Star className={`w-4 h-4 transition-all ${
+            isHovered ? 'text-amber-500 fill-amber-500 scale-110' : 'text-amber-400 fill-amber-400'
+          }`} />
+        </button>
+      );
+    }
+    if (displayStyle === 'hearts') {
+      return (
+        <button 
+          key={rating} 
+          className={baseClass}
+          onMouseEnter={() => setHoveredRating(rating)}
+          onMouseLeave={() => setHoveredRating(null)}
+          disabled
+        >
+          <Heart className={`w-4 h-4 transition-all ${
+            isHovered ? 'text-rose-500 fill-rose-500 scale-110' : 'text-rose-400 fill-rose-400'
+          }`} />
+        </button>
+      );
+    }
+    if (displayStyle === 'smileys') {
+      return (
+        <button 
+          key={rating} 
+          className={baseClass}
+          onMouseEnter={() => setHoveredRating(rating)}
+          onMouseLeave={() => setHoveredRating(null)}
+          disabled
+        >
+          <Smile className={`w-4 h-4 transition-all ${
+            isHovered ? 'text-yellow-600 scale-110' : 'text-yellow-500'
+          }`} />
+        </button>
+      );
+    }
+    // numbers
+    return (
+      <button 
+        key={rating} 
+        className={baseClass}
+        onMouseEnter={() => setHoveredRating(rating)}
+        onMouseLeave={() => setHoveredRating(null)}
+        disabled
+      >
+        <span 
+          className="text-base font-bold transition-all"
+          style={{ 
+            color: isHovered ? 'hsl(var(--primary))' : getRatingColor(rating),
+            transform: isHovered ? 'scale(1.1)' : 'scale(1)'
+          }}
+        >
+          {rating}
+        </span>
+      </button>
+    );
+  };
+
   return (
     <div className="space-y-3">
-      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${ratings.length}, minmax(0, 1fr))` }}>
-        {ratings.map((rating) => (
-          <button
-            key={rating}
-            className="w-10 h-10 rounded-xl border-2 border-slate-200 bg-white flex items-center justify-center hover:border-indigo-300 hover:bg-indigo-50/50 transition-all"
-            disabled
-          >
-            <span className="text-base font-bold text-slate-600">{rating}</span>
-          </button>
-        ))}
+      <div
+        className="grid gap-2"
+        style={{ gridTemplateColumns: `repeat(${ratings.length}, minmax(0, 1fr))` }}
+      >
+        {ratings.map(renderButton)}
+      </div>
+      <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+        <span>{minLabel}</span>
+        <span>{maxLabel}</span>
       </div>
     </div>
   );
 };
+const WordCloudRenderer = () => (
+  <div className="space-y-3">
+    <input type="text" placeholder="Enter a word or phrase..."
+      className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-xs focus:outline-none placeholder:text-slate-400" disabled />
+    <button className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-md shadow-indigo-200 hover:bg-indigo-500 transition-colors">
+      Submit Word
+    </button>
+  </div>
+);
 
 const getDisplayType = (q: Question) => {
   const t = q.type;
   if (["SINGLE_CHOICE", "MULTIPLE_CHOICE", "TRUE_FALSE", "POLL", "multiple-choice"].includes(t)) return "multiple-choice";
   if (["OPEN_TEXT", "open-text"].includes(t)) return "open-text";
   if (["RATING", "rating-scale"].includes(t)) return "rating-scale";
+  if (["WORD_CLOUD", "word-cloud"].includes(t)) return "word-cloud";
   return "multiple-choice";
 };
 
@@ -80,6 +185,8 @@ const QuestionContent = ({ question }: { question: Question }) => {
       return options.length > 0 ? <MultipleChoiceRenderer options={options} /> : <div className="text-center py-4 text-xs text-slate-400">No options added yet</div>;
     case "open-text":
       return <OpenTextRenderer />;
+    case "word-cloud":
+      return <WordCloudRenderer />;
     case "rating-scale":
       return <RatingRenderer question={question} />;
     default:
