@@ -24,28 +24,28 @@ export function QuestionTypeSelector({ onSelect, selectedType }: QuestionTypeSel
       name: 'Multiple Choice',
       icon: ListChecks,
       description: 'Single or multiple answer selection',
-      color: 'bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400'
+      color: 'bg-primary/20 text-primary'
     },
     {
       id: 'open-text',
       name: 'Open Text',
       icon: MessageSquare,
       description: 'Free-form text responses',
-      color: 'bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400'
+      color: 'bg-warning/20 text-warning'
     },
     {
       id: 'word-cloud',
       name: 'Word Cloud',
       icon: Cloud,
       description: 'Visual word frequency display',
-      color: 'bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400'
+      color: 'bg-accent/20 text-accent'
     },
     {
       id: 'rating-scale',
       name: 'Rating Scale',
       icon: BarChart2,
       description: 'Numeric or star-based ratings',
-      color: 'bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-400'
+      color: 'bg-info/20 text-info'
     }
   ];
 

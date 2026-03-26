@@ -1,7 +1,7 @@
 import React from 'react';
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "../../lib/utils"; // Adjust path as needed
+import { cn } from "../../lib/utils";
 import AppIcon from '../AppIcon';
 import * as Icons from 'lucide-react';
 
@@ -12,13 +12,13 @@ const buttonVariants = cva(
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border border-input hover:bg-accent hover:text-accent-foreground",
+        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
         success: "bg-success text-success-foreground hover:bg-success/90",
         warning: "bg-warning text-warning-foreground hover:bg-warning/90",
-        danger: "bg-error text-error-foreground hover:bg-error/90",
+        danger: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
       },
       size: {
         default: "h-10 px-4 py-2",
@@ -64,7 +64,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   }, ref) => {
     const Comp = asChild ? Slot : "button";
 
-    // Icon size mapping based on button size
     const iconSizeMap: Record<NonNullable<ButtonProps['size']>, number> = {
       xs: 12,
       sm: 14,
@@ -76,7 +75,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     const calculatedIconSize = iconSize || (size ? iconSizeMap[size] : 16);
 
-    // Loading spinner
     const LoadingSpinner = () => (
       <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -119,7 +117,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       </button>
     );
 
-    // When asChild is true, merge icons into the child element
     if (asChild) {
       try {
         if (!children || React.Children.count(children) !== 1) {

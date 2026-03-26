@@ -248,10 +248,10 @@ export function TemplateCustomizationDialog({
               
               <div className="space-y-2">
                 {/* Questions Toggle */}
-                <div className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors">
+                <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-card hover:bg-accent/5 transition-colors">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex-shrink-0">
-                      <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <div className="p-2.5 bg-primary/20 rounded-lg flex-shrink-0">
+                      <FileText className="h-5 w-5 text-primary" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="font-medium">Questions ({questionsCount})</div>
@@ -266,13 +266,12 @@ export function TemplateCustomizationDialog({
                     className="flex-shrink-0"
                   />
                 </div>
-
                 {/* Settings Toggle */}
                 {hasSettings && (
-                  <div className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors">
+                  <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-card hover:bg-accent/5 transition-colors">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="p-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex-shrink-0">
-                        <Settings className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                      <div className="p-2.5 bg-accent/20 rounded-lg flex-shrink-0">
+                        <Settings className="h-5 w-5 text-accent" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="font-medium">Settings & Rules</div>
@@ -288,12 +287,11 @@ export function TemplateCustomizationDialog({
                     />
                   </div>
                 )}
-
                 {/* Images Toggle */}
-                <div className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors">
+                <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-card hover:bg-accent/5 transition-colors">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="p-2.5 bg-green-100 dark:bg-green-900/30 rounded-lg flex-shrink-0">
-                      <ImageIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    <div className="p-2.5 bg-success/20 rounded-lg flex-shrink-0">
+                      <ImageIcon className="h-5 w-5 text-success" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="font-medium">Sample Images</div>
@@ -308,12 +306,11 @@ export function TemplateCustomizationDialog({
                     className="flex-shrink-0"
                   />
                 </div>
-
                 {/* Sample Data Toggle */}
-                <div className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors">
+                <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-card hover:bg-accent/5 transition-colors">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex-shrink-0">
-                      <Star className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    <div className="p-2.5 bg-warning/20 rounded-lg flex-shrink-0">
+                      <Star className="h-5 w-5 text-warning" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="font-medium">Sample Data</div>

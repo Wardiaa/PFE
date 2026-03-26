@@ -15,11 +15,11 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'default', size = 'default', ...props }, ref) => {
     const variants = {
-      default: 'bg-slate-950 text-white hover:bg-indigo-600 shadow-xl shadow-indigo-500/10',
-      outline: 'border border-slate-200 bg-transparent hover:bg-slate-50 text-slate-950',
-      secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200',
-      ghost: 'hover:bg-slate-100 text-slate-600',
-      link: 'text-indigo-600 underline-offset-4 hover:underline',
+      default: 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20',
+      outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
+      secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+      ghost: 'hover:bg-accent hover:text-accent-foreground',
+      link: 'text-primary underline-offset-4 hover:underline',
     }
     const sizes = {
       default: 'h-11 px-6 py-2',
@@ -48,7 +48,7 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
     <input
       ref={ref}
       className={cn(
-        'flex h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all',
+        'flex h-12 w-full rounded-2xl border border-input bg-background px-4 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all',
         className
       )}
       {...props}
@@ -62,7 +62,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTML
     <textarea
       ref={ref}
       className={cn(
-        'flex min-h-[80px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm ring-offset-white placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all',
+        'flex min-h-[80px] w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all',
         className
       )}
       {...props}
@@ -75,7 +75,7 @@ export const Label = React.forwardRef<HTMLLabelElement, React.LabelHTMLAttribute
   ({ className, ...props }, ref) => (
     <label
       ref={ref}
-      className={cn('text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block', className)}
+      className={cn('text-xs font-black uppercase tracking-widest text-muted-foreground mb-2 block', className)}
       {...props}
     />
   )
@@ -84,9 +84,9 @@ export const Label = React.forwardRef<HTMLLabelElement, React.LabelHTMLAttribute
 // --- Badge ---
 export const Badge = ({ className, variant = 'default', ...props }: React.HTMLAttributes<HTMLDivElement> & { variant?: 'default' | 'outline' | 'secondary' }) => {
   const variants = {
-    default: 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20',
-    outline: 'border border-slate-200 text-slate-600',
-    secondary: 'bg-slate-100 text-slate-900',
+    default: 'bg-primary text-primary-foreground shadow-lg shadow-primary/20',
+    outline: 'border border-input text-foreground',
+    secondary: 'bg-secondary text-secondary-foreground',
   }
   return (
     <div
@@ -98,7 +98,7 @@ export const Badge = ({ className, variant = 'default', ...props }: React.HTMLAt
 
 // --- Card ---
 export const Card = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn('rounded-[2.5rem] border border-slate-200 bg-white shadow-sm', className)} {...props} />
+  <div className={cn('rounded-[2.5rem] border border-border bg-card shadow-sm', className)} {...props} />
 )
 export const CardHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div className={cn('flex flex-col space-y-1.5 p-8', className)} {...props} />

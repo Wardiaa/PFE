@@ -1,4 +1,3 @@
-
 import { cn } from "../../lib/utils";
 import { Check } from "lucide-react";
 
@@ -24,10 +23,10 @@ export const themes: Theme[] = [
     id: "default",
     name: "Modern Clean",
     colors: {
-      primary: "bg-violet-600",
-      background: "bg-white",
-      text: "text-slate-900",
-      accent: "bg-violet-100",
+      primary: "bg-primary",
+      background: "bg-background",
+      text: "text-foreground",
+      accent: "bg-accent/20",
     },
     font: "font-sans",
   },
@@ -35,10 +34,10 @@ export const themes: Theme[] = [
     id: "ocean",
     name: "Ocean Breeze",
     colors: {
-      primary: "bg-cyan-600",
-      background: "bg-slate-50",
-      text: "text-slate-800",
-      accent: "bg-cyan-100",
+      primary: "bg-info",
+      background: "bg-background",
+      text: "text-foreground",
+      accent: "bg-info/20",
     },
     font: "font-sans",
   },
@@ -46,10 +45,10 @@ export const themes: Theme[] = [
     id: "dark-future",
     name: "Dark Future",
     colors: {
-      primary: "bg-emerald-500",
-      background: "bg-slate-900",
-      text: "text-white",
-      accent: "bg-slate-800",
+      primary: "bg-success",
+      background: "bg-background",
+      text: "text-foreground",
+      accent: "bg-muted",
     },
     font: "font-mono",
   },
@@ -57,10 +56,10 @@ export const themes: Theme[] = [
     id: "sunset",
     name: "Sunset Vibes",
     colors: {
-      primary: "bg-orange-500",
-      background: "bg-stone-50",
-      text: "text-stone-900",
-      accent: "bg-orange-100",
+      primary: "bg-warning",
+      background: "bg-background",
+      text: "text-foreground",
+      accent: "bg-warning/20",
     },
     font: "font-serif",
   },
@@ -68,10 +67,10 @@ export const themes: Theme[] = [
     id: "playful",
     name: "Playful Pop",
     colors: {
-      primary: "bg-pink-500",
-      background: "bg-yellow-50",
-      text: "text-slate-900",
-      accent: "bg-yellow-200",
+      primary: "bg-accent",
+      background: "bg-background",
+      text: "text-foreground",
+      accent: "bg-accent/30",
     },
     font: "font-heading",
   },
@@ -90,7 +89,7 @@ export function ThemeSelector({ selectedTheme, onSelect }: ThemeSelectorProps) {
               "cursor-pointer group relative rounded-xl border-2 transition-all duration-200 overflow-hidden",
               isSelected 
                 ? "border-primary ring-2 ring-primary/20 scale-105 shadow-lg" 
-                : "border-transparent hover:border-muted-foreground/20 hover:scale-105"
+                : "border-border hover:border-muted-foreground/20 hover:scale-105"
             )}
             onClick={() => onSelect(theme.id)}
           >
@@ -106,7 +105,7 @@ export function ThemeSelector({ selectedTheme, onSelect }: ThemeSelectorProps) {
               </div>
               
               <div className={cn("w-8 h-8 rounded-full flex items-center justify-center ml-auto shadow-sm", theme.colors.primary)}>
-                <div className="w-4 h-4 rounded-full bg-white/30" />
+                <div className="w-4 h-4 rounded-full bg-background/50" />
               </div>
             </div>
             
