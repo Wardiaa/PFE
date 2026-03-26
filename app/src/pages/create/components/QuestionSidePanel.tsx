@@ -1,4 +1,4 @@
-// QuestionSidePanel.tsx - ORIGINAL LAYOUT WITH NEW UI CONTENT (NO QUESTION INDICATOR)
+// QuestionSidePanel.tsx - ORIGINAL LAYOUT WITH NEW UI CONTENT (NO INVALID PROPS)
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../../../lib/utils";
@@ -42,6 +42,17 @@ interface Comment {
   text: string;
   author: string;
   timestamp: Date;
+}
+
+// Local interactivity settings state
+interface InteractivitySettings {
+  requireNames: boolean;
+  qaEnabled: boolean;
+  qaVisibleToAll: boolean;
+  qaModeration: boolean;
+  allowSkip: boolean;
+  showCorrectAnswer: boolean;
+  shuffleOptions: boolean;
 }
 
 interface QuestionSidePanelProps {
@@ -224,6 +235,20 @@ export function QuestionSidePanel({
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Local state for image (UI-only)
+  const [localImage, setLocalImage] = useState<string | null>(null);
+  
+  // Local state for interactivity settings (UI-only, not saved to Question yet)
+  const [interactivitySettings, setInteractivitySettings] = useState<InteractivitySettings>({
+    requireNames: false,
+    qaEnabled: true,
+    qaVisibleToAll: true,
+    qaModeration: false,
+    allowSkip: false,
+    showCorrectAnswer: false,
+    shuffleOptions: false,
+  });
 
   const handleMenuClick = (menuId: string) => {
     if (activeMenu === menuId && isOpen) {
@@ -257,7 +282,7 @@ export function QuestionSidePanel({
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      onUpdateQuestion({ image: ev.target?.result as string });
+      setLocalImage(ev.target?.result as string);
     };
     reader.readAsDataURL(file);
   };
@@ -267,6 +292,9 @@ export function QuestionSidePanel({
   };
 
   const selectedThemeId = (currentQuestion as any)?.theme || "default";
+
+  // Get the current image to display (from local state or from question if it had one)
+  const currentImage = localImage || (currentQuestion as any)?.image;
 
   // Edit Panel - New UI Style
   const renderEditPanel = () => {
@@ -397,13 +425,13 @@ export function QuestionSidePanel({
           </div>
         )}
 
-        {/* Image Upload */}
+        {/* Image Upload - Using local state */}
         <div className="space-y-2">
           <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Image</label>
-          {(currentQuestion as any)?.image ? (
+          {currentImage ? (
             <div className="relative rounded-xl overflow-hidden group">
               <img
-                src={(currentQuestion as any).image}
+                src={currentImage}
                 alt="Question"
                 className="w-full h-28 object-cover"
               />
@@ -415,7 +443,7 @@ export function QuestionSidePanel({
                   <Upload className="w-3.5 h-3.5" />
                 </button>
                 <button
-                  onClick={() => onUpdateQuestion({ image: undefined })}
+                  onClick={() => setLocalImage(null)}
                   className="p-1.5 bg-white rounded-full shadow text-rose-500 hover:bg-rose-50 transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -530,7 +558,7 @@ export function QuestionSidePanel({
     </div>
   );
 
-  // Interactivity Panel - New UI Style
+  // Interactivity Panel - All UI elements preserved, using local state
   const renderInteractivityPanel = () => {
     const q = currentQuestion;
     if (!q) {
@@ -604,7 +632,7 @@ export function QuestionSidePanel({
 
         <div className="h-px bg-slate-100" />
 
-        {/* Participant Names Section */}
+        {/* Participant Names Section - UI only */}
         <section className="space-y-3">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-800">Participant names</h3>
@@ -612,13 +640,16 @@ export function QuestionSidePanel({
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-slate-600">Participant names are required</span>
-            <MentiToggle checked={(q as any).requireNames || false} onChange={(val) => onUpdateQuestion({ requireNames: val })} />
+            <MentiToggle 
+              checked={interactivitySettings.requireNames} 
+              onChange={(val) => setInteractivitySettings(prev => ({ ...prev, requireNames: val }))} 
+            />
           </div>
         </section>
 
         <div className="h-px bg-slate-100" />
 
-        {/* Reactions Section */}
+        {/* Reactions Section - UI only */}
         <section className="space-y-3">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-800">Reactions</h3>
@@ -638,7 +669,7 @@ export function QuestionSidePanel({
 
         <div className="h-px bg-slate-100" />
 
-        {/* Q&A Section */}
+        {/* Q&A Section - UI only */}
         <section className="space-y-3">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-800">Q&A</h3>
@@ -647,11 +678,17 @@ export function QuestionSidePanel({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs text-slate-600">Enable Q&A</span>
-              <MentiToggle checked={(q as any).qaEnabled || false} onChange={(val) => onUpdateQuestion({ qaEnabled: val })} />
+              <MentiToggle 
+                checked={interactivitySettings.qaEnabled} 
+                onChange={(val) => setInteractivitySettings(prev => ({ ...prev, qaEnabled: val }))} 
+              />
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-slate-600 leading-tight">Questions are visible to everyone</span>
-              <MentiToggle checked={(q as any).qaVisibleToAll !== false} onChange={(val) => onUpdateQuestion({ qaVisibleToAll: val })} />
+              <MentiToggle 
+                checked={interactivitySettings.qaVisibleToAll} 
+                onChange={(val) => setInteractivitySettings(prev => ({ ...prev, qaVisibleToAll: val }))} 
+              />
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
@@ -660,55 +697,70 @@ export function QuestionSidePanel({
                   <Star className="w-2.5 h-2.5 text-emerald-700 fill-current" />
                 </div>
               </div>
-              <MentiToggle checked={(q as any).qaModeration || false} onChange={(val) => onUpdateQuestion({ qaModeration: val })} />
+              <MentiToggle 
+                checked={interactivitySettings.qaModeration} 
+                onChange={(val) => setInteractivitySettings(prev => ({ ...prev, qaModeration: val }))} 
+              />
             </div>
           </div>
         </section>
 
         <div className="h-px bg-slate-100" />
 
-        {/* Advanced Settings */}
+        {/* Advanced Settings - Mix of existing props and UI-only */}
         <section className="space-y-3">
           <h3 className="text-sm font-bold text-slate-800">Settings</h3>
           <div className="space-y-2.5">
-            {/* Allow Skip */}
+            {/* Allow Skip - UI only */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <SkipForward className="w-3.5 h-3.5 text-slate-400" />
                 <span className="text-xs text-slate-600">Allow skip</span>
               </div>
-              <MentiToggle checked={(q as any).allowSkip || false} onChange={(val) => onUpdateQuestion({ allowSkip: val })} />
+              <MentiToggle 
+                checked={interactivitySettings.allowSkip} 
+                onChange={(val) => setInteractivitySettings(prev => ({ ...prev, allowSkip: val }))} 
+              />
             </div>
 
-            {/* Shuffle Options */}
+            {/* Shuffle Options - UI only for now */}
             {hasOptions && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Shuffle className="w-3.5 h-3.5 text-slate-400" />
                   <span className="text-xs text-slate-600">Shuffle options</span>
                 </div>
-                <MentiToggle checked={(q as any).shuffleOptions || false} onChange={(val) => onUpdateQuestion({ shuffleOptions: val })} />
+                <MentiToggle 
+                  checked={interactivitySettings.shuffleOptions} 
+                  onChange={(val) => setInteractivitySettings(prev => ({ ...prev, shuffleOptions: val }))}
+                />
               </div>
             )}
 
-            {/* Show Correct Answer */}
+            {/* Show Correct Answer - UI only */}
             {hasOptions && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Eye className="w-3.5 h-3.5 text-slate-400" />
                   <span className="text-xs text-slate-600">Show correct answer</span>
                 </div>
-                <MentiToggle checked={(q as any).showCorrectAnswer || false} onChange={(val) => onUpdateQuestion({ showCorrectAnswer: val })} />
+                <MentiToggle 
+                  checked={interactivitySettings.showCorrectAnswer} 
+                  onChange={(val) => setInteractivitySettings(prev => ({ ...prev, showCorrectAnswer: val }))} 
+                />
               </div>
             )}
 
-            {/* Lock Question */}
+            {/* Lock Question - uses existing property */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {q.locked ? <Lock className="w-3.5 h-3.5 text-amber-500" /> : <Unlock className="w-3.5 h-3.5 text-slate-400" />}
                 <span className="text-xs text-slate-600">Lock question</span>
               </div>
-              <MentiToggle checked={q.locked || false} onChange={(val) => onUpdateQuestion({ locked: val })} />
+              <MentiToggle 
+                checked={q.locked || false} 
+                onChange={(val) => onUpdateQuestion({ locked: val })} 
+              />
             </div>
           </div>
         </section>
