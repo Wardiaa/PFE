@@ -105,8 +105,8 @@ export function Step3({
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Drives the squish effect
-  const [isSidePanelOpen, setIsSidePanelOpen] = useState(true); 
+  // Drives the squish effect - DEFAULT TO CLOSED (false)
+  const [isSidePanelOpen, setIsSidePanelOpen] = useState(false); 
   
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
