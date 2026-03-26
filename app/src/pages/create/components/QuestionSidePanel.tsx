@@ -1,4 +1,4 @@
-// QuestionSidePanel.tsx - FULLY FUNCTIONAL
+// QuestionSidePanel.tsx - ORIGINAL LAYOUT WITH NEW UI CONTENT (NO QUESTION INDICATOR)
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../../../lib/utils";
@@ -29,6 +29,12 @@ import {
   Unlock,
   RefreshCw,
   Image as ImageIcon,
+  Plus,
+  ArrowLeft,
+  ThumbsUp,
+  ThumbsDown,
+  Heart,
+  PawPrint,
 } from "lucide-react";
 
 interface Comment {
@@ -48,17 +54,10 @@ interface QuestionSidePanelProps {
 }
 
 const menuItems = [
-  { id: "edit", label: "Edit", icon: PencilRuler },
+  { id: "edit", label: "Edit", icon: BarChart2 },
   { id: "comments", label: "Comments", icon: MessageSquareText },
   { id: "interactivity", label: "Interactivity", icon: Pointer },
   { id: "themes", label: "Themes", icon: PaintRoller },
-];
-
-const QUESTION_TYPES = [
-  { id: "multiple-choice", label: "Multiple Choice", shortLabel: "MC", icon: ListChecks, color: "bg-teal-600" },
-  { id: "open-text", label: "Open Text", shortLabel: "OT", icon: MessageSquare, color: "bg-cyan-600" },
-  { id: "word-cloud", label: "Word Cloud", shortLabel: "WC", icon: Cloud, color: "bg-orange-500" },
-  { id: "rating-scale", label: "Rating Scale", shortLabel: "RS", icon: BarChart2, color: "bg-emerald-600" },
 ];
 
 const QUESTION_THEMES = [
@@ -143,6 +142,21 @@ const QUESTION_THEMES = [
     accentColor: "#7dd3fc",
   },
 ];
+
+// Menti-style toggle component
+const MentiToggle = ({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) => (
+  <button
+    onClick={() => !disabled && onChange(!checked)}
+    disabled={disabled}
+    className={cn(
+      "w-9 h-5 rounded-full transition-all relative flex items-center px-0.5",
+      checked ? "bg-[#6366F1]" : "bg-slate-200",
+      disabled && "opacity-40 cursor-not-allowed"
+    )}
+  >
+    <div className={cn("w-4 h-4 bg-white rounded-full shadow transition-transform", checked ? "translate-x-4" : "translate-x-0")} />
+  </button>
+);
 
 function ThemePreviewCard({
   theme,
@@ -238,10 +252,6 @@ export function QuestionSidePanel({
     setComments((prev) => prev.filter((c) => c.id !== id));
   };
 
-  const handleTypeChange = (typeId: string) => {
-    onUpdateQuestion({ type: typeId as Question["type"] });
-  };
-
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -258,111 +268,188 @@ export function QuestionSidePanel({
 
   const selectedThemeId = (currentQuestion as any)?.theme || "default";
 
-  const renderEditPanel = () => (
-    <div className="space-y-8">
-      {/* Question Type */}
-      <div className="space-y-3">
-        <label className="text-sm font-bold text-slate-800">Question type</label>
-        <div className="grid grid-cols-2 gap-2">
-          {QUESTION_TYPES.map((type) => {
-            const Icon = type.icon;
-            const isActive =
-              currentQuestion?.type === type.id ||
-              currentQuestion?.type === type.id.toUpperCase().replace(/-/g, "_");
-            return (
-              <button
-                key={type.id}
-                onClick={() => handleTypeChange(type.id)}
-                disabled={!currentQuestion}
-                className={cn(
-                  "flex items-center gap-2.5 p-3 rounded-xl border-2 transition-all text-left",
-                  isActive
-                    ? "border-indigo-500 bg-indigo-50"
-                    : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-50",
-                  !currentQuestion && "opacity-40 cursor-not-allowed"
-                )}
-              >
-                <div
-                  className={cn(
-                    "w-7 h-7 rounded-lg flex items-center justify-center text-white flex-shrink-0",
-                    type.color
-                  )}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                </div>
-                <span
-                  className={cn(
-                    "text-xs font-semibold leading-tight",
-                    isActive ? "text-indigo-700" : "text-slate-600"
-                  )}
-                >
-                  {type.label}
-                </span>
-              </button>
-            );
-          })}
+  // Edit Panel - New UI Style
+  const renderEditPanel = () => {
+    if (!currentQuestion) {
+      return (
+        <div className="text-center py-20">
+          <BarChart2 className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+          <p className="text-sm font-semibold text-slate-400">No question selected</p>
+          <p className="text-xs text-slate-300 mt-1">Select a question to edit</p>
         </div>
-      </div>
+      );
+    }
 
-      {/* Image Upload */}
-      <div className="space-y-3">
-        <label className="text-sm font-bold text-slate-800">Image</label>
-        {(currentQuestion as any)?.image ? (
-          <div className="relative rounded-2xl overflow-hidden group">
-            <img
-              src={(currentQuestion as any).image}
-              alt="Question"
-              className="w-full h-40 object-cover"
-            />
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="p-2 bg-white rounded-full shadow text-slate-700 hover:bg-indigo-50 transition-colors"
-              >
-                <Upload className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => onUpdateQuestion({ image: undefined })}
-                className="p-2 bg-white rounded-full shadow text-rose-500 hover:bg-rose-50 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+    const isChoiceType = currentQuestion.type === "multiple-choice" || 
+                         currentQuestion.type === "SINGLE_CHOICE" ||
+                         currentQuestion.type === "MULTIPLE_CHOICE" ||
+                         currentQuestion.type === "POLL";
+
+    return (
+      <div className="space-y-6">
+        {/* Header with Back Arrow and Question Type */}
+        <div className="flex items-center gap-3">
+          <button className="p-1 hover:bg-slate-100 rounded-lg">
+            <ArrowLeft className="w-5 h-5 text-slate-600" />
+          </button>
+          <h2 className="text-lg font-medium text-slate-800">
+            {currentQuestion.type === "multiple-choice" ? "Multiple Choice" :
+             currentQuestion.type === "open-text" ? "Open Text" :
+             currentQuestion.type === "word-cloud" ? "Word Cloud" :
+             currentQuestion.type === "rating-scale" ? "Rating Scale" : "Question"}
+          </h2>
+        </div>
+
+        {/* Question Title Input */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Question</label>
+          <input
+            type="text"
+            value={currentQuestion.title || ""}
+            onChange={(e) => onUpdateQuestion({ title: e.target.value })}
+            className="w-full px-4 py-3 bg-[#F1F3F5] rounded-xl border border-transparent focus:border-slate-200 outline-none text-sm font-medium"
+            placeholder="Enter your question..."
+          />
+        </div>
+
+        {/* Description Input */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Description (optional)</label>
+          <textarea
+            value={currentQuestion.description || ""}
+            onChange={(e) => onUpdateQuestion({ description: e.target.value })}
+            className="w-full px-4 py-3 bg-[#F1F3F5] rounded-xl border border-transparent focus:border-slate-200 outline-none text-sm resize-none min-h-[80px]"
+            placeholder="Add additional context or instructions..."
+          />
+        </div>
+
+        {/* Options Section (for choice types) */}
+        {isChoiceType && (
+          <div className="space-y-3">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Options</label>
+            <div className="space-y-2">
+              {currentQuestion.options?.map((opt, idx) => (
+                <div key={opt.id} className="flex items-center gap-2 group">
+                  {/* Checkbox for correct answer */}
+                  <button 
+                    onClick={() => {
+                      const newOpts = [...(currentQuestion.options || [])];
+                      newOpts[idx] = { ...newOpts[idx], isCorrect: !newOpts[idx].isCorrect };
+                      onUpdateQuestion({ options: newOpts });
+                    }}
+                    className={cn(
+                      "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors shrink-0",
+                      opt.isCorrect ? "bg-[#6366F1] border-[#6366F1]" : "border-slate-200"
+                    )}
+                  >
+                    {opt.isCorrect && <Check className="w-3 h-3 text-white" />}
+                  </button>
+
+                  {/* Pill Input Area */}
+                  <div className="flex-1 flex items-center gap-2 bg-[#F1F3F5] rounded-xl px-3 py-2.5 border border-transparent focus-within:border-slate-200 transition-all">
+                    <div className={cn("w-4 h-4 rounded-full shrink-0", 
+                      idx === 0 ? "bg-blue-500" : 
+                      idx === 1 ? "bg-rose-400" : 
+                      idx === 2 ? "bg-indigo-900" : "bg-emerald-500"
+                    )} />
+                    <input
+                      type="text"
+                      value={opt.text}
+                      onChange={(e) => {
+                        const newOpts = [...(currentQuestion.options || [])];
+                        newOpts[idx] = { ...newOpts[idx], text: e.target.value };
+                        onUpdateQuestion({ options: newOpts });
+                      }}
+                      className="bg-transparent border-none outline-none text-sm w-full font-medium"
+                      placeholder={`Option ${idx + 1}`}
+                    />
+                    <ImageIcon className="w-3.5 h-3.5 text-slate-400 cursor-pointer hover:text-slate-600" />
+                  </div>
+                  
+                  <button 
+                    onClick={() => {
+                      const newOpts = (currentQuestion.options || []).filter((_, i) => i !== idx);
+                      onUpdateQuestion({ options: newOpts });
+                    }}
+                    className="text-slate-400 hover:text-rose-500 shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
             </div>
-          </div>
-        ) : (
-          <div
-            onClick={() => currentQuestion && fileInputRef.current?.click()}
-            className={cn(
-              "border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 transition-all",
-              currentQuestion
-                ? "cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30"
-                : "opacity-40 cursor-not-allowed"
-            )}
-          >
-            <ImageIcon className="w-6 h-6 text-slate-300" />
-            <p className="text-xs font-bold text-indigo-600 underline text-center">
-              Click to add an image
-            </p>
+
+            <button 
+              onClick={() => {
+                const newOpts = [...(currentQuestion.options || [])];
+                const newId = `${currentQuestion.id}-${Date.now()}`;
+                newOpts.push({ 
+                  id: newId, 
+                  text: `Option ${newOpts.length + 1}`, 
+                  isCorrect: false 
+                });
+                onUpdateQuestion({ options: newOpts });
+              }}
+              className="w-full py-3 bg-[#F1F3F5] hover:bg-[#E9ECEF] rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-2 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add option
+            </button>
           </div>
         )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleImageUpload}
-        />
-      </div>
 
-      {/* Quick Actions */}
-      {currentQuestion && (
-        <div className="space-y-3">
-          <label className="text-sm font-bold text-slate-800">Actions</label>
+        {/* Image Upload */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Image</label>
+          {(currentQuestion as any)?.image ? (
+            <div className="relative rounded-xl overflow-hidden group">
+              <img
+                src={(currentQuestion as any).image}
+                alt="Question"
+                className="w-full h-28 object-cover"
+              />
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-1.5 bg-white rounded-full shadow text-slate-700 hover:bg-indigo-50 transition-colors"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => onUpdateQuestion({ image: undefined })}
+                  className="p-1.5 bg-white rounded-full shadow text-rose-500 hover:bg-rose-50 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-all"
+            >
+              <ImageIcon className="w-5 h-5 text-slate-300" />
+              <p className="text-[10px] font-bold text-indigo-600 underline text-center">
+                Click to add an image
+              </p>
+            </div>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleImageUpload}
+          />
+        </div>
+
+        {/* Quick Actions */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Actions</label>
           <div className="grid grid-cols-2 gap-2">
             {onDuplicateQuestion && (
               <button
                 onClick={onDuplicateQuestion}
-                className="flex items-center gap-2 p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all text-xs font-semibold text-slate-600"
+                className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all text-xs font-semibold text-slate-600"
               >
                 <RefreshCw className="w-3.5 h-3.5 text-indigo-500" />
                 Duplicate
@@ -371,7 +458,7 @@ export function QuestionSidePanel({
             {onDeleteQuestion && (
               <button
                 onClick={onDeleteQuestion}
-                className="flex items-center gap-2 p-3 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 transition-all text-xs font-semibold text-rose-500"
+                className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 transition-all text-xs font-semibold text-rose-500"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Delete
@@ -379,13 +466,14 @@ export function QuestionSidePanel({
             )}
           </div>
         </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  };
 
+  // Comments Panel - New UI Style
   const renderCommentsPanel = () => (
     <div className="flex flex-col h-full">
-      <div className="flex-1 space-y-3 overflow-y-auto mb-4 min-h-0">
+      <div className="flex-1 space-y-4 overflow-y-auto mb-4 min-h-0">
         {comments.length === 0 ? (
           <div className="text-center py-16">
             <MessageSquareText className="w-10 h-10 text-slate-200 mx-auto mb-3" />
@@ -396,59 +484,45 @@ export function QuestionSidePanel({
           </div>
         ) : (
           comments.map((comment) => (
-            <div
-              key={comment.id}
-              className="group bg-slate-50 rounded-2xl p-3 border border-slate-100 relative"
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center text-[8px] font-bold text-white">
-                    Y
-                  </div>
-                  <span className="text-xs font-bold text-slate-700">{comment.author}</span>
-                </div>
-                <div className="flex items-center gap-1">
+            <div key={comment.id} className="flex gap-3">
+              <div className="w-8 h-8 rounded-full bg-[#E9ECEF] flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">
+                {comment.author.charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-slate-700">{comment.author}</span>
                   <span className="text-[10px] text-slate-400">
-                    {comment.timestamp.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    {comment.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
-                  <button
+                </div>
+                <p className="text-sm text-slate-600">{comment.text}</p>
+                <div className="flex items-center gap-3">
+                  <button className="text-[11px] font-bold text-slate-800 pt-1 hover:text-indigo-600">Reply</button>
+                  <button 
                     onClick={() => handleDeleteComment(comment.id)}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded-md hover:bg-rose-100 text-slate-400 hover:text-rose-500 transition-all"
+                    className="text-[11px] font-bold text-rose-500 pt-1 hover:text-rose-600"
                   >
-                    <X className="w-3 h-3" />
+                    Delete
                   </button>
                 </div>
               </div>
-              <p className="text-xs text-slate-600 leading-relaxed">{comment.text}</p>
             </div>
           ))
         )}
       </div>
 
-      <div className="border-t border-slate-100 pt-4 mt-auto">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
-            placeholder="Add a comment..."
-            disabled={!currentQuestion}
-            className="flex-1 px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200 disabled:opacity-40 disabled:cursor-not-allowed"
-          />
-          <button
-            onClick={handleAddComment}
-            disabled={!currentQuestion || !newComment.trim()}
-            className="p-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        </div>
+      <div className="relative pt-4 border-t border-slate-100">
+        <input
+          type="text"
+          value={newComment}
+          onChange={(e) => setNewComment(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
+          placeholder="Enter your comment here..."
+          disabled={!currentQuestion}
+          className="w-full bg-[#F1F3F5] rounded-xl px-4 py-3 text-sm font-medium outline-none border-none placeholder:text-slate-400 disabled:opacity-40 disabled:cursor-not-allowed"
+        />
         {!currentQuestion && (
-          <p className="text-[10px] text-slate-400 mt-2 text-center">
+          <p className="text-[9px] text-slate-400 mt-2 text-center">
             Select a question to add comments
           </p>
         )}
@@ -456,6 +530,7 @@ export function QuestionSidePanel({
     </div>
   );
 
+  // Interactivity Panel - New UI Style
   const renderInteractivityPanel = () => {
     const q = currentQuestion;
     if (!q) {
@@ -468,55 +543,56 @@ export function QuestionSidePanel({
       );
     }
 
-    const hasOptions =
-      q.type === "multiple-choice" ||
-      q.type === "SINGLE_CHOICE" ||
-      q.type === "MULTIPLE_CHOICE" ||
-      q.type === "TRUE_FALSE" ||
-      q.type === "POLL";
+    const hasOptions = q.type === "multiple-choice" || 
+                       q.type === "SINGLE_CHOICE" || 
+                       q.type === "MULTIPLE_CHOICE" || 
+                       q.type === "TRUE_FALSE" || 
+                       q.type === "POLL";
 
     return (
       <div className="space-y-6">
-        {/* Time Limit */}
-        <div className="space-y-3">
-          <label className="text-sm font-bold text-slate-800 flex items-center gap-2">
-            <Timer className="w-4 h-4 text-indigo-500" />
-            Time Limit
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {[15, 30, 45, 60, 90, 120].map((s) => (
+        {/* Timer Section */}
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-800">Time limit</h3>
+            <HelpCircle className="w-3.5 h-3.5 text-slate-300" />
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {[15, 30, 45, 60].map((s) => (
               <button
                 key={s}
                 onClick={() => onUpdateQuestion({ timeLimit: s })}
                 className={cn(
-                  "py-2.5 rounded-xl border-2 text-xs font-bold transition-all",
+                  "py-2 rounded-lg text-xs font-bold transition-all",
                   q.timeLimit === s
-                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                    : "border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-600"
+                    ? "bg-[#6366F1] text-white"
+                    : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200"
                 )}
               >
                 {s}s
               </button>
             ))}
           </div>
-        </div>
+        </section>
 
-        {/* Points */}
-        <div className="space-y-3">
-          <label className="text-sm font-bold text-slate-800 flex items-center gap-2">
-            <Star className="w-4 h-4 text-amber-500" />
-            Points
-          </label>
+        <div className="h-px bg-slate-100" />
+
+        {/* Points Section */}
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-800">Points</h3>
+            <HelpCircle className="w-3.5 h-3.5 text-slate-300" />
+          </div>
           <div className="grid grid-cols-3 gap-2">
             {[0, 10, 20, 30, 50, 100].map((p) => (
               <button
                 key={p}
                 onClick={() => onUpdateQuestion({ points: p })}
                 className={cn(
-                  "py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex items-center justify-center gap-1",
+                  "py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1",
                   q.points === p
-                    ? "border-amber-500 bg-amber-50 text-amber-700"
-                    : "border-slate-200 bg-white text-slate-500 hover:border-amber-300 hover:text-amber-600"
+                    ? "bg-amber-500 text-white"
+                    : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200"
                 )}
               >
                 <Star className="w-3 h-3" />
@@ -524,127 +600,123 @@ export function QuestionSidePanel({
               </button>
             ))}
           </div>
-        </div>
+        </section>
 
-        {/* Toggle Options */}
-        <div className="space-y-3">
-          <label className="text-sm font-bold text-slate-800">Settings</label>
-          <div className="space-y-2">
-            {/* Allow Skip */}
-            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
-              <div className="flex items-center gap-2.5">
-                <SkipForward className="w-4 h-4 text-slate-400" />
-                <div>
-                  <p className="text-xs font-semibold text-slate-700">Allow Skip</p>
-                  <p className="text-[10px] text-slate-400">Participants can skip this question</p>
+        <div className="h-px bg-slate-100" />
+
+        {/* Participant Names Section */}
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-800">Participant names</h3>
+            <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold uppercase">Pro</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-600">Participant names are required</span>
+            <MentiToggle checked={(q as any).requireNames || false} onChange={(val) => onUpdateQuestion({ requireNames: val })} />
+          </div>
+        </section>
+
+        <div className="h-px bg-slate-100" />
+
+        {/* Reactions Section */}
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-800">Reactions</h3>
+            <HelpCircle className="w-3.5 h-3.5 text-slate-300" />
+          </div>
+          <div className="flex gap-1.5">
+            {[PawPrint, Heart, HelpCircle, ThumbsUp, ThumbsDown].map((Icon, i) => (
+              <button key={i} className={cn(
+                "w-9 h-9 rounded-lg border flex items-center justify-center transition-all",
+                i === 3 ? "border-[#6366F1] bg-indigo-50/50" : "border-slate-200 bg-white hover:border-slate-300"
+              )}>
+                <Icon className={cn("w-4 h-4", i === 3 ? "text-slate-800" : "text-slate-800")} fill={i === 3 ? "currentColor" : "none"} />
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <div className="h-px bg-slate-100" />
+
+        {/* Q&A Section */}
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-800">Q&A</h3>
+            <HelpCircle className="w-3.5 h-3.5 text-slate-300" />
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-600">Enable Q&A</span>
+              <MentiToggle checked={(q as any).qaEnabled || false} onChange={(val) => onUpdateQuestion({ qaEnabled: val })} />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-600 leading-tight">Questions are visible to everyone</span>
+              <MentiToggle checked={(q as any).qaVisibleToAll !== false} onChange={(val) => onUpdateQuestion({ qaVisibleToAll: val })} />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-slate-600">Moderation</span>
+                <div className="w-4 h-4 bg-emerald-100 rounded-full flex items-center justify-center">
+                  <Star className="w-2.5 h-2.5 text-emerald-700 fill-current" />
                 </div>
               </div>
-              <button
-                onClick={() => onUpdateQuestion({ allowSkip: !(q as any).allowSkip })}
-                className={cn(
-                  "w-9 h-5 rounded-full transition-all relative flex-shrink-0",
-                  (q as any).allowSkip ? "bg-indigo-600" : "bg-slate-200"
-                )}
-              >
-                <span
-                  className={cn(
-                    "absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all",
-                    (q as any).allowSkip ? "left-4" : "left-0.5"
-                  )}
-                />
-              </button>
+              <MentiToggle checked={(q as any).qaModeration || false} onChange={(val) => onUpdateQuestion({ qaModeration: val })} />
+            </div>
+          </div>
+        </section>
+
+        <div className="h-px bg-slate-100" />
+
+        {/* Advanced Settings */}
+        <section className="space-y-3">
+          <h3 className="text-sm font-bold text-slate-800">Settings</h3>
+          <div className="space-y-2.5">
+            {/* Allow Skip */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <SkipForward className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-xs text-slate-600">Allow skip</span>
+              </div>
+              <MentiToggle checked={(q as any).allowSkip || false} onChange={(val) => onUpdateQuestion({ allowSkip: val })} />
             </div>
 
             {/* Shuffle Options */}
             {hasOptions && (
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="flex items-center gap-2.5">
-                  <Shuffle className="w-4 h-4 text-slate-400" />
-                  <div>
-                    <p className="text-xs font-semibold text-slate-700">Shuffle Options</p>
-                    <p className="text-[10px] text-slate-400">Randomize answer order per participant</p>
-                  </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shuffle className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-xs text-slate-600">Shuffle options</span>
                 </div>
-                <button
-                  onClick={() => onUpdateQuestion({ shuffleOptions: !(q as any).shuffleOptions })}
-                  className={cn(
-                    "w-9 h-5 rounded-full transition-all relative flex-shrink-0",
-                    (q as any).shuffleOptions ? "bg-indigo-600" : "bg-slate-200"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all",
-                      (q as any).shuffleOptions ? "left-4" : "left-0.5"
-                    )}
-                  />
-                </button>
+                <MentiToggle checked={(q as any).shuffleOptions || false} onChange={(val) => onUpdateQuestion({ shuffleOptions: val })} />
               </div>
             )}
 
             {/* Show Correct Answer */}
             {hasOptions && (
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="flex items-center gap-2.5">
-                  <Eye className="w-4 h-4 text-slate-400" />
-                  <div>
-                    <p className="text-xs font-semibold text-slate-700">Show Correct Answer</p>
-                    <p className="text-[10px] text-slate-400">Reveal correct answer after submission</p>
-                  </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Eye className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-xs text-slate-600">Show correct answer</span>
                 </div>
-                <button
-                  onClick={() =>
-                    onUpdateQuestion({ showCorrectAnswer: !(q as any).showCorrectAnswer })
-                  }
-                  className={cn(
-                    "w-9 h-5 rounded-full transition-all relative flex-shrink-0",
-                    (q as any).showCorrectAnswer ? "bg-indigo-600" : "bg-slate-200"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all",
-                      (q as any).showCorrectAnswer ? "left-4" : "left-0.5"
-                    )}
-                  />
-                </button>
+                <MentiToggle checked={(q as any).showCorrectAnswer || false} onChange={(val) => onUpdateQuestion({ showCorrectAnswer: val })} />
               </div>
             )}
 
             {/* Lock Question */}
-            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
-              <div className="flex items-center gap-2.5">
-                {q.locked ? (
-                  <Lock className="w-4 h-4 text-amber-500" />
-                ) : (
-                  <Unlock className="w-4 h-4 text-slate-400" />
-                )}
-                <div>
-                  <p className="text-xs font-semibold text-slate-700">Lock Question</p>
-                  <p className="text-[10px] text-slate-400">Prevent accidental edits</p>
-                </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {q.locked ? <Lock className="w-3.5 h-3.5 text-amber-500" /> : <Unlock className="w-3.5 h-3.5 text-slate-400" />}
+                <span className="text-xs text-slate-600">Lock question</span>
               </div>
-              <button
-                onClick={() => onUpdateQuestion({ locked: !q.locked })}
-                className={cn(
-                  "w-9 h-5 rounded-full transition-all relative flex-shrink-0",
-                  q.locked ? "bg-amber-500" : "bg-slate-200"
-                )}
-              >
-                <span
-                  className={cn(
-                    "absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all",
-                    q.locked ? "left-4" : "left-0.5"
-                  )}
-                />
-              </button>
+              <MentiToggle checked={q.locked || false} onChange={(val) => onUpdateQuestion({ locked: val })} />
             </div>
           </div>
-        </div>
+        </section>
       </div>
     );
   };
 
+  // Themes Panel
   const renderThemesPanel = () => {
     if (!currentQuestion) {
       return (
@@ -705,12 +777,12 @@ export function QuestionSidePanel({
     }
   };
 
-  const panelTitle = menuItems.find((m) => m.id === activeMenu)?.label ?? "Slide";
+  const panelTitle = menuItems.find((m) => m.id === activeMenu)?.label ?? "Edit";
 
   return (
     <div className="absolute right-0 top-0 h-full flex z-30 bg-white">
 
-      {/* 1. CONTENT PANEL */}
+      {/* 1. CONTENT PANEL - ORIGINAL 360px WIDTH */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -732,18 +804,7 @@ export function QuestionSidePanel({
                 </button>
               </div>
 
-              {/* Question indicator */}
-              {currentQuestion ? (
-                <div className="mx-6 mb-4 px-3 py-2 bg-indigo-50 rounded-xl border border-indigo-100 shrink-0">
-                  <p className="text-xs font-semibold text-indigo-700 truncate">{currentQuestion.title || "Untitled question"}</p>
-                </div>
-              ) : (
-                <div className="mx-6 mb-4 px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 shrink-0">
-                  <p className="text-xs text-slate-400">No question selected</p>
-                </div>
-              )}
-
-              {/* Panel Body */}
+              {/* Panel Body - No question indicator */}
               <div
                 className={cn(
                   "flex-1 overflow-y-auto px-6 pb-6 min-h-0",
@@ -757,29 +818,30 @@ export function QuestionSidePanel({
         )}
       </AnimatePresence>
 
-      {/* 2. NAV RAIL */}
+      {/* 2. NAVIGATION RAIL - ORIGINAL 92px WIDTH */}
       <div className="w-[92px] bg-white border-l border-slate-200 flex flex-col items-center py-4 gap-3">
-        {menuItems.map((item) => {
+        {menuItems.map((item, i) => {
           const Icon = item.icon;
           const isActive = activeMenu === item.id && isOpen;
           const hasNotification = item.id === "comments" && comments.length > 0;
           return (
-            <button
-              key={item.id}
-              onClick={() => handleMenuClick(item.id)}
-              className={cn(
-                "w-[76px] h-[76px] rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all duration-200 border-2 relative",
-                isActive
-                  ? "bg-white border-[#6366F1] text-[#4F46E5] shadow-lg shadow-indigo-50"
-                  : "bg-white border-transparent text-slate-600 hover:bg-slate-50"
-              )}
-            >
-              <Icon className={cn("w-6 h-6", isActive ? "text-[#4F46E5]" : "text-black")} />
-              <span className="text-[11px] font-bold">{item.label}</span>
-              {hasNotification && (
-                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-indigo-600" />
-              )}
-            </button>
+            <div key={item.id} className="flex flex-col items-center">
+              <button
+                onClick={() => handleMenuClick(item.id)}
+                className={cn(
+                  "w-[76px] h-[76px] rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all duration-200 border-2 relative",
+                  isActive
+                    ? "bg-white border-[#6366F1] text-[#4F46E5] shadow-lg shadow-indigo-50"
+                    : "bg-white border-transparent text-slate-600 hover:bg-slate-50"
+                )}
+              >
+                <Icon className={cn("w-6 h-6", isActive ? "text-[#4F46E5]" : "text-black")} />
+                <span className="text-[11px] font-bold">{item.label}</span>
+                {hasNotification && (
+                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-indigo-600" />
+                )}
+              </button>
+            </div>
           );
         })}
       </div>
