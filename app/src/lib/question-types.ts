@@ -134,6 +134,8 @@ export const getDefaultQuestion = (type: string, id: string) => {
             type === 'open-text' ? 10 : 10,
     timeLimit: type === 'word-cloud' ? 30 :
                type === 'open-text' ? 60 : 30,
+    isVisible: true, 
+    locked: false, 
   };
 
   switch (actualType) {
