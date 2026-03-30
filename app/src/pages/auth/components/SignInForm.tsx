@@ -1,6 +1,9 @@
-import React from 'react';
+// src/pages/auth/components/SignInForm.tsx
+import React, { useState } from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import { SocialButtons } from './SocialButtons';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 interface SignInFormProps {
   isDark: boolean;
@@ -8,6 +11,29 @@ interface SignInFormProps {
 }
 
 export const SignInForm: React.FC<SignInFormProps> = ({ isDark, onSwitchToSignUp }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const { signIn } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    const { error } = await signIn(email, password);
+    
+    if (error) {
+      setError(error.message);
+      setIsLoading(false);
+    } else {
+      navigate('/dashboard');
+    }
+  };
+
   return (
     <div className="flex w-full flex-col justify-center">
       <div className={`mb-6 mt-0.5 flex h-11 w-11 items-center justify-center rounded-xl ring-1 shadow-sm transition-colors ${isDark ? 'bg-zinc-900 ring-zinc-800' : 'bg-zinc-50 ring-zinc-200'}`}>
@@ -24,10 +50,19 @@ export const SignInForm: React.FC<SignInFormProps> = ({ isDark, onSwitchToSignUp
         Continue to your business account
       </p>
 
-      <form className="space-y-3" onSubmit={(e) => e.preventDefault()}>
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-500">
+          {error}
+        </div>
+      )}
+
+      <form className="space-y-3" onSubmit={handleSubmit}>
         <input
           type="email"
           placeholder="Enter your email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
           className={`w-full rounded-xl border px-4 py-3.5 text-sm outline-none transition-all focus:ring-4 focus:ring-indigo-500/10
             ${isDark
               ? 'border-zinc-800 bg-zinc-900/30 text-white placeholder:text-zinc-600 focus:border-indigo-500/50 focus:bg-zinc-900/80'
@@ -36,13 +71,20 @@ export const SignInForm: React.FC<SignInFormProps> = ({ isDark, onSwitchToSignUp
         <input
           type="password"
           placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
           className={`w-full rounded-xl border px-4 py-3.5 text-sm outline-none transition-all focus:ring-4 focus:ring-indigo-500/10
             ${isDark
               ? 'border-zinc-800 bg-zinc-900/30 text-white placeholder:text-zinc-600 focus:border-indigo-500/50 focus:bg-zinc-900/80'
               : 'border-zinc-200 bg-zinc-50 text-zinc-900 placeholder:text-zinc-400 focus:border-indigo-600 focus:bg-white'}`}
         />
-        <button className="w-full rounded-xl bg-indigo-600 py-3.5 text-sm font-bold text-white transition-all hover:bg-indigo-500 hover:shadow-lg hover:shadow-indigo-500/20 active:scale-[0.98]">
-          Continue
+        <button 
+          type="submit"
+          disabled={isLoading}
+          className="w-full rounded-xl bg-indigo-600 py-3.5 text-sm font-bold text-white transition-all hover:bg-indigo-500 hover:shadow-lg hover:shadow-indigo-500/20 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isLoading ? 'Signing in...' : 'Continue'}
         </button>
       </form>
 

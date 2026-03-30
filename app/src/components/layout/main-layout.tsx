@@ -1,9 +1,9 @@
-// components/layout/main-layout.tsx
+// src/components/layout/main-layout.tsx
 import { useState, useEffect } from "react";
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "../ui/button";
 import { NotificationsPanel } from "../notifications-panel";
-import { useAuth } from "../../lib/mock-data";
+import { useAuth } from "../../contexts/AuthContext";
 import {
   Bell,
   Home,
@@ -26,8 +26,9 @@ const navItems = [
 ];
 
 export function MainLayout() {
-  const { user, logout } = useAuth();
+  const { user, signOut, isLoading } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -37,13 +38,40 @@ export function MainLayout() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-  
+
+  // Redirect to auth if not logged in
+  useEffect(() => {
+    if (!isLoading && !user) {
+      navigate('/auth');
+    }
+  }, [user, isLoading, navigate]);
+
   const unreadNotifications = 3; // Mock count
   
   // Check if current route is the create page
   const isCreatePage = location.pathname === "/create";
   // Check if we're in the create process (any step)
   const isCreateProcess = location.pathname.startsWith("/create");
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/');
+  };
+  
+  if (isLoading) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background">
+      <div className="w-64 h-1 bg-muted rounded-full overflow-hidden">
+        <div className="h-full w-1/2 bg-primary rounded-full animate-[slide_1s_ease-in-out_infinite]"></div>
+      </div>
+      <p className="text-muted-foreground text-sm mt-4">Loading...</p>
+    </div>
+  );
+}
+
+  if (!user) {
+    return null;
+  }
   
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -113,18 +141,18 @@ export function MainLayout() {
                   {user && (
                     <div className="hidden md:flex items-center gap-3">
                       <img
-                        src={user.avatar}
-                        alt={user.name}
+                        src={user.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.user_metadata?.full_name || user.email)}&background=6366f1&color=fff`}
+                        alt={user.user_metadata?.full_name || user.email || 'User'}
                         className="h-8 w-8 rounded-full ring-2 ring-primary/10"
                       />
                       <div className="text-sm hidden lg:block">
-                        <div className="font-medium">{user.name}</div>
-                        <div className="text-xs text-muted-foreground">{user.role}</div>
+                        <div className="font-medium">{user.user_metadata?.full_name || user.email?.split('@')[0]}</div>
+                        <div className="text-xs text-muted-foreground">Member</div>
                       </div>
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        onClick={logout}
+                        onClick={handleLogout}
                         className="rounded-full text-muted-foreground hover:text-foreground"
                       >
                         <LogOut className="h-4 w-4" />
@@ -181,20 +209,20 @@ export function MainLayout() {
                     <div className="pt-4 border-t mt-4">
                       <div className="flex items-center gap-3 px-4 py-3">
                         <img
-                          src={user.avatar}
-                          alt={user.name}
+                          src={user.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.user_metadata?.full_name || user.email)}&background=6366f1&color=fff`}
+                          alt={user.user_metadata?.full_name || user.email || 'User'}
                           className="h-8 w-8 rounded-full"
                         />
                         <div className="text-sm">
-                          <div className="font-medium">{user.name}</div>
-                          <div className="text-xs text-muted-foreground">{user.role}</div>
+                          <div className="font-medium">{user.user_metadata?.full_name || user.email?.split('@')[0]}</div>
+                          <div className="text-xs text-muted-foreground">Member</div>
                         </div>
                       </div>
                     </div>
                     <Button
                       variant="ghost"
                       className="w-full justify-start gap-3 text-red-500 hover:text-red-600 hover:bg-red-50"
-                      onClick={logout}
+                      onClick={handleLogout}
                     >
                       <LogOut className="h-4 w-4" />
                       Logout

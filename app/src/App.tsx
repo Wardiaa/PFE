@@ -1,5 +1,6 @@
-// App.tsx
+// src/App.tsx
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./contexts/AuthContext";
 import { MainLayout } from "./components/layout/main-layout";
 import Home from "./pages/landing/index";
 import AuthPage from "./pages/auth/index";
@@ -15,23 +16,24 @@ import AudienceParticipation from "./pages/audience-participation/index";
 function App() {
   return (
     <BrowserRouter>
-      <Toaster />
-      <Routes>
-        {/* Home route WITHOUT MainLayout */}
-        <Route path="/" element={<Home />} />
-        <Route path="auth" element={<AuthPage />} />
-        {/* All other routes WITH MainLayout */}
-        <Route element={<MainLayout />}>
-          
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="create" element={<Create />} />
-          <Route path="admin" element={<AdminDashboard />} />
-          <Route path="session/:id/host" element={<HostSession />} />
-          <Route path="results/:id" element={<Results />} />
-          <Route path="audience-participation" element={<AudienceParticipation />} />
-          <Route path="*" element={<NotFound />} />
-        </Route>
-      </Routes>
+      <AuthProvider>
+        <Toaster />
+        <Routes>
+          {/* Home route WITHOUT MainLayout */}
+          <Route path="/" element={<Home />} />
+          <Route path="auth" element={<AuthPage />} />
+          {/* All other routes WITH MainLayout */}
+          <Route element={<MainLayout />}>
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="create" element={<Create />} />
+            <Route path="admin" element={<AdminDashboard />} />
+            <Route path="session/:id/host" element={<HostSession />} />
+            <Route path="results/:id" element={<Results />} />
+            <Route path="audience-participation" element={<AudienceParticipation />} />
+            <Route path="*" element={<NotFound />} />
+          </Route>
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

@@ -587,3 +587,11 @@ select:focus-visible {
     font-size: 1rem;
   }
 }
+@keyframes slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}

@@ -1,12 +1,33 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Sun, Moon } from 'lucide-react';
+// src/pages/auth/index.tsx
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Sun, Moon, ArrowUpRight } from 'lucide-react';
 import { DecorativeGrid } from './components/DecorativeGrid';
 import { SignInForm } from './components/SignInForm';
 import { SignUpForm } from './components/SignUpForm';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function AuthPage() {
   const [isDark, setIsDark] = useState(true);
   const [isSignUp, setIsSignUp] = useState(false);
+  const { user, isLoading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isLoading && user) {
+      navigate('/dashboard');
+    }
+  }, [user, isLoading, navigate]);
+
+if (isLoading) {
+  return (
+    <div className={`min-h-screen w-full flex items-center justify-center transition-colors duration-500 ${
+      isDark ? 'bg-zinc-950' : 'bg-zinc-100'
+    }`}>
+      <div className="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
+    </div>
+  );
+}
 
   return (
     <div
@@ -30,6 +51,7 @@ export default function AuthPage() {
           <div className="flex-shrink-0 px-8 py-7">
             <div className="flex items-center justify-between">
               <button
+                onClick={() => navigate('/')}
                 className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] transition-colors
                   ${isDark ? 'text-zinc-600 hover:text-indigo-400' : 'text-zinc-400 hover:text-indigo-600'}`}
               >
@@ -81,12 +103,7 @@ export default function AuthPage() {
                 : 'bg-gradient-to-r from-black/5 via-transparent to-transparent opacity-30'}`}
           />
 
-          {/* Subtle brand text watermark */}
-          <div className="absolute bottom-6 right-6 pointer-events-none">
-            <span className={`text-[10px] font-bold uppercase tracking-[0.35em] transition-colors ${isDark ? 'text-zinc-700' : 'text-zinc-400'}`}>
-              Interactive
-            </span>
-          </div>
+          
         </div>
       </div>
     </div>
