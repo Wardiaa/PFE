@@ -18,7 +18,6 @@ import {
 import { cn } from "../../lib/utils";
 
 const navItems = [
-  { path: "/", label: "Home", icon: Home },
   { path: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { path: "/explore", label: "Explore", icon: Compass },
   { path: "/create", label: "Create", icon: PlusCircle },
@@ -26,7 +25,7 @@ const navItems = [
 ];
 
 export function MainLayout() {
-  const { user, signOut, isLoading } = useAuth();
+  const { user, profile, signOut, isLoading } = useAuth(); // Make sure profile is destructured here
   const location = useLocation();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -42,23 +41,27 @@ export function MainLayout() {
   // Redirect to auth if not logged in
   useEffect(() => {
     if (!isLoading && !user) {
-      navigate('/auth');
+      navigate('/auth', { replace: true });
     }
   }, [user, isLoading, navigate]);
 
-  const unreadNotifications = 3; // Mock count
+  const unreadNotifications = 3;
   
-  // Check if current route is the create page
   const isCreatePage = location.pathname === "/create";
-  // Check if we're in the create process (any step)
   const isCreateProcess = location.pathname.startsWith("/create");
 
   const handleLogout = async () => {
-    await signOut();
-    navigate('/');
+    try {
+      await signOut();
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Logout failed:', error);
+      window.location.href = '/';
+    }
   };
   
-  if (isLoading) {
+// In MainLayout.tsx
+if (isLoading) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background">
       <div className="w-64 h-1 bg-muted rounded-full overflow-hidden">
@@ -72,6 +75,11 @@ export function MainLayout() {
   if (!user) {
     return null;
   }
+  
+  // Get display name from profile or user metadata
+  const displayName = profile?.name || user.user_metadata?.name || user.email?.split('@')[0] || 'User';
+  const displayRole = profile?.role || 'USER';
+  const displayAvatar = profile?.avatar_url || user.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=6366f1&color=fff`;
   
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -87,7 +95,7 @@ export function MainLayout() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="flex items-center justify-between h-16">
                 {/* Logo */}
-                <Link to="/" className="flex items-center gap-3 group cursor-pointer">
+                <Link to="/dashboard" className="flex items-center gap-3 group cursor-pointer">
                   <div className={cn(
                     "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500",
                     scrolled ? 'bg-primary' : 'bg-primary/90'
@@ -138,27 +146,25 @@ export function MainLayout() {
                   </Button>
                   
                   {/* User Menu */}
-                  {user && (
-                    <div className="hidden md:flex items-center gap-3">
-                      <img
-                        src={user.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.user_metadata?.full_name || user.email)}&background=6366f1&color=fff`}
-                        alt={user.user_metadata?.full_name || user.email || 'User'}
-                        className="h-8 w-8 rounded-full ring-2 ring-primary/10"
-                      />
-                      <div className="text-sm hidden lg:block">
-                        <div className="font-medium">{user.user_metadata?.full_name || user.email?.split('@')[0]}</div>
-                        <div className="text-xs text-muted-foreground">Member</div>
-                      </div>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={handleLogout}
-                        className="rounded-full text-muted-foreground hover:text-foreground"
-                      >
-                        <LogOut className="h-4 w-4" />
-                      </Button>
+                  <div className="hidden md:flex items-center gap-3">
+                    <img
+                      src={displayAvatar}
+                      alt={displayName}
+                      className="h-8 w-8 rounded-full ring-2 ring-primary/10 object-cover"
+                    />
+                    <div className="text-sm hidden lg:block">
+                      <div className="font-medium">{displayName}</div>
+                      <div className="text-xs text-muted-foreground capitalize">{displayRole.toLowerCase()}</div>
                     </div>
-                  )}
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={handleLogout}
+                      className="rounded-full text-muted-foreground hover:text-foreground"
+                    >
+                      <LogOut className="h-4 w-4" />
+                    </Button>
+                  </div>
                   
                   {/* Mobile Menu Button */}
                   <Button
@@ -204,31 +210,27 @@ export function MainLayout() {
                     </Link>
                   );
                 })}
-                {user && (
-                  <>
-                    <div className="pt-4 border-t mt-4">
-                      <div className="flex items-center gap-3 px-4 py-3">
-                        <img
-                          src={user.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.user_metadata?.full_name || user.email)}&background=6366f1&color=fff`}
-                          alt={user.user_metadata?.full_name || user.email || 'User'}
-                          className="h-8 w-8 rounded-full"
-                        />
-                        <div className="text-sm">
-                          <div className="font-medium">{user.user_metadata?.full_name || user.email?.split('@')[0]}</div>
-                          <div className="text-xs text-muted-foreground">Member</div>
-                        </div>
-                      </div>
+                <div className="pt-4 border-t mt-4">
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <img
+                      src={displayAvatar}
+                      alt={displayName}
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
+                    <div className="text-sm">
+                      <div className="font-medium">{displayName}</div>
+                      <div className="text-xs text-muted-foreground capitalize">{displayRole.toLowerCase()}</div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start gap-3 text-red-500 hover:text-red-600 hover:bg-red-50"
-                      onClick={handleLogout}
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Logout
-                    </Button>
-                  </>
-                )}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-3 text-red-500 hover:text-red-600 hover:bg-red-50"
+                  onClick={handleLogout}
+                >
+                  <LogOut className="h-4 w-4" />
+                  Logout
+                </Button>
               </div>
             </div>
           )}
