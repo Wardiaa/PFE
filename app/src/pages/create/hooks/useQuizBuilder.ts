@@ -143,7 +143,17 @@ export function useQuizBuilder() {
   const { toast } = useToast();
   const { user } = useAuth();
 
-  const [step, setStep] = useState(1);
+  // Store step in sessionStorage to persist across tab visibility changes
+  const getStoredStep = () => {
+    const stored = sessionStorage.getItem('quiz-builder-step');
+    if (stored) {
+      const parsed = parseInt(stored, 10);
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= 5) return parsed;
+    }
+    return 1;
+  };
+
+  const [step, setStepState] = useState(getStoredStep);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [contextType, setContextType] = useState<SupabaseContextType>("QUIZ");
 
@@ -153,6 +163,8 @@ export function useQuizBuilder() {
 
   // True while loading an existing context for editing (?edit=<id>)
   const [isLoadingEdit, setIsLoadingEdit] = useState(false);
+  // Track if edit has been loaded to prevent resetting step
+  const [editLoaded, setEditLoaded] = useState(false);
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedQuestions, setSelectedQuestions] = useState<number[]>([]);
@@ -172,14 +184,28 @@ export function useQuizBuilder() {
 
   const showEditingControls = step >= 2;
 
+  // Custom setStep that also persists to sessionStorage
+  const setStep = useCallback((newStep: number) => {
+    setStepState(newStep);
+    sessionStorage.setItem('quiz-builder-step', newStep.toString());
+  }, []);
+
   // ── Load existing context for editing (?edit=<id>) ───────────────────────
   // Runs once when user is available. If an edit ID is present we fetch from
   // Supabase, populate all state, and skip the localStorage draft restore.
   const editId = searchParams.get('edit');
 
   useEffect(() => {
+    // Clear any stored step when entering edit mode to ensure we go to step 2
+    if (editId && !editLoaded) {
+      sessionStorage.removeItem('quiz-builder-step');
+    }
+  }, [editId, editLoaded]);
+
+  useEffect(() => {
     if (!editId) return;           // no edit param → nothing to do
     if (!user)   return;           // wait for auth
+    if (editLoaded) return;        // already loaded, don't reload
 
     setIsLoadingEdit(true);
 
@@ -232,8 +258,22 @@ export function useQuizBuilder() {
         setContextType(ctx.type as SupabaseContextType);
         setDraftContextId(editId);
 
-        // 6. Skip template step — go straight to the editor
+        // 6. Set history to include loaded state
+        const loadedState: ContextData = {
+          title: ctx.title || '',
+          description: ctx.description || '',
+          theme: ctx.theme || 'default',
+          category: ctx.category || '',
+          tags: ctx.tags || [],
+          questions: localQuestions,
+          settings: ctx.settings || DEFAULT_SETTINGS,
+        };
+        setHistory([loadedState]);
+        setHistoryIndex(0);
+
+        // 7. Skip template step — go straight to the editor
         setStep(2);
+        setEditLoaded(true);
       } catch (err: any) {
         console.error('Failed to load context for editing:', err);
         toast({
@@ -245,7 +285,7 @@ export function useQuizBuilder() {
         setIsLoadingEdit(false);
       }
     })();
-  }, [user, editId]);
+  }, [user, editId, editLoaded, setStep, toast]);
 
   // ── Restore local draft on mount (skipped when editing an existing context) ──
   useEffect(() => {
@@ -268,7 +308,7 @@ export function useQuizBuilder() {
         console.error("Failed to restore draft:", error);
       }
     }
-  }, []);
+  }, [editId, toast]);
 
   // ── Auto-save to localStorage every 30 s ──────────────────────────────────
   useEffect(() => {
@@ -554,6 +594,7 @@ export function useQuizBuilder() {
     try {
       await saveToSupabase("ACTIVE");
       localStorage.removeItem('quiz-draft');
+      sessionStorage.removeItem('quiz-builder-step');
       toast({ title: "Published!", description: `"${context.title}" is now live.` });
       navigate("/dashboard");
     } catch (err: any) {
@@ -575,6 +616,7 @@ export function useQuizBuilder() {
     try {
       await saveToSupabase("DRAFT");
       localStorage.removeItem('quiz-draft');
+      sessionStorage.removeItem('quiz-builder-step');
       toast({ title: "Draft saved", description: `"${context.title}" saved to your dashboard.` });
       navigate("/dashboard");
     } catch (err: any) {
