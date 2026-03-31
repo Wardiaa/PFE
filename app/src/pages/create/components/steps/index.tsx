@@ -26,7 +26,9 @@ interface StepsProps {
   hasUnsavedChanges: boolean;
   historyIndex: number;
   history: ContextData[];
-  
+  isPublishing: boolean;
+  isSavingDraft: boolean;
+
   // Actions
   onTitleChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
@@ -52,6 +54,7 @@ interface StepsProps {
   onUndo: () => void;
   onRedo: () => void;
   onHandleCreate: () => void;
+  onSaveDraft: () => void;
 }
 
 export function renderStep({
@@ -75,6 +78,8 @@ export function renderStep({
   hasUnsavedChanges,
   historyIndex,
   history,
+  isPublishing,
+  isSavingDraft,
   onTitleChange,
   onDescriptionChange,
   onThemeChange,
@@ -98,7 +103,8 @@ export function renderStep({
   onManualSave,
   onUndo,
   onRedo,
-  onHandleCreate
+  onHandleCreate,
+  onSaveDraft,
 }: StepsProps) {
   switch (step) {
     case 1:
@@ -111,7 +117,7 @@ export function renderStep({
           onTemplateCustomize={onTemplateCustomize}
         />
       );
-    
+
     case 2:
       return (
         <Step2
@@ -124,7 +130,7 @@ export function renderStep({
           onTagsChange={onTagsChange}
         />
       );
-    
+
     case 3:
       return (
         <Step3
@@ -160,7 +166,7 @@ export function renderStep({
           onRedo={onRedo}
         />
       );
-    
+
     case 4:
       return (
         <Step4
@@ -168,15 +174,18 @@ export function renderStep({
           onSettingsChange={onSettingsChange}
         />
       );
-    
+
     case 5:
       return (
         <Step5
           context={context}
+          isPublishing={isPublishing}
+          isSavingDraft={isSavingDraft}
           onHandleCreate={onHandleCreate}
+          onSaveDraft={onSaveDraft}
         />
       );
-    
+
     default:
       return null;
   }

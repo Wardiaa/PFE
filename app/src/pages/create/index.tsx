@@ -1,17 +1,16 @@
-// EnhancedCreate.tsx (updated)
+// EnhancedCreate.tsx
 import { useState } from "react";
-import { Button } from "../../components/ui/button";
-import { ArrowLeft, ChevronRight, Save } from "lucide-react";
 import { useQuizBuilder } from "./hooks/useQuizBuilder";
 import { renderStep } from "./components/steps";
 import { useNavigate } from "react-router-dom";
 import { Header } from "./components/Header";
 import { PreviewModal } from "./components/PreviewModal";
+import { Loader2 } from "lucide-react";
 
 export default function EnhancedCreate() {
   const navigate = useNavigate();
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  
+
   const {
     step,
     setStep,
@@ -33,6 +32,10 @@ export default function EnhancedCreate() {
     context,
     history,
     historyIndex,
+    isPublishing,
+    isSavingDraft,
+    isLoadingEdit,
+    isEditMode,
     addQuestion,
     updateQuestion,
     deleteQuestion,
@@ -46,6 +49,8 @@ export default function EnhancedCreate() {
     handleTemplateSelect,
     handleTemplateCustomize,
     handleCreate,
+    handleSaveDraft,
+    handleBackgroundSave,
     handleSelectAllQuestions,
     handleClearSelection,
     handleBulkUpdate,
@@ -55,7 +60,7 @@ export default function EnhancedCreate() {
     handleQuickAction,
     handleManualSave,
     handleUndo,
-    handleRedo
+    handleRedo,
   } = useQuizBuilder();
 
   const currentStep = renderStep({
@@ -79,6 +84,8 @@ export default function EnhancedCreate() {
     hasUnsavedChanges,
     historyIndex,
     history,
+    isPublishing,
+    isSavingDraft,
     onTitleChange: handleTitleChange,
     onDescriptionChange: handleDescriptionChange,
     onThemeChange: handleThemeChange,
@@ -90,7 +97,7 @@ export default function EnhancedCreate() {
     onAddQuestion: addQuestion,
     onUpdateQuestion: updateQuestion,
     onDeleteQuestion: deleteQuestion,
-    onReorderQuestions: (questions) => {},
+    onReorderQuestions: () => {},
     onToggleQuestionSelection: toggleQuestionSelection,
     onBulkUpdate: handleBulkUpdate,
     onSelectAllQuestions: handleSelectAllQuestions,
@@ -102,18 +109,19 @@ export default function EnhancedCreate() {
     onManualSave: handleManualSave,
     onUndo: handleUndo,
     onRedo: handleRedo,
-    onHandleCreate: handleCreate
+    onHandleCreate: handleCreate,
+    onSaveDraft: handleSaveDraft,
   });
 
   const currentQuestion = context.questions[currentQuestionIndex] || null;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Header 
+      <Header
         step={step}
         setStep={setStep}
         onPublish={handleCreate}
-        onSaveDraft={handleManualSave}
+        onSaveDraft={handleBackgroundSave}
         saveStatus={saveStatus}
         lastSaved={lastSaved}
         onPreview={() => setIsPreviewOpen(true)}

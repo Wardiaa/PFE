@@ -3,13 +3,17 @@ import { motion } from "framer-motion";
 import {
   Eye, Users, Globe, Timer, Star, Copy, Calendar,
   Bell, TestTube, Download, Rocket, ArrowRight, CheckCircle2,
+  Loader2, Save,
 } from "lucide-react";
 import type { ContextData } from "../../types";
 import { cn } from "../../../../lib/utils";
 
 interface Step5Props {
   context: ContextData;
+  isPublishing: boolean;
+  isSavingDraft: boolean;
   onHandleCreate: () => void;
+  onSaveDraft: () => void;
 }
 
 function QuickAction({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
@@ -24,7 +28,7 @@ function QuickAction({ icon: Icon, label }: { icon: React.ElementType; label: st
   );
 }
 
-export function Step5({ context, onHandleCreate }: Step5Props) {
+export function Step5({ context, isPublishing, isSavingDraft, onHandleCreate, onSaveDraft }: Step5Props) {
   const totalSeconds = context.questions.reduce((s, q) => s + (q.timeLimit || 30), 0);
   const totalPoints  = context.questions.reduce((s, q) => s + (q.points  || 0),  0);
   const avgTime      = context.questions.length > 0
@@ -39,6 +43,7 @@ export function Step5({ context, onHandleCreate }: Step5Props) {
   ];
 
   const allReady = checks.every(c => c.ok);
+  const isBusy   = isPublishing || isSavingDraft;
 
   return (
     <div className="min-h-screen bg-white">
@@ -195,18 +200,52 @@ export function Step5({ context, onHandleCreate }: Step5Props) {
 
               {/* CTA block */}
               <div className="space-y-3">
+                {/* ── Publish button ── */}
                 <button
                   onClick={onHandleCreate}
-                  disabled={!allReady}
+                  disabled={!allReady || isBusy}
                   className={cn(
                     "w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl text-sm font-black uppercase tracking-[0.12em] transition-all duration-200",
-                    allReady
+                    allReady && !isBusy
                       ? "bg-slate-950 hover:bg-indigo-600 text-white shadow-lg shadow-slate-950/20 hover:shadow-indigo-500/25 hover:-translate-y-0.5 active:translate-y-0"
                       : "bg-slate-100 text-slate-300 cursor-not-allowed"
                   )}
                 >
-                  <Rocket className="w-4 h-4" />
-                  Publish &amp; share
+                  {isPublishing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Publishing…
+                    </>
+                  ) : (
+                    <>
+                      <Rocket className="w-4 h-4" />
+                      Publish &amp; share
+                    </>
+                  )}
+                </button>
+
+                {/* ── Save Draft button ── */}
+                <button
+                  onClick={onSaveDraft}
+                  disabled={isBusy || !context.title.trim()}
+                  className={cn(
+                    "w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl text-sm font-bold uppercase tracking-[0.1em] border transition-all duration-200",
+                    !isBusy && context.title.trim()
+                      ? "border-slate-200 text-slate-600 hover:border-slate-400 hover:text-slate-900"
+                      : "border-slate-100 text-slate-300 cursor-not-allowed"
+                  )}
+                >
+                  {isSavingDraft ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Saving…
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      Save as draft
+                    </>
+                  )}
                 </button>
 
                 <p className="text-[11px] text-center text-slate-400">
