@@ -1,13 +1,16 @@
+// src/pages/dashboard/components/AnalyticsPanel.tsx
 import React from 'react';
-import { BarChart2, Users, Layers, TrendingUp, Activity, CheckCircle } from 'lucide-react';
-import { type Context } from '../../../lib/types';
+import {
+  BarChart2,
+  Users,
+  Layers,
+  TrendingUp,
+  CheckCircle,
+} from 'lucide-react';
+import { type DisplayContext } from '../../../lib/useContexts';
 
 interface AnalyticsPanelProps {
-  context: (Context & { 
-    questionCount?: number; 
-    sessionCount?: number; 
-    displayStatus?: 'published' | 'draft' 
-  }) | null;
+  context: DisplayContext | null;
 }
 
 const AnalyticsPanel: React.FC<AnalyticsPanelProps> = ({ context }) => {
@@ -18,20 +21,41 @@ const AnalyticsPanel: React.FC<AnalyticsPanelProps> = ({ context }) => {
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
             <BarChart2 className="h-8 w-8 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">No Context Selected</h3>
+          <h3 className="text-lg font-semibold text-foreground mb-2">
+            No Context Selected
+          </h3>
           <p className="text-sm text-muted-foreground max-w-xs">
-            Select a context from the library to view detailed analytics and engagement metrics
+            Select a context from the library to view detailed analytics and
+            engagement metrics
           </p>
         </div>
       </div>
     );
   }
 
-  // Mock data for stats
-  const responseRate = context.participantsCount > 0 ? Math.min(100, Math.round((context.participantsCount / 300) * 100)) : 0;
-  const completionRate = context.participantsCount > 0 ? Math.min(100, Math.round((context.participantsCount / 350) * 100)) : 0;
-  const avgScore = context.type === 'QUIZ' ? Math.floor(Math.random() * 30) + 70 : null;
-  const displayStatus = context.displayStatus || (context.status === 'ACTIVE' ? 'published' : 'draft');
+  // Real calculated metrics
+  // Participation rate: participants per session (capped at 100%)
+  const avgParticipantsPerSession =
+    context.sessionCount > 0
+      ? Math.round(context.participantsCount / context.sessionCount)
+      : 0;
+
+  // Completion rate: percentage of sessions that ended (CLOSED/ENDED)
+  // We approximate as: if status is 'published' (ACTIVE/CLOSED), treat as >= 1 completed session
+  // A more precise rate would require querying sessions table directly
+  const completionRate =
+    context.sessionCount > 0 && context.displayStatus === 'published' ? 100 : 0;
+
+  // Response rate: rough measure — participants / (sessions * 10 expected max) capped at 100%
+  const responseRate =
+    context.sessionCount > 0
+      ? Math.min(
+          100,
+          Math.round(
+            (context.participantsCount / (context.sessionCount * 10)) * 100
+          )
+        )
+      : 0;
 
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
@@ -43,24 +67,29 @@ const AnalyticsPanel: React.FC<AnalyticsPanelProps> = ({ context }) => {
             </h3>
             <p className="text-sm text-muted-foreground">Analytics Overview</p>
           </div>
-          <span className={`px-3 py-1 rounded-md text-xs font-medium flex-shrink-0 ${
-            displayStatus === 'published' 
-              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' 
-              : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
-          }`}>
-            {displayStatus === 'published' ? 'Published' : 'Draft'}
+          <span
+            className={`px-3 py-1 rounded-md text-xs font-medium flex-shrink-0 ${
+              context.displayStatus === 'published'
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
+            }`}
+          >
+            {context.displayStatus === 'published' ? 'Published' : 'Draft'}
           </span>
         </div>
       </div>
 
       <div className="p-4 md:p-5 lg:p-6 space-y-6">
+        {/* Stats grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           <div className="bg-muted rounded-lg p-3 md:p-4">
             <div className="flex items-center gap-2 mb-2">
               <Layers className="h-4 w-4 text-primary" />
               <span className="text-xs text-muted-foreground">Questions</span>
             </div>
-            <p className="text-xl md:text-2xl font-bold text-foreground">{context.questionCount || 0}</p>
+            <p className="text-xl md:text-2xl font-bold text-foreground">
+              {context.questionCount}
+            </p>
           </div>
 
           <div className="bg-muted rounded-lg p-3 md:p-4">
@@ -68,7 +97,9 @@ const AnalyticsPanel: React.FC<AnalyticsPanelProps> = ({ context }) => {
               <Users className="h-4 w-4 text-secondary" />
               <span className="text-xs text-muted-foreground">Participants</span>
             </div>
-            <p className="text-xl md:text-2xl font-bold text-foreground">{context.participantsCount}</p>
+            <p className="text-xl md:text-2xl font-bold text-foreground">
+              {context.participantsCount}
+            </p>
           </div>
 
           <div className="bg-muted rounded-lg p-3 md:p-4">
@@ -76,67 +107,81 @@ const AnalyticsPanel: React.FC<AnalyticsPanelProps> = ({ context }) => {
               <BarChart2 className="h-4 w-4 text-accent" />
               <span className="text-xs text-muted-foreground">Sessions</span>
             </div>
-            <p className="text-xl md:text-2xl font-bold text-foreground">{context.sessionCount || 0}</p>
+            <p className="text-xl md:text-2xl font-bold text-foreground">
+              {context.sessionCount}
+            </p>
           </div>
 
           <div className="bg-muted rounded-lg p-3 md:p-4">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp className="h-4 w-4 text-green-600" />
-              <span className="text-xs text-muted-foreground">Avg. Rate</span>
+              <span className="text-xs text-muted-foreground">Avg / Session</span>
             </div>
-            <p className="text-xl md:text-2xl font-bold text-foreground">{avgScore || responseRate}%</p>
+            <p className="text-xl md:text-2xl font-bold text-foreground">
+              {avgParticipantsPerSession}
+            </p>
           </div>
         </div>
 
+        {/* Rate bars */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-muted rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-foreground">Response Rate</span>
+              <span className="text-sm font-medium text-foreground">
+                Response Rate
+              </span>
               <Users className="h-4 w-4 text-primary" />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Average</span>
-                <span className="font-semibold text-foreground">{responseRate}%</span>
+                <span className="text-muted-foreground">
+                  {context.participantsCount} participant
+                  {context.participantsCount !== 1 ? 's' : ''}
+                </span>
+                <span className="font-semibold text-foreground">
+                  {responseRate}%
+                </span>
               </div>
               <div className="w-full h-2 bg-background rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full" style={{ width: `${responseRate}%` }} />
+                <div
+                  className="h-full bg-primary rounded-full transition-all duration-500"
+                  style={{ width: `${responseRate}%` }}
+                />
               </div>
             </div>
           </div>
 
           <div className="bg-muted rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-foreground">Completion Rate</span>
+              <span className="text-sm font-medium text-foreground">
+                Session Status
+              </span>
               <CheckCircle className="h-4 w-4 text-green-600" />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Average</span>
-                <span className="font-semibold text-foreground">{completionRate}%</span>
+                <span className="text-muted-foreground">
+                  {context.sessionCount} session
+                  {context.sessionCount !== 1 ? 's' : ''} run
+                </span>
+                <span className="font-semibold text-foreground">
+                  {completionRate}%
+                </span>
               </div>
               <div className="w-full h-2 bg-background rounded-full overflow-hidden">
-                <div className="h-full bg-green-600 rounded-full" style={{ width: `${completionRate}%` }} />
+                <div
+                  className="h-full bg-green-600 rounded-full transition-all duration-500"
+                  style={{ width: `${completionRate}%` }}
+                />
               </div>
             </div>
           </div>
         </div>
 
-        {context.type === 'QUIZ' && avgScore && (
-          <div className="bg-muted rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-foreground">Average Score</span>
-              <TrendingUp className="h-4 w-4 text-blue-600" />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Overall</span>
-                <span className="font-semibold text-foreground">{avgScore}%</span>
-              </div>
-              <div className="w-full h-2 bg-background rounded-full overflow-hidden">
-                <div className="h-full bg-blue-600 rounded-full" style={{ width: `${avgScore}%` }} />
-              </div>
-            </div>
+        {/* No sessions yet state */}
+        {context.sessionCount === 0 && (
+          <div className="text-center py-4 text-sm text-muted-foreground">
+            No sessions run yet. Present this context to start collecting data.
           </div>
         )}
       </div>

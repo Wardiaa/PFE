@@ -53,10 +53,10 @@ export function MainLayout() {
   const handleLogout = async () => {
     try {
       await signOut();
-      window.location.href = '/';
+      window.location.href = '/auth';
     } catch (error) {
       console.error('Logout failed:', error);
-      window.location.href = '/';
+      window.location.href = '/auth';
     }
   };
   
