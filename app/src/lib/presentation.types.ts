@@ -1,40 +1,42 @@
+// src/lib/presentation.types.ts
+export type QuestionType = 
+  | 'multiple-choice'
+  | 'rating'
+  | 'open-text'
+  | 'word-cloud';
+
+export type DisplayStyle = 'numbers' | 'stars' | 'hearts' | 'smileys';
+
 export interface QuestionOption {
   id: string;
   text: string;
-  isCorrect?: boolean; // Add for quiz functionality
+  isCorrect?: boolean;
 }
 
-export interface BaseQuestion {
+export interface Scale {
+  min: number;
+  max: number;
+}
+
+export interface Labels {
+  min?: string;
+  max?: string;
+}
+
+export interface Question {
   id: string;
   number: number;
-  type: 'multiple-choice' | 'rating' | 'open-text' | 'word-cloud';
+  type: QuestionType;
   text: string;
   description?: string;
-  timeLimit?: number; // Add timeLimit in seconds
-  media?: string; // Add optional media URL
+  timeLimit?: number;
+  options?: QuestionOption[];
+  scale?: Scale;
+  labels?: Labels;
+  points?: number;
+  image?: string;
+  displayStyle?: DisplayStyle;
 }
-
-export interface MultipleChoiceQuestion extends BaseQuestion {
-  type: 'multiple-choice';
-  options: QuestionOption[];
-}
-
-export interface RatingQuestion extends BaseQuestion {
-  type: 'rating';
-  options?: never;
-}
-
-export interface OpenTextQuestion extends BaseQuestion {
-  type: 'open-text';
-  options?: never;
-}
-
-export interface WordCloudQuestion extends BaseQuestion {
-  type: 'word-cloud';
-  options?: never;
-}
-
-export type Question = MultipleChoiceQuestion | RatingQuestion | OpenTextQuestion | WordCloudQuestion;
 
 export interface Presentation {
   id: string;
@@ -48,6 +50,19 @@ export interface Session {
   participantCount: number;
   startTime: Date;
   presentation: Presentation;
+  status: 'WAITING' | 'ACTIVE' | 'PAUSED' | 'ENDED';
+  currentQuestionIndex: number;
+  currentQuestionId?: string;
+  currentQuestionStartedAt?: Date;
+}
+
+export interface Participant {
+  id: string;
+  name: string;
+  score: number;
+  avatar?: string;
+  isAnonymous?: boolean;
+  joinedAt: Date;
 }
 
 export interface MultipleChoiceResponses {
@@ -55,9 +70,9 @@ export interface MultipleChoiceResponses {
 }
 
 export interface RatingResponses {
-  total: number;
-  average: string;
-  [key: string]: number | string; // Allow both number and string types for other properties
+  [rating: number]: number;
+  average?: string;
+  total?: number;
 }
 
 export interface OpenTextResponse {
@@ -82,22 +97,7 @@ export interface WordCloudResponses {
 }
 
 export type QuestionResponses = 
-  | MultipleChoiceResponses 
-  | RatingResponses 
-  | OpenTextResponses 
+  | MultipleChoiceResponses
+  | RatingResponses
+  | OpenTextResponses
   | WordCloudResponses;
-
-export interface Participant {
-  id: string;
-  name: string;
-  score: number;
-  avatar?: string;
-}
-
-// Context type for the old host session
-export interface Context {
-  id: string;
-  code: string;
-  title: string;
-  questions: (BaseQuestion & { options?: QuestionOption[] })[];
-}

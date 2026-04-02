@@ -11,7 +11,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../../components/ui/dropdown-menu';
+import { useToast } from '../../../hooks/use-toast';
+import { SessionService } from '../../../service/session.service';
 import { type DisplayContext } from '../../../lib/useContexts';
+import { supabase } from '../../../lib/supabase';
 
 interface ContextCardProps {
   context: DisplayContext;
@@ -29,6 +32,7 @@ const ContextCard: React.FC<ContextCardProps> = ({
   onAnalytics,
 }) => {
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const typeColors: Record<
     string,
@@ -63,6 +67,47 @@ const ContextCard: React.FC<ContextCardProps> = ({
       onAnalytics(context.id);
     } else {
       navigate(`/results/${context.id}`);
+    }
+  };
+
+  const handlePresent = async () => {
+    try {
+      // Get current user from localStorage or context
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast({
+          title: 'Error',
+          description: 'You must be logged in to present',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Create a new session for this context
+      const session = await SessionService.createSession({
+        contextId: context.id,
+        hostId: user.id,
+      });
+
+      if (!session) {
+        throw new Error('Failed to create session');
+      }
+
+      // Navigate to the session host view
+      navigate(`/session/${session.id}/host`);
+      
+      toast({
+        title: 'Session Created',
+        description: 'Starting presentation...',
+      });
+    } catch (err: any) {
+      console.error('Failed to create session:', err);
+      toast({
+        title: 'Error',
+        description: err.message || 'Failed to start presentation',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -216,7 +261,7 @@ const ContextCard: React.FC<ContextCardProps> = ({
           <Button
             size="sm"
             className="w-full shadow-lg shadow-primary/20"
-            onClick={() => navigate(`/session/${context.id}/host`)}
+            onClick={handlePresent}
           >
             <Play className="mr-2 h-3 w-3" /> Present
           </Button>

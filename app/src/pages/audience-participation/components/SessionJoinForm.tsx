@@ -31,15 +31,19 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({ onJoin }) => {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) return;
-    setIsJoining(true);
-    setTimeout(() => {
-      onJoin({ code: sessionCode.trim().toUpperCase(), name: participantName.trim() });
-      setIsJoining(false);
-    }, 800);
-  };
+ // In SessionJoinForm.tsx, make sure the code is properly formatted
+const handleSubmit = (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!validate()) return;
+  setIsJoining(true);
+  setTimeout(() => {
+    // Ensure code is uppercase and trimmed
+    const formattedCode = sessionCode.trim().toUpperCase();
+    const formattedName = participantName.trim();
+    onJoin({ code: formattedCode, name: formattedName });
+    setIsJoining(false);
+  }, 800);
+};
 
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
