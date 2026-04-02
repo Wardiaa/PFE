@@ -1,10 +1,11 @@
 // src/pages/HostSession/index.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { SessionService } from '../../service/session.service';
+import { useSessionSocket } from '../../lib/useSessionSocket';
 import AppIcon from '../../components/AppIcon';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
@@ -19,7 +20,7 @@ import type {
   Session,
   Question,
   QuestionResponses,
-  Participant
+  Participant,
 } from '../../lib/presentation.types';
 
 const HostSession: React.FC = () => {
@@ -40,33 +41,28 @@ const HostSession: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [timerActive, setTimerActive] = useState<boolean>(false);
 
-  // ── Stable refs used inside intervals/closures ──────────────────────────
+  // ── Stable refs ──────────────────────────────────────────────────────────
   const timerRef = useRef<number>(0);
   const timerActiveRef = useRef<boolean>(false);
   const timerIntervalRef = useRef<number | undefined>(undefined);
   const isPausedRef = useRef<boolean>(false);
   const sessionRef = useRef<Session | null>(null);
   const currentQuestionRef = useRef<Question | undefined>(undefined);
-
-  // ── Guard: prevents loadSession from re-running after initial load ───────
-  // This stops the host view from resetting when the auth context emits a
-  // refreshed user object (which happens on tab focus with many providers).
   const hasLoadedRef = useRef<boolean>(false);
 
   const mapQuestionType = (dbType: string): Question['type'] => {
     const mapping: Record<string, Question['type']> = {
-      'MULTIPLE_CHOICE': 'multiple-choice',
-      'SINGLE_CHOICE': 'multiple-choice',
-      'TRUE_FALSE': 'multiple-choice',
-      'POLL': 'multiple-choice',
-      'RATING': 'rating',
-      'OPEN_TEXT': 'open-text',
-      'WORD_CLOUD': 'word-cloud',
+      MULTIPLE_CHOICE: 'multiple-choice',
+      SINGLE_CHOICE: 'multiple-choice',
+      TRUE_FALSE: 'multiple-choice',
+      POLL: 'multiple-choice',
+      RATING: 'rating',
+      OPEN_TEXT: 'open-text',
+      WORD_CLOUD: 'word-cloud',
     };
     return mapping[dbType] || 'multiple-choice';
   };
 
-  // Computed values
   const currentQuestion: Question | undefined =
     currentQuestionIndex >= 0
       ? session?.presentation?.questions?.[currentQuestionIndex]
@@ -83,6 +79,30 @@ const HostSession: React.FC = () => {
   useEffect(() => { timerActiveRef.current = timerActive; }, [timerActive]);
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
+  // ── Real-time: receive RESPONSE_SUBMITTED from audience ─────────────────
+  const handleWsMessage = useCallback(
+    (msg: { type: string; payload?: Record<string, unknown> }) => {
+      if (msg.type === 'RESPONSE_SUBMITTED') {
+        const q = currentQuestionRef.current;
+        const sess = sessionRef.current;
+        if (q && sess) {
+          SessionService.getQuestionResponses(sess.id, q.id).then((updated) => {
+            setResponses((prev) => ({ ...prev, [q.id]: updated }));
+          });
+        }
+      }
+    },
+    []
+  );
+
+  // Single hook call — used for both sending (sendMessage) and receiving
+  const { sendMessage, connected: wsConnected } = useSessionSocket({
+    sessionId: session?.id ?? null,
+    role: 'host',
+    onMessage: handleWsMessage,
+    enabled: !!session,
+  });
+
   // ── Timer interval ───────────────────────────────────────────────────────
   useEffect(() => {
     if (timerIntervalRef.current) {
@@ -90,7 +110,12 @@ const HostSession: React.FC = () => {
       timerIntervalRef.current = undefined;
     }
 
-    if (currentQuestionIndex >= 0 && !showResults && timerActiveRef.current && timerRef.current > 0) {
+    if (
+      currentQuestionIndex >= 0 &&
+      !showResults &&
+      timerActiveRef.current &&
+      timerRef.current > 0
+    ) {
       timerIntervalRef.current = window.setInterval(() => {
         if (!isPausedRef.current && timerActiveRef.current && timerRef.current > 0) {
           timerRef.current -= 1;
@@ -102,7 +127,6 @@ const HostSession: React.FC = () => {
             timerActiveRef.current = false;
             setTimerActive(false);
             setShowResults(true);
-
             toast({ title: "Time's Up!", description: 'Showing results...' });
           }
         }
@@ -118,21 +142,11 @@ const HostSession: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentQuestionIndex, showResults, timerActive]);
 
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-    };
-  }, []);
+  useEffect(() => () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); }, []);
 
-  // ── Load session (runs once on mount, guarded against re-runs) ───────────
+  // ── Load session ─────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!id || !user) return;
-
-    // CRITICAL: if we already loaded successfully, do not re-run.
-    // Auth providers often emit a new `user` object on tab focus, which
-    // would otherwise reset the entire host view.
-    if (hasLoadedRef.current) return;
+    if (!id || !user || hasLoadedRef.current) return;
 
     const loadSession = async () => {
       setIsLoading(true);
@@ -149,21 +163,10 @@ const HostSession: React.FC = () => {
           const { data: contextData } = await supabase
             .from('contexts')
             .select(`
-              id,
-              title,
+              id, title,
               questions (
-                id,
-                title,
-                description,
-                type,
-                points,
-                time_limit,
-                options,
-                scale,
-                labels,
-                display_style,
-                image_url,
-                question_order
+                id, title, description, type, points, time_limit,
+                options, scale, labels, display_style, image_url, question_order
               )
             `)
             .eq('id', existingSession.context_id)
@@ -206,15 +209,21 @@ const HostSession: React.FC = () => {
           setIsPaused(existingSession.is_paused || false);
           isPausedRef.current = existingSession.is_paused || false;
 
-          // Restore timer state if rejoining an active session
-          if (existingSession.current_question_index >= 0 && existingSession.status === 'ACTIVE') {
+          // Restore timer if rejoining mid-session
+          if (
+            existingSession.current_question_index >= 0 &&
+            existingSession.status === 'ACTIVE'
+          ) {
             const currentQ = questions[existingSession.current_question_index];
             if (currentQ) {
               let remaining: number;
-
               if (existingSession.is_paused && existingSession.timer_paused_remaining != null) {
                 remaining = existingSession.timer_paused_remaining;
-              } else if (!existingSession.is_paused && existingSession.timer_resumed_at != null && existingSession.timer_paused_remaining != null) {
+              } else if (
+                !existingSession.is_paused &&
+                existingSession.timer_resumed_at != null &&
+                existingSession.timer_paused_remaining != null
+              ) {
                 const elapsedSinceResume = Math.floor(
                   (Date.now() - new Date(existingSession.timer_resumed_at).getTime()) / 1000
                 );
@@ -236,23 +245,23 @@ const HostSession: React.FC = () => {
             }
           }
 
-          // Load participants
           const participantsData = await SessionService.getParticipants(existingSession.id);
           setParticipants(participantsData);
 
-          // Load responses for current question
           if (existingSession.current_question_index >= 0) {
             const currentQ = questions[existingSession.current_question_index];
             if (currentQ) {
-              const responsesData = await SessionService.getQuestionResponses(existingSession.id, currentQ.id);
-              setResponses(prev => ({ ...prev, [currentQ.id]: responsesData }));
+              const responsesData = await SessionService.getQuestionResponses(
+                existingSession.id,
+                currentQ.id
+              );
+              setResponses((prev) => ({ ...prev, [currentQ.id]: responsesData }));
             }
           }
 
           hasLoadedRef.current = true;
-
         } else {
-          // Not a session ID — create a new session from this context ID
+          // id is a context ID — create a new session
           const { data: contextData, error: contextError } = await supabase
             .from('contexts')
             .select('id, title')
@@ -273,7 +282,11 @@ const HostSession: React.FC = () => {
       } catch (err: any) {
         console.error('Failed to load session:', err);
         setError(err.message || 'Failed to load session');
-        toast({ title: 'Error', description: err.message || 'Failed to load session', variant: 'destructive' });
+        toast({
+          title: 'Error',
+          description: err.message || 'Failed to load session',
+          variant: 'destructive',
+        });
       } finally {
         setIsLoading(false);
       }
@@ -283,7 +296,7 @@ const HostSession: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, user]);
 
-  // ── Realtime subscriptions ───────────────────────────────────────────────
+  // ── Supabase subscriptions: participants + response fallback ────────────
   useEffect(() => {
     if (!session) return;
 
@@ -294,30 +307,37 @@ const HostSession: React.FC = () => {
         { event: 'INSERT', schema: 'public', table: 'participants', filter: `session_id=eq.${session.id}` },
         (payload) => {
           const p = payload.new as any;
-          setParticipants(prev => [...prev, {
-            id: p.id,
-            name: p.name,
-            score: p.score,
-            avatar: p.avatar_url,
-            isAnonymous: p.is_anonymous,
-            joinedAt: new Date(p.joined_at),
-          }]);
+          setParticipants((prev) => {
+            if (prev.find((x) => x.id === p.id)) return prev;
+            return [
+              ...prev,
+              {
+                id: p.id,
+                name: p.name,
+                score: p.score,
+                avatar: p.avatar_url,
+                isAnonymous: p.is_anonymous,
+                joinedAt: new Date(p.joined_at),
+              },
+            ];
+          });
           toast({ title: 'New Participant', description: `${p.name} joined the session` });
         }
       )
       .subscribe();
 
+    // Supabase fallback — catches responses when the broadcast channel is reconnecting
     const responsesChannel = supabase
       .channel(`host-responses-${session.id}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'responses', filter: `session_id=eq.${session.id}` },
-        async (payload) => {
-          const newResponse = payload.new as any;
+        async () => {
           const q = currentQuestionRef.current;
-          if (q && newResponse.question_id === q.id) {
-            const updated = await SessionService.getQuestionResponses(session.id, q.id);
-            setResponses(prev => ({ ...prev, [q.id]: updated }));
+          const sess = sessionRef.current;
+          if (q && sess) {
+            const updated = await SessionService.getQuestionResponses(sess.id, q.id);
+            setResponses((prev) => ({ ...prev, [q.id]: updated }));
           }
         }
       )
@@ -333,13 +353,13 @@ const HostSession: React.FC = () => {
 
   const handleStart = async (): Promise<void> => {
     if (!session) return;
-
     const firstQuestion = session.presentation.questions[0];
     if (!firstQuestion) {
       toast({ title: 'Error', description: 'No questions found', variant: 'destructive' });
       return;
     }
 
+    const startedAt = new Date().toISOString();
     await SessionService.updateSessionStatus(session.id, 'ACTIVE');
     await SessionService.setCurrentQuestion(session.id, 0, firstQuestion.id);
 
@@ -352,7 +372,18 @@ const HostSession: React.FC = () => {
     setIsPaused(false);
     isPausedRef.current = false;
 
-    toast({ title: 'Session Started', description: 'Participants can now join and answer questions' });
+    sendMessage({
+      type: 'SESSION_START',
+      payload: {
+        sessionId: session.id,
+        questionId: firstQuestion.id,
+        questionIndex: 0,
+        timeLimit: firstQuestion.timeLimit || 30,
+        startedAt,
+      },
+    });
+
+    toast({ title: 'Session Started', description: 'Participants can now join and answer' });
   };
 
   const handlePrevious = async (): Promise<void> => {
@@ -360,6 +391,7 @@ const HostSession: React.FC = () => {
 
     const newIndex = currentQuestionIndex - 1;
     const prevQuestion = session.presentation.questions[newIndex];
+    const startedAt = new Date().toISOString();
 
     await SessionService.setCurrentQuestion(session.id, newIndex, prevQuestion?.id);
 
@@ -371,6 +403,16 @@ const HostSession: React.FC = () => {
     setShowResults(false);
     setIsPaused(false);
     isPausedRef.current = false;
+
+    sendMessage({
+      type: 'QUESTION_CHANGE',
+      payload: {
+        questionId: prevQuestion?.id,
+        questionIndex: newIndex,
+        timeLimit: prevQuestion?.timeLimit || 30,
+        startedAt,
+      },
+    });
   };
 
   const handleNext = async (): Promise<void> => {
@@ -379,6 +421,7 @@ const HostSession: React.FC = () => {
     if (currentQuestionIndex < session.presentation.questions.length - 1) {
       const newIndex = currentQuestionIndex + 1;
       const nextQuestion = session.presentation.questions[newIndex];
+      const startedAt = new Date().toISOString();
 
       await SessionService.setCurrentQuestion(session.id, newIndex, nextQuestion?.id);
 
@@ -390,40 +433,44 @@ const HostSession: React.FC = () => {
       setShowResults(false);
       setIsPaused(false);
       isPausedRef.current = false;
+
+      sendMessage({
+        type: 'QUESTION_CHANGE',
+        payload: {
+          questionId: nextQuestion?.id,
+          questionIndex: newIndex,
+          timeLimit: nextQuestion?.timeLimit || 30,
+          startedAt,
+        },
+      });
     } else {
+      sendMessage({ type: 'SESSION_END', payload: {} });
       await SessionService.updateSessionStatus(session.id, 'ENDED');
       navigate(`/results/${session.id}`);
     }
   };
 
-  /**
-   * Pause / Resume.
-   *
-   * On PAUSE  → snapshot current timer value into DB (timer_paused_remaining)
-   * On RESUME → DB records timer_resumed_at = now
-   *
-   * The audience recomputes remaining time from these DB fields,
-   * so there is a single server-authoritative source of truth.
-   */
   const handlePause = async (): Promise<void> => {
     if (!session) return;
 
     const newPausedState = !isPaused;
-
-    // Optimistic update
     setIsPaused(newPausedState);
     isPausedRef.current = newPausedState;
 
     if (newPausedState) {
       setTimerActive(false);
       timerActiveRef.current = false;
+      sendMessage({ type: 'PAUSE', payload: { remainingSeconds: timerRef.current } });
     } else {
       setTimerActive(true);
       timerActiveRef.current = true;
+      sendMessage({
+        type: 'RESUME',
+        payload: { remainingSeconds: timerRef.current, resumedAt: new Date().toISOString() },
+      });
     }
 
     const success = await SessionService.togglePause(session.id, newPausedState, timerRef.current);
-
     if (!success) {
       // Roll back
       setIsPaused(!newPausedState);
@@ -431,19 +478,14 @@ const HostSession: React.FC = () => {
       setTimerActive(newPausedState);
       timerActiveRef.current = newPausedState;
       toast({ title: 'Error', description: 'Failed to pause/resume session', variant: 'destructive' });
-      return;
     }
-
-    toast({
-      title: newPausedState ? 'Session Paused' : 'Session Resumed',
-      description: newPausedState ? 'Participants will see a pause screen' : 'Timer has resumed',
-    });
   };
 
   const handleRestart = async (): Promise<void> => {
     if (!session) return;
-
     const firstQuestion = session.presentation.questions[0];
+    const startedAt = new Date().toISOString();
+
     await SessionService.setCurrentQuestion(session.id, 0, firstQuestion?.id);
 
     setCurrentQuestionIndex(0);
@@ -455,6 +497,16 @@ const HostSession: React.FC = () => {
     setIsPaused(false);
     isPausedRef.current = false;
 
+    sendMessage({
+      type: 'QUESTION_CHANGE',
+      payload: {
+        questionId: firstQuestion?.id,
+        questionIndex: 0,
+        timeLimit: firstQuestion?.timeLimit || 30,
+        startedAt,
+      },
+    });
+
     toast({ title: 'Session Restarted', description: 'Reset to the first question' });
   };
 
@@ -462,6 +514,7 @@ const HostSession: React.FC = () => {
 
   const handleConfirmEnd = async (): Promise<void> => {
     if (!session) return;
+    sendMessage({ type: 'SESSION_END', payload: {} });
     await SessionService.updateSessionStatus(session.id, 'ENDED');
     navigate(`/results/${session.id}`);
   };
@@ -476,9 +529,15 @@ const HostSession: React.FC = () => {
     toast({ title: 'Link Copied!', description: 'Share this link with participants to join' });
   };
 
-  const responseProgress = currentQuestion && session
-    ? Math.min(100, Math.round((Object.keys(currentResponses).length / (session.participantCount || 1)) * 100))
-    : 0;
+  const responseProgress =
+    currentQuestion && session
+      ? Math.min(
+          100,
+          Math.round(
+            (Object.keys(currentResponses).length / (session.participantCount || 1)) * 100
+          )
+        )
+      : 0;
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -489,7 +548,7 @@ const HostSession: React.FC = () => {
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
             <AppIcon name="Loader2" size={32} className="text-primary animate-spin" />
           </div>
-          <p className="text-muted-foreground">Loading session...</p>
+          <p className="text-muted-foreground">Setting up your session...</p>
         </div>
       </div>
     );
@@ -503,16 +562,12 @@ const HostSession: React.FC = () => {
             <AppIcon name="AlertCircle" size={40} className="text-destructive" />
           </div>
           <h2 className="text-2xl font-bold text-foreground mb-2">Session Error</h2>
-          <p className="text-muted-foreground mb-6">
-            {error || 'Session not found.'}
-          </p>
+          <p className="text-muted-foreground mb-6">{error || 'Session not found.'}</p>
           <div className="flex gap-3 justify-center">
             <Button variant="outline" onClick={() => navigate('/dashboard')}>
               Return to Dashboard
             </Button>
-            <Button onClick={() => navigate('/create')}>
-              Create New Context
-            </Button>
+            <Button onClick={() => navigate('/create')}>Create New Context</Button>
           </div>
         </div>
       </div>
@@ -567,7 +622,7 @@ const HostSession: React.FC = () => {
                 <div className="text-sm opacity-75">Questions</div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                <div className="text-3xl font-bold">{session.participantCount}</div>
+                <div className="text-3xl font-bold">{participants.length}</div>
                 <div className="text-sm opacity-75">Participants</div>
               </div>
             </div>
@@ -579,18 +634,28 @@ const HostSession: React.FC = () => {
                 <AppIcon name="Users" className="h-5 w-5" />
                 <span>{participants.length} Joined</span>
               </div>
-              <Badge variant="outline" className="text-white border-white">Live</Badge>
+              <div className="flex items-center gap-2">
+                {wsConnected && (
+                  <div className="flex items-center gap-1.5 px-2 py-1 bg-white/10 rounded text-xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                    Live
+                  </div>
+                )}
+                <Badge variant="outline" className="text-white border-white">
+                  {session.code}
+                </Badge>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
               <AnimatePresence>
                 {participants.map((p, i) => (
                   <motion.div
+                    key={p.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ delay: i * 0.05 }}
-                    key={p.id}
                     className="flex items-center gap-3 p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
                   >
                     <Avatar className="h-8 w-8 border-2 border-white/20">
@@ -641,8 +706,18 @@ const HostSession: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          {wsConnected && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              Real-time
+            </div>
+          )}
           {!showResults && (
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${isPaused ? 'bg-yellow-500/20' : 'bg-muted'}`}>
+            <div
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
+                isPaused ? 'bg-yellow-500/20' : 'bg-muted'
+              }`}
+            >
               <AppIcon name="Clock" size={16} className="text-primary" />
               <span className="font-mono font-bold text-primary">{timer}s</span>
             </div>
@@ -656,7 +731,6 @@ const HostSession: React.FC = () => {
         </div>
       </header>
 
-      {/* Progress bar */}
       {!showResults && currentQuestion && (
         <div className="h-1 w-full bg-muted/40">
           {isPaused ? (
@@ -700,15 +774,19 @@ const HostSession: React.FC = () => {
                   <div>
                     <div className="font-bold text-lg">Ready for next question?</div>
                     <div className="text-sm text-muted-foreground">
-                      {participants.slice(0, 3).map(p => p.name).join(', ')} and others are waiting
+                      {participants.slice(0, 3).map((p) => p.name).join(', ')} and others are waiting
                     </div>
                   </div>
                 </div>
                 <Button size="lg" onClick={handleNext} className="min-w-37.5">
                   {currentQuestionIndex === session.presentation.questions.length - 1 ? (
-                    <>View Results <AppIcon name="BarChart3" className="ml-2 h-4 w-4" /></>
+                    <>
+                      View Results <AppIcon name="BarChart3" className="ml-2 h-4 w-4" />
+                    </>
                   ) : (
-                    <>Next Question <AppIcon name="ChevronRight" className="ml-2 h-4 w-4" /></>
+                    <>
+                      Next Question <AppIcon name="ChevronRight" className="ml-2 h-4 w-4" />
+                    </>
                   )}
                 </Button>
               </div>
@@ -720,7 +798,7 @@ const HostSession: React.FC = () => {
       {!showResults && (
         <ControlPanel
           sessionCode={session.code}
-          participantCount={session.participantCount}
+          participantCount={participants.length}
           responseProgress={responseProgress}
           currentQuestion={currentQuestionIndex + 1}
           totalQuestions={session.presentation.questions.length}

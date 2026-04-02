@@ -1,7 +1,7 @@
 // src/pages/dashboard/components/ContextCard.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MoreVertical, Play, Edit, BarChart, Users, Clock, CheckSquare } from 'lucide-react';
+import { MoreVertical, Play, Edit, BarChart, Users, Clock, CheckSquare, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
@@ -33,6 +33,7 @@ const ContextCard: React.FC<ContextCardProps> = ({
 }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [isStarting, setIsStarting] = useState(false);
 
   const typeColors: Record<
     string,
@@ -59,7 +60,6 @@ const ContextCard: React.FC<ContextCardProps> = ({
       variant: 'orange',
     },
   };
-
   const typeColor = typeColors[context.type] || typeColors['QUIZ'];
 
   const handleAnalytics = () => {
@@ -71,20 +71,25 @@ const ContextCard: React.FC<ContextCardProps> = ({
   };
 
   const handlePresent = async () => {
+    if (isStarting) return;
+    setIsStarting(true);
+
     try {
-      // Get current user from localStorage or context
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
         toast({
           title: 'Error',
           description: 'You must be logged in to present',
           variant: 'destructive',
         });
+        setIsStarting(false);
         return;
       }
 
-      // Create a new session for this context
+      // Create session first, then navigate immediately once we have the ID.
+      // We kick off creation and navigate as fast as possible — the host view
+      // will show a loading state while the session is being prepared.
       const session = await SessionService.createSession({
         contextId: context.id,
         hostId: user.id,
@@ -94,13 +99,8 @@ const ContextCard: React.FC<ContextCardProps> = ({
         throw new Error('Failed to create session');
       }
 
-      // Navigate to the session host view
+      // Navigate immediately — the host page handles its own loading state
       navigate(`/session/${session.id}/host`);
-      
-      toast({
-        title: 'Session Created',
-        description: 'Starting presentation...',
-      });
     } catch (err: any) {
       console.error('Failed to create session:', err);
       toast({
@@ -108,6 +108,7 @@ const ContextCard: React.FC<ContextCardProps> = ({
         description: err.message || 'Failed to start presentation',
         variant: 'destructive',
       });
+      setIsStarting(false);
     }
   };
 
@@ -134,7 +135,6 @@ const ContextCard: React.FC<ContextCardProps> = ({
           </div>
         )}
 
-        {/* Selection checkbox */}
         {onSelect && (
           <div className="absolute top-3 left-3 z-10">
             <button
@@ -154,7 +154,6 @@ const ContextCard: React.FC<ContextCardProps> = ({
           </div>
         )}
 
-        {/* Status badge */}
         <div
           className={`absolute top-3 right-3 px-2 py-1 rounded-md text-xs font-medium ${
             context.displayStatus === 'published'
@@ -207,7 +206,6 @@ const ContextCard: React.FC<ContextCardProps> = ({
           {context.description || 'No description provided.'}
         </p>
 
-        {/* Stats */}
         <div className="flex flex-wrap gap-2 mb-3">
           <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded-md text-xs text-muted-foreground">
             <BarChart className="h-3 w-3" />
@@ -262,8 +260,14 @@ const ContextCard: React.FC<ContextCardProps> = ({
             size="sm"
             className="w-full shadow-lg shadow-primary/20"
             onClick={handlePresent}
+            disabled={isStarting}
           >
-            <Play className="mr-2 h-3 w-3" /> Present
+            {isStarting ? (
+              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+            ) : (
+              <Play className="mr-2 h-3 w-3" />
+            )}
+            {isStarting ? 'Starting...' : 'Present'}
           </Button>
         </div>
       </div>

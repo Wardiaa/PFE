@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { SessionService } from '../../service/session.service';
+import { useSessionSocket } from '../../lib/useSessionSocket';
 import { useToast } from '../../hooks/use-toast';
 import SessionJoinForm from './components/SessionJoinForm';
 import MultipleChoiceQuestion from './components/MultipleChoiceQuestion';
@@ -25,14 +26,6 @@ interface ParticipantSession {
   participantName: string;
 }
 
-/**
- * Compute remaining seconds from the authoritative DB session row.
- *
- * Scenarios:
- *   1. Currently paused       → remaining = timer_paused_remaining (frozen)
- *   2. Was paused, now resumed → remaining = timer_paused_remaining - elapsed(now - resumedAt)
- *   3. Never paused           → remaining = timeLimit - elapsed(now - startedAt)
- */
 function computeRemainingFromDbRow(
   row: {
     is_paused: boolean;
@@ -47,17 +40,14 @@ function computeRemainingFromDbRow(
   if (is_paused && timer_paused_remaining != null) {
     return Math.max(0, timer_paused_remaining);
   }
-
   if (!is_paused && timer_resumed_at != null && timer_paused_remaining != null) {
-    const elapsedSinceResume = Math.floor((Date.now() - new Date(timer_resumed_at).getTime()) / 1000);
-    return Math.max(0, timer_paused_remaining - elapsedSinceResume);
+    const elapsed = Math.floor((Date.now() - new Date(timer_resumed_at).getTime()) / 1000);
+    return Math.max(0, timer_paused_remaining - elapsed);
   }
-
   if (current_question_started_at) {
     const elapsed = Math.floor((Date.now() - new Date(current_question_started_at).getTime()) / 1000);
     return Math.max(0, timeLimit - elapsed);
   }
-
   return timeLimit;
 }
 
@@ -77,8 +67,7 @@ const AudienceParticipation: React.FC = () => {
   const [questionClosed, setQuestionClosed] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
 
-  // ── Refs used inside subscription callbacks ─────────────────────────────
-  // These avoid stale closures without forcing subscription recreation.
+  // ── Refs ────────────────────────────────────────────────────────────────
   const participantSessionRef = useRef<ParticipantSession | null>(null);
   const currentQuestionRef = useRef<Question | null>(null);
   const sessionStateRef = useRef<SessionState>('join');
@@ -89,7 +78,6 @@ const AudienceParticipation: React.FC = () => {
   const timerIntervalRef = useRef<number | undefined>(undefined);
   const toastRef = useRef(toast);
 
-  // Keep refs in sync with state
   useEffect(() => { participantSessionRef.current = participantSession; }, [participantSession]);
   useEffect(() => { currentQuestionRef.current = currentQuestion; }, [currentQuestion]);
   useEffect(() => { sessionStateRef.current = sessionState; }, [sessionState]);
@@ -99,28 +87,25 @@ const AudienceParticipation: React.FC = () => {
   useEffect(() => { timerRemainingRef.current = timerRemaining; }, [timerRemaining]);
   useEffect(() => { toastRef.current = toast; }, [toast]);
 
-  // Check for code in URL on mount
   useEffect(() => {
     const code = searchParams.get('code');
-    if (code) {
-      sessionStorage.setItem('pending-session-code', code);
-    }
+    if (code) sessionStorage.setItem('pending-session-code', code);
   }, [searchParams]);
 
   const mapQuestionType = (dbType: string): Question['type'] => {
     const mapping: Record<string, Question['type']> = {
-      'MULTIPLE_CHOICE': 'multiple-choice',
-      'SINGLE_CHOICE': 'multiple-choice',
-      'TRUE_FALSE': 'multiple-choice',
-      'POLL': 'multiple-choice',
-      'RATING': 'rating',
-      'OPEN_TEXT': 'open-text',
-      'WORD_CLOUD': 'word-cloud',
+      MULTIPLE_CHOICE: 'multiple-choice',
+      SINGLE_CHOICE: 'multiple-choice',
+      TRUE_FALSE: 'multiple-choice',
+      POLL: 'multiple-choice',
+      RATING: 'rating',
+      OPEN_TEXT: 'open-text',
+      WORD_CLOUD: 'word-cloud',
     };
     return mapping[dbType] || 'multiple-choice';
   };
 
-  // ── Local countdown interval ─────────────────────────────────────────────
+  // ── Local countdown ──────────────────────────────────────────────────────
   const stopLocalCountdown = useCallback(() => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
@@ -130,10 +115,8 @@ const AudienceParticipation: React.FC = () => {
 
   const startLocalCountdown = useCallback(() => {
     stopLocalCountdown();
-
     timerIntervalRef.current = window.setInterval(() => {
       if (isPausedRef.current || !questionActiveRef.current) return;
-
       const next = timerRemainingRef.current - 1;
       if (next <= 0) {
         clearInterval(timerIntervalRef.current);
@@ -156,37 +139,64 @@ const AudienceParticipation: React.FC = () => {
     }, 1000);
   }, [stopLocalCountdown]);
 
-  useEffect(() => {
-    return () => stopLocalCountdown();
-  }, [stopLocalCountdown]);
+  useEffect(() => () => stopLocalCountdown(), [stopLocalCountdown]);
 
-  // ── Load a question by ID ────────────────────────────────────────────────
-  // Uses ref (participantSessionRef) not state, so it never needs to be
-  // recreated due to participantSession changes.
-  const loadQuestion = useCallback(async (questionId: string, questionIndex: number) => {
-    // Guard: only run if we have a session
-    if (!participantSessionRef.current) {
-      console.warn('loadQuestion called with no participantSession');
-      return;
-    }
+  // ── Apply a question directly from cached session data (zero DB round-trip)
+  const applyQuestion = useCallback(
+    (question: Question, timeLimit: number, startedAt?: string) => {
+      const limit = timeLimit || 30;
+      let remaining = limit;
+      if (startedAt) {
+        const elapsed = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+        remaining = Math.max(0, limit - elapsed);
+      }
 
-    console.log('Loading question:', { questionId, questionIndex });
+      setCurrentQuestion(question);
+      currentQuestionRef.current = question;
+      setTimerTotal(limit);
+      setTimerRemaining(remaining);
+      timerRemainingRef.current = remaining;
+      setQuestionActive(true);
+      questionActiveRef.current = true;
+      setQuestionClosed(false);
+      questionClosedRef.current = false;
+      setIsPaused(false);
+      isPausedRef.current = false;
+      setSessionState('question');
+      sessionStateRef.current = 'question';
+      if (remaining > 0) startLocalCountdown();
+    },
+    [startLocalCountdown]
+  );
 
-    try {
-      const { data: questionData, error: questionError } = await supabase
-        .from('questions')
-        .select('*')
-        .eq('id', questionId)
-        .maybeSingle();
+  // ── Load question — tries cache first, falls back to DB ─────────────────
+  const loadQuestion = useCallback(
+    async (questionId: string, questionIndex: number, timeLimit?: number, startedAt?: string) => {
+      if (!participantSessionRef.current) return;
 
-      if (questionError) {
-        console.error('Failed to load question:', questionError);
-        setSessionState('waiting');
-        sessionStateRef.current = 'waiting';
+      const cachedQ = participantSessionRef.current.session.presentation.questions.find(
+        (q) => q.id === questionId
+      );
+
+      if (cachedQ) {
+        applyQuestion(cachedQ, cachedQ.timeLimit || timeLimit || 30, startedAt);
         return;
       }
 
-      if (questionData) {
+      // DB fallback (late joiner who doesn't have questions cached yet)
+      try {
+        const { data: questionData, error: questionError } = await supabase
+          .from('questions')
+          .select('*')
+          .eq('id', questionId)
+          .maybeSingle();
+
+        if (questionError || !questionData) {
+          setSessionState('waiting');
+          sessionStateRef.current = 'waiting';
+          return;
+        }
+
         const newQuestion: Question = {
           id: questionData.id,
           number: questionIndex + 1,
@@ -202,89 +212,118 @@ const AudienceParticipation: React.FC = () => {
           displayStyle: questionData.display_style,
         };
 
-        const timeLimit = questionData.time_limit || 30;
-
-        setCurrentQuestion(newQuestion);
-        currentQuestionRef.current = newQuestion;
-        setTimerTotal(timeLimit);
-        setTimerRemaining(timeLimit);
-        timerRemainingRef.current = timeLimit;
-        setQuestionActive(true);
-        questionActiveRef.current = true;
-        setQuestionClosed(false);
-        questionClosedRef.current = false;
-        setIsPaused(false);
-        isPausedRef.current = false;
-        setSessionState('question');
-        sessionStateRef.current = 'question';
-        startLocalCountdown();
-      } else {
+        applyQuestion(newQuestion, questionData.time_limit || timeLimit || 30, startedAt);
+      } catch (err) {
+        console.error('Load question error:', err);
         setSessionState('waiting');
         sessionStateRef.current = 'waiting';
       }
-    } catch (err) {
-      console.error('Load question error:', err);
-      setSessionState('waiting');
-      sessionStateRef.current = 'waiting';
-    }
-  }, [startLocalCountdown]); // does NOT depend on participantSession state
+    },
+    [applyQuestion]
+  );
 
-  // ── Realtime subscription ────────────────────────────────────────────────
-  // CRITICAL: this effect only depends on session ID (stable after join).
-  // All mutable values are accessed via refs to avoid recreating the
-  // subscription on every state change (which causes missed events).
+  // ── Broadcast message handler (real-time, ~50ms latency) ────────────────
+  const handleBroadcast = useCallback(
+    (msg: { type: string; payload?: Record<string, unknown> }) => {
+      const { type, payload } = msg;
+
+      switch (type) {
+        case 'SESSION_START':
+        case 'QUESTION_CHANGE': {
+          const questionId = payload?.questionId as string | undefined;
+          const questionIndex = (payload?.questionIndex as number) ?? 0;
+          const timeLimit = (payload?.timeLimit as number) ?? 30;
+          const startedAt = payload?.startedAt as string | undefined;
+          if (questionId) {
+            stopLocalCountdown();
+            loadQuestion(questionId, questionIndex, timeLimit, startedAt);
+          }
+          break;
+        }
+
+        case 'PAUSE': {
+          const remaining = (payload?.remainingSeconds as number) ?? timerRemainingRef.current;
+          stopLocalCountdown();
+          setIsPaused(true);
+          isPausedRef.current = true;
+          setTimerRemaining(remaining);
+          timerRemainingRef.current = remaining;
+          break;
+        }
+
+        case 'RESUME': {
+          const remaining = (payload?.remainingSeconds as number) ?? timerRemainingRef.current;
+          const resumedAt = payload?.resumedAt as string | undefined;
+          let actualRemaining = remaining;
+          if (resumedAt) {
+            const elapsed = Math.floor((Date.now() - new Date(resumedAt).getTime()) / 1000);
+            actualRemaining = Math.max(0, remaining - elapsed);
+          }
+          setIsPaused(false);
+          isPausedRef.current = false;
+          setTimerRemaining(actualRemaining);
+          timerRemainingRef.current = actualRemaining;
+          if (actualRemaining > 0 && questionActiveRef.current) startLocalCountdown();
+          break;
+        }
+
+        case 'SESSION_END': {
+          stopLocalCountdown();
+          setSessionState('ended');
+          sessionStateRef.current = 'ended';
+          break;
+        }
+
+        default:
+          break;
+      }
+    },
+    [loadQuestion, startLocalCountdown, stopLocalCountdown]
+  );
+
+  // ── Broadcast channel — only active after joining ────────────────────────
+  const { connected: wsConnected } = useSessionSocket({
+    sessionId: participantSession?.session.id ?? null,
+    role: 'audience',
+    onMessage: handleBroadcast,
+    enabled: !!participantSession,
+  });
+
+  // ── Supabase fallback — fires only when broadcast channel is reconnecting
   useEffect(() => {
     if (!participantSession) return;
-
     const sessionId = participantSession.session.id;
-    console.log('Setting up realtime subscription for session:', sessionId);
 
     const sessionChannel = supabase
-      .channel(`session-audience-${sessionId}`)
+      .channel(`session-audience-fallback-${sessionId}`)
       .on(
         'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'sessions',
-          filter: `id=eq.${sessionId}`,
-        },
+        { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` },
         (payload) => {
-          console.log('Session update received:', payload.new);
+          // Skip if broadcast is healthy — this is just a safety net
+          if (wsConnected) return;
+
           const updatedSession = payload.new as any;
 
-          // ── Session ended ─────────────────────────────────────────────
           if (updatedSession.status === 'ENDED') {
             stopLocalCountdown();
             setSessionState('ended');
             sessionStateRef.current = 'ended';
-            toastRef.current({
-              title: 'Session Ended',
-              description: 'The presenter has ended this session',
-            });
             return;
           }
 
-          // ── Pause state changed ───────────────────────────────────────
           const newIsPaused: boolean = updatedSession.is_paused ?? false;
           const wasPaused = isPausedRef.current;
 
           if (newIsPaused !== wasPaused) {
             setIsPaused(newIsPaused);
             isPausedRef.current = newIsPaused;
-
             if (newIsPaused) {
-              // PAUSED — freeze at the DB-authoritative value
               stopLocalCountdown();
               const frozen: number = updatedSession.timer_paused_remaining ?? timerRemainingRef.current;
               setTimerRemaining(frozen);
               timerRemainingRef.current = frozen;
-              toastRef.current({
-                title: 'Session Paused',
-                description: 'The presenter has paused the session',
-              });
             } else {
-              // RESUMED — recompute from DB to eliminate any drift
               const timeLimit = currentQuestionRef.current?.timeLimit ?? 30;
               const recalculated = computeRemainingFromDbRow(
                 {
@@ -297,49 +336,29 @@ const AudienceParticipation: React.FC = () => {
               );
               setTimerRemaining(recalculated);
               timerRemainingRef.current = recalculated;
-
-              if (recalculated > 0 && questionActiveRef.current) {
-                startLocalCountdown();
-              }
-              toastRef.current({
-                title: 'Session Resumed',
-                description: 'The presentation has resumed',
-              });
+              if (recalculated > 0 && questionActiveRef.current) startLocalCountdown();
             }
           }
 
-          // ── Question changed ──────────────────────────────────────────
           const newQuestionId: string | null = updatedSession.current_question_id;
           const newQuestionIndex: number = updatedSession.current_question_index;
-
           if (newQuestionId && newQuestionId !== currentQuestionRef.current?.id) {
             stopLocalCountdown();
-            loadQuestion(newQuestionId, newQuestionIndex);
-            return; // loadQuestion will handle all state transitions
-          }
-
-          // ── Went back to waiting ──────────────────────────────────────
-          if (newQuestionIndex === -1 && sessionStateRef.current === 'question') {
-            stopLocalCountdown();
-            setSessionState('waiting');
-            sessionStateRef.current = 'waiting';
-            setCurrentQuestion(null);
-            currentQuestionRef.current = null;
+            loadQuestion(
+              newQuestionId,
+              newQuestionIndex,
+              undefined,
+              updatedSession.current_question_started_at
+            );
           }
         }
       )
-      .subscribe((status) => {
-        console.log('Audience subscription status:', status);
-      });
+      .subscribe();
 
-    return () => {
-      console.log('Removing audience subscription for session:', sessionId);
-      supabase.removeChannel(sessionChannel);
-    };
-    // Only depends on session ID — all other values read from refs
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [participantSession?.session.id]);
+    return () => { supabase.removeChannel(sessionChannel); };
+  }, [participantSession?.session.id, wsConnected, loadQuestion, startLocalCountdown, stopLocalCountdown]);
 
+  // ── Join session ─────────────────────────────────────────────────────────
   const handleJoinSession = async (joinData: { code: string; name: string }) => {
     setIsLoading(true);
     setError(null);
@@ -351,17 +370,9 @@ const AudienceParticipation: React.FC = () => {
         .eq('code', joinData.code.toUpperCase())
         .maybeSingle();
 
-      if (sessionCheckError) {
-        throw new Error('Database error. Please try again.');
-      }
-
-      if (!sessionExists) {
-        throw new Error(`No session found with code "${joinData.code.toUpperCase()}". Please check the code and try again.`);
-      }
-
-      if (sessionExists.status === 'ENDED') {
-        throw new Error('This session has already ended.');
-      }
+      if (sessionCheckError) throw new Error('Database error. Please try again.');
+      if (!sessionExists) throw new Error(`No session found with code "${joinData.code.toUpperCase()}".`);
+      if (sessionExists.status === 'ENDED') throw new Error('This session has already ended.');
 
       const result = await SessionService.joinSession({
         sessionCode: joinData.code,
@@ -370,9 +381,7 @@ const AudienceParticipation: React.FC = () => {
         isAnonymous: !user,
       });
 
-      if (!result) {
-        throw new Error('Failed to join session');
-      }
+      if (!result) throw new Error('Failed to join session');
 
       const ps: ParticipantSession = {
         session: result.session,
@@ -380,7 +389,6 @@ const AudienceParticipation: React.FC = () => {
         participantName: joinData.name,
       };
 
-      // Set ref immediately so loadQuestion can use it before state propagates
       participantSessionRef.current = ps;
       setParticipantSession(ps);
 
@@ -390,10 +398,8 @@ const AudienceParticipation: React.FC = () => {
 
       if (result.session.status === 'ACTIVE' && result.session.currentQuestionIndex >= 0) {
         const currentQ = result.session.presentation.questions[result.session.currentQuestionIndex];
-        if (currentQ && currentQ.id) {
+        if (currentQ?.id) {
           const timeLimit = currentQ.timeLimit || 30;
-
-          // Use DB-authoritative remaining time so late-joiners are in sync
           const remaining = computeRemainingFromDbRow(
             {
               is_paused: paused,
@@ -415,10 +421,7 @@ const AudienceParticipation: React.FC = () => {
           questionClosedRef.current = false;
           setSessionState('question');
           sessionStateRef.current = 'question';
-
-          if (!paused && remaining > 0) {
-            startLocalCountdown();
-          }
+          if (!paused && remaining > 0) startLocalCountdown();
         } else {
           setSessionState('waiting');
           sessionStateRef.current = 'waiting';
@@ -435,7 +438,6 @@ const AudienceParticipation: React.FC = () => {
         title: 'Joined Successfully',
         description: `Welcome to "${result.session.presentation.title}"`,
       });
-
     } catch (err: any) {
       console.error('Join error:', err);
       setError({
@@ -449,13 +451,14 @@ const AudienceParticipation: React.FC = () => {
     }
   };
 
+  // ── Submit response ──────────────────────────────────────────────────────
   const handleSubmitResponse = async (response: any) => {
     if (!questionActiveRef.current || questionClosedRef.current || isPausedRef.current) {
       toast({
         title: 'Cannot Submit',
         description: isPausedRef.current
           ? 'The session is paused. Please wait for the presenter to resume.'
-          : 'The time for this question has expired. You cannot submit a response.',
+          : 'The time for this question has expired.',
         variant: 'destructive',
       });
       return;
@@ -476,15 +479,11 @@ const AudienceParticipation: React.FC = () => {
       if (success) {
         setSessionState('submitted');
         sessionStateRef.current = 'submitted';
-        toast({
-          title: 'Response Submitted!',
-          description: 'Your answer has been recorded',
-        });
+        toast({ title: 'Response Submitted!', description: 'Your answer has been recorded' });
       } else {
         throw new Error('Failed to submit response');
       }
     } catch (err) {
-      console.error('Submit error:', err);
       toast({
         title: 'Error',
         description: 'Failed to submit response. Please try again.',
@@ -520,7 +519,7 @@ const AudienceParticipation: React.FC = () => {
     sessionStateRef.current = 'join';
   };
 
-  // ── Timer bar (audience view) ─────────────────────────────────────────────
+  // ── Timer bar ────────────────────────────────────────────────────────────
   const renderTimerBar = () => {
     if (sessionState !== 'question' || !currentQuestion) return null;
 
@@ -534,15 +533,26 @@ const AudienceParticipation: React.FC = () => {
 
     return (
       <div className="fixed top-0 left-0 right-0 z-50">
-        {/* Track */}
         <div className="h-1.5 w-full bg-muted/60">
           <div
             className={`h-full transition-none ${barColor}`}
             style={{ width: `${Math.max(0, Math.min(100, fraction * 100))}%` }}
           />
         </div>
-        {/* Pill */}
-        <div className="flex justify-end px-4 pt-1">
+        <div className="flex justify-between px-4 pt-1">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            {wsConnected ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                Live
+              </>
+            ) : (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
+                Connecting...
+              </>
+            )}
+          </div>
           <div
             className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold shadow-sm border ${
               isPaused
@@ -569,7 +579,6 @@ const AudienceParticipation: React.FC = () => {
         if (!currentQuestion) return null;
         return (
           <div className="relative">
-            {/* Pause overlay */}
             {isPaused && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 flex items-center justify-center">
                 <div className="bg-card rounded-xl p-8 text-center max-w-md mx-4">
@@ -586,49 +595,26 @@ const AudienceParticipation: React.FC = () => {
 
             {currentQuestion.type === 'multiple-choice' && (
               <MultipleChoiceQuestion
-                question={{
-                  text: currentQuestion.text,
-                  description: currentQuestion.description,
-                  options: currentQuestion.options,
-                  responseCount: 0,
-                }}
-                onSubmit={(response) => handleSubmitResponse({ optionId: response.optionId })}
+                question={{ text: currentQuestion.text, description: currentQuestion.description, options: currentQuestion.options, responseCount: 0 }}
+                onSubmit={(r) => handleSubmitResponse({ optionId: r.optionId })}
               />
             )}
             {currentQuestion.type === 'open-text' && (
               <OpenTextQuestion
-                question={{
-                  text: currentQuestion.text,
-                  description: currentQuestion.description,
-                  maxLength: 500,
-                  minLength: 1,
-                  responseCount: 0,
-                }}
-                onSubmit={(response) => handleSubmitResponse({ text: response.text })}
+                question={{ text: currentQuestion.text, description: currentQuestion.description, maxLength: 500, minLength: 1, responseCount: 0 }}
+                onSubmit={(r) => handleSubmitResponse({ text: r.text })}
               />
             )}
             {currentQuestion.type === 'rating' && (
               <RatingScaleQuestion
-                question={{
-                  text: currentQuestion.text,
-                  description: currentQuestion.description,
-                  scale: currentQuestion.scale,
-                  labels: currentQuestion.labels,
-                  displayStyle: currentQuestion.displayStyle || 'numbers',
-                  responseCount: 0,
-                }}
-                onSubmit={(response) => handleSubmitResponse({ rating: response.rating })}
+                question={{ text: currentQuestion.text, description: currentQuestion.description, scale: currentQuestion.scale, labels: currentQuestion.labels, displayStyle: currentQuestion.displayStyle || 'numbers', responseCount: 0 }}
+                onSubmit={(r) => handleSubmitResponse({ rating: r.rating })}
               />
             )}
             {currentQuestion.type === 'word-cloud' && (
               <WordCloudQuestion
-                question={{
-                  text: currentQuestion.text,
-                  description: currentQuestion.description,
-                  maxWords: 5,
-                  responseCount: 0,
-                }}
-                onSubmit={(response) => handleSubmitResponse({ words: response.words })}
+                question={{ text: currentQuestion.text, description: currentQuestion.description, maxWords: 5, responseCount: 0 }}
+                onSubmit={(r) => handleSubmitResponse({ words: r.words })}
               />
             )}
           </div>
@@ -639,7 +625,7 @@ const AudienceParticipation: React.FC = () => {
         return <SubmissionConfirmation message="Your response has been recorded successfully" />;
 
       case 'waiting':
-        return <WaitingState message="Waiting for the presenter to start..." showSpinner={true} />;
+        return <WaitingState message="Waiting for the presenter to start..." showSpinner />;
 
       case 'ended':
         return <SessionEndedState onJoinNew={handleJoinNewSession} />;
@@ -653,9 +639,7 @@ const AudienceParticipation: React.FC = () => {
   };
 
   const getSessionTitle = () => {
-    if (sessionState === 'join') return null;
-    if (!participantSession) return null;
-
+    if (sessionState === 'join' || !participantSession) return null;
     return (
       <div className="max-w-2xl mx-auto mb-6 md:mb-8">
         <div className="bg-card rounded-xl p-4 md:p-6 shadow-sm border border-border">
@@ -689,7 +673,7 @@ const AudienceParticipation: React.FC = () => {
                       className={`w-2 h-2 rounded-full transition-colors duration-250 ${
                         index === currentQuestion.number - 1
                           ? 'bg-primary'
-                          : index < (currentQuestion.number - 1)
+                          : index < currentQuestion.number - 1
                           ? 'bg-success'
                           : 'bg-muted'
                       }`}
