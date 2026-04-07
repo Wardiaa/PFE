@@ -135,6 +135,14 @@ function toDbQuestion(q: Question, contextId: string, questionOrder: number) {
 }
 
 // ---------------------------------------------------------------------------
+// Returns true if the string looks like a real Postgres UUID (from the DB).
+// Temp IDs created locally start with "q" followed by digits (e.g. "q1704123456").
+// ---------------------------------------------------------------------------
+function isDbUUID(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+// ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 export function useQuizBuilder() {
@@ -191,8 +199,6 @@ export function useQuizBuilder() {
   }, []);
 
   // ── Load existing context for editing (?edit=<id>) ───────────────────────
-  // Runs once when user is available. If an edit ID is present we fetch from
-  // Supabase, populate all state, and skip the localStorage draft restore.
   const editId = searchParams.get('edit');
 
   useEffect(() => {
@@ -203,15 +209,14 @@ export function useQuizBuilder() {
   }, [editId, editLoaded]);
 
   useEffect(() => {
-    if (!editId) return;           // no edit param → nothing to do
-    if (!user)   return;           // wait for auth
-    if (editLoaded) return;        // already loaded, don't reload
+    if (!editId) return;
+    if (!user)   return;
+    if (editLoaded) return;
 
     setIsLoadingEdit(true);
 
     (async () => {
       try {
-        // 1. Load context row
         const { data: ctx, error: ctxError } = await supabase
           .from('contexts')
           .select('*')
@@ -222,7 +227,6 @@ export function useQuizBuilder() {
           throw new Error(ctxError?.message ?? 'Context not found.');
         }
 
-        // 2. Load questions ordered by question_order
         const { data: questions, error: qError } = await supabase
           .from('questions')
           .select('*')
@@ -231,7 +235,6 @@ export function useQuizBuilder() {
 
         if (qError) throw new Error(qError.message);
 
-        // 3. Populate reducer state
         dispatch({ type: 'SET_TITLE',       payload: ctx.title         || '' });
         dispatch({ type: 'SET_DESCRIPTION', payload: ctx.description   || '' });
         dispatch({ type: 'SET_THEME',       payload: ctx.theme         || 'default' });
@@ -241,10 +244,10 @@ export function useQuizBuilder() {
           dispatch({ type: 'SET_SETTINGS', payload: ctx.settings });
         }
 
-        // 4. Map DB question rows → local Question shape
+        // Map DB question rows → local Question shape, keeping the real DB UUID as id
         const localQuestions = (questions ?? []).map((q: any) => ({
-          id:        q.id,
-          type:      q.type,            // keep DB enum value (MULTIPLE_CHOICE, etc.)
+          id:        q.id,           // real UUID — preserved so future saves UPDATE in-place
+          type:      q.type,
           title:     q.title,
           options:   q.options     ?? [],
           points:    q.points      ?? 10,
@@ -254,11 +257,9 @@ export function useQuizBuilder() {
         }));
         dispatch({ type: 'SET_QUESTIONS', payload: localQuestions });
 
-        // 5. Set the context type and remember this row's ID so saves UPDATE it
         setContextType(ctx.type as SupabaseContextType);
         setDraftContextId(editId);
 
-        // 6. Set history to include loaded state
         const loadedState: ContextData = {
           title: ctx.title || '',
           description: ctx.description || '',
@@ -271,7 +272,6 @@ export function useQuizBuilder() {
         setHistory([loadedState]);
         setHistoryIndex(0);
 
-        // 7. Skip template step — go straight to the editor
         setStep(2);
         setEditLoaded(true);
       } catch (err: any) {
@@ -289,7 +289,7 @@ export function useQuizBuilder() {
 
   // ── Restore local draft on mount (skipped when editing an existing context) ──
   useEffect(() => {
-    if (editId) return;            // editing from DB — don't overwrite with local draft
+    if (editId) return;
 
     const draft = localStorage.getItem('quiz-draft');
     if (draft) {
@@ -459,16 +459,21 @@ export function useQuizBuilder() {
 
   // ── Core Supabase upsert ──────────────────────────────────────────────────
   //
-  // If a draft row already exists (draftContextId is set), UPDATE it in place
-  // and replace its questions — so the header save button never creates
-  // duplicate drafts in the dashboard.
+  // Uses a smart sync strategy to avoid violating the responses_question_id_fkey
+  // foreign key constraint that blocks deleting questions that have session responses.
   //
-  // If no row exists yet, INSERT a new one and remember its ID.
+  // Strategy:
+  //  1. UPDATE questions that have real DB UUIDs (loaded from DB) — preserves IDs.
+  //  2. INSERT questions with temp local IDs (newly created this session).
+  //     After insert, patch local state with the real DB UUIDs so subsequent
+  //     saves in the same session correctly UPDATE instead of re-inserting.
+  //  3. DELETE only removed questions that have NO associated responses.
+  //     Questions with existing responses are left in the DB (orphaned but safe).
   //
   async function saveToSupabase(status: "ACTIVE" | "DRAFT"): Promise<string> {
     if (!user) throw new Error("You must be signed in to save.");
 
-    // ── UPDATE existing draft ─────────────────────────────────────────────
+    // ── UPDATE existing context ────────────────────────────────────────────
     if (draftContextId) {
       const { error: ctxError } = await supabase
         .from("contexts")
@@ -476,7 +481,7 @@ export function useQuizBuilder() {
           title:       context.title.trim(),
           description: context.description.trim() || null,
           type:        contextType,
-          status,                          // promotes DRAFT → ACTIVE on publish
+          status,
           theme:       context.theme    || "default",
           category:    context.category || null,
           tags:        context.tags     ?? [],
@@ -486,20 +491,98 @@ export function useQuizBuilder() {
 
       if (ctxError) throw new Error(ctxError.message);
 
-      // Replace all questions (delete + re-insert is simplest for an editor)
-      const { error: delError } = await supabase
+      const localQuestions = context.questions;
+
+      // Split questions: ones with real DB UUIDs vs. newly created (temp IDs)
+      const existingDbQuestions = localQuestions.filter(q => isDbUUID(q.id));
+      const newLocalQuestions   = localQuestions.filter(q => !isDbUUID(q.id));
+      const currentDbIds        = new Set(existingDbQuestions.map(q => q.id));
+
+      // 1. UPDATE existing questions in-place (their IDs are preserved → responses remain valid)
+      for (let i = 0; i < existingDbQuestions.length; i++) {
+        const q = existingDbQuestions[i];
+        const { error } = await supabase
+          .from("questions")
+          .update({
+            question_order: localQuestions.indexOf(q),
+            type:           toDbQuestionType(q.type),
+            title:          q.title,
+            points:         q.points    ?? 10,
+            time_limit:     q.timeLimit ?? 30,
+            options:        q.options?.length ? q.options : [],
+          })
+          .eq("id", q.id);
+        if (error) throw new Error(error.message);
+      }
+
+      // 2. INSERT new questions and patch local state with real DB IDs
+      if (newLocalQuestions.length > 0) {
+        const { data: inserted, error: insertErr } = await supabase
+          .from("questions")
+          .insert(
+            newLocalQuestions.map(q => ({
+              context_id:     draftContextId,
+              question_order: localQuestions.indexOf(q),
+              type:           toDbQuestionType(q.type),
+              title:          q.title,
+              points:         q.points    ?? 10,
+              time_limit:     q.timeLimit ?? 30,
+              options:        q.options?.length ? q.options : [],
+            }))
+          )
+          .select("id");
+
+        if (insertErr) throw new Error(insertErr.message);
+
+        // Patch local state so the next save in this session uses real UUIDs
+        if (inserted && inserted.length === newLocalQuestions.length) {
+          const tempIdToReal: Record<string, string> = {};
+          newLocalQuestions.forEach((q, i) => {
+            if (inserted[i]) tempIdToReal[q.id] = inserted[i].id;
+          });
+          const patched = localQuestions.map(q =>
+            tempIdToReal[q.id] ? { ...q, id: tempIdToReal[q.id] } : q
+          );
+          dispatch({ type: 'SET_QUESTIONS', payload: patched });
+          // Also update currentDbIds so the delete step below is accurate
+          patched
+            .filter(q => isDbUUID(q.id))
+            .forEach(q => currentDbIds.add(q.id));
+        }
+      }
+
+      // 3. Find questions that were removed in the editor
+      const { data: dbRows, error: fetchErr } = await supabase
         .from("questions")
-        .delete()
+        .select("id")
         .eq("context_id", draftContextId);
 
-      if (delError) throw new Error(delError.message);
+      if (fetchErr) throw new Error(fetchErr.message);
 
-      if (context.questions.length > 0) {
-        const { error: qError } = await supabase
-          .from("questions")
-          .insert(context.questions.map((q, i) => toDbQuestion(q, draftContextId, i)));
+      const allDbIds  = (dbRows ?? []).map((r: any) => r.id as string);
+      const removedIds = allDbIds.filter(id => !currentDbIds.has(id));
 
-        if (qError) throw new Error(qError.message);
+      if (removedIds.length > 0) {
+        // Only delete questions that have NO responses (avoid FK violation)
+        const { data: responsesCheck, error: respErr } = await supabase
+          .from("responses")
+          .select("question_id")
+          .in("question_id", removedIds);
+
+        if (respErr) throw new Error(respErr.message);
+
+        const idsWithResponses = new Set(
+          (responsesCheck ?? []).map((r: any) => r.question_id as string)
+        );
+        const safeToDelete = removedIds.filter(id => !idsWithResponses.has(id));
+
+        if (safeToDelete.length > 0) {
+          const { error: delErr } = await supabase
+            .from("questions")
+            .delete()
+            .in("id", safeToDelete);
+          if (delErr) throw new Error(delErr.message);
+        }
       }
 
       return draftContextId;
@@ -529,18 +612,26 @@ export function useQuizBuilder() {
     }
 
     const contextId = contextRow.id as string;
-    setDraftContextId(contextId); // remember for future saves
+    setDraftContextId(contextId);
 
     if (context.questions.length > 0) {
-      const { error: qError } = await supabase
+      const { data: inserted, error: qError } = await supabase
         .from("questions")
-        .insert(context.questions.map((q, i) => toDbQuestion(q, contextId, i)));
+        .insert(context.questions.map((q, i) => toDbQuestion(q, contextId, i)))
+        .select("id");
 
       if (qError) {
-        // Clean up orphaned row on partial failure
         await supabase.from("contexts").delete().eq("id", contextId);
         setDraftContextId(null);
         throw new Error(qError.message);
+      }
+
+      // Patch local state with real DB UUIDs so subsequent saves UPDATE in-place
+      if (inserted && inserted.length === context.questions.length) {
+        const patched = context.questions.map((q, i) =>
+          inserted[i] ? { ...q, id: inserted[i].id } : q
+        );
+        dispatch({ type: 'SET_QUESTIONS', payload: patched });
       }
     }
 
@@ -548,8 +639,6 @@ export function useQuizBuilder() {
   }
 
   // ── Background save — header button (steps 2-4) ───────────────────────────
-  // Saves to Supabase as DRAFT without navigating away.
-  // Updates the saveStatus indicator so the button turns green.
   const handleBackgroundSave = async () => {
     if (!context.title.trim()) {
       toast({
