@@ -53,6 +53,7 @@ interface InteractivitySettings {
   allowSkip: boolean;
   showCorrectAnswer: boolean;
   shuffleOptions: boolean;
+  showResultsInstantly: boolean; // NEW SETTING
 }
 
 interface QuestionSidePanelProps {
@@ -248,6 +249,7 @@ export function QuestionSidePanel({
     allowSkip: false,
     showCorrectAnswer: false,
     shuffleOptions: false,
+    showResultsInstantly: false, 
   });
 
   const handleMenuClick = (menuId: string) => {
@@ -750,6 +752,18 @@ export function QuestionSidePanel({
                 />
               </div>
             )}
+
+            {/* Show results instantly the moment a participant answers */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BarChart2 className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-xs text-slate-600">Show results instantly</span>
+              </div>
+              <MentiToggle 
+                checked={interactivitySettings.showResultsInstantly} 
+                onChange={(val) => setInteractivitySettings(prev => ({ ...prev, showResultsInstantly: val }))} 
+              />
+            </div>
 
             {/* Lock Question - uses existing property */}
             <div className="flex items-center justify-between">
