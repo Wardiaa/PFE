@@ -22,6 +22,8 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
   responses, 
   showResults = false 
 }) => {
+  const questionImage = (question as any).image || (question as any).imageUrl;
+
   const renderQuestionContent = () => {
     switch (question.type) {
       case 'multiple-choice':
@@ -48,6 +50,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {question.options.map((option, index) => {
+          const optionImage = (option as any).imageUrl || (option as any).image;
           const responseCount = responses[option.id] || 0;
           const percentage = totalResponses > 0 ? Math.round((responseCount / totalResponses) * 100) : 0;
           const isCorrect = showResults && option.isCorrect;
@@ -79,6 +82,16 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                   <AppIcon name="CheckCircle" size={24} className="text-green-600 flex-shrink-0" />
                 )}
               </div>
+
+              {optionImage && (
+                <div className="mt-4 ml-13 md:ml-16 overflow-hidden rounded-lg border border-border bg-muted">
+                  <img
+                    src={optionImage}
+                    alt=""
+                    className="w-full max-h-56 object-cover"
+                  />
+                </div>
+              )}
               
               {showResults && (
                 <div className="ml-13 md:ml-16 mt-2">
@@ -259,6 +272,16 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
           <p className="text-base md:text-lg text-muted-foreground ml-13 md:ml-16">
             {question.description}
           </p>
+        )}
+
+        {questionImage && (
+        <div className="mt-6 ml-13 md:ml-16 overflow-hidden rounded-xl border border-border bg-muted/30 flex justify-center">
+          <img
+            src={questionImage}
+            alt="Question visual"
+            className="w-auto max-w-full max-h-60 md:max-h-64 lg:max-h-72 object-contain"
+          />
+        </div>
         )}
       </div>
       

@@ -5,6 +5,8 @@ import AppIcon from '../../../components/AppIcon';
 interface Question {
   text: string;
   description?: string;
+  image?: string | null;
+  imageUrl?: string | null;
   maxLength?: number;
   minLength?: number;
   responseCount?: number;
@@ -18,6 +20,7 @@ interface OpenTextQuestionProps {
 const OpenTextQuestion: React.FC<OpenTextQuestionProps> = ({ question, onSubmit }) => {
   const [response, setResponse] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const questionImage = question?.image || question?.imageUrl;
 
   const maxLength = question?.maxLength || 500;
   const remainingChars = maxLength - response?.length;
@@ -57,6 +60,15 @@ const OpenTextQuestion: React.FC<OpenTextQuestionProps> = ({ question, onSubmit 
             <p className="mt-3 text-sm md:text-base text-muted-foreground">
               {question?.description}
             </p>
+          )}
+          {questionImage && (
+            <div className="mt-5 overflow-hidden rounded-xl border border-border bg-muted/30">
+              <img
+                src={questionImage}
+                alt="Question visual"
+                className="w-full max-h-[360px] object-cover"
+              />
+            </div>
           )}
         </div>
 

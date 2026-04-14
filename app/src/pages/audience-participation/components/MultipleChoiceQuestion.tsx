@@ -5,11 +5,14 @@ import AppIcon from '../../../components/AppIcon';
 interface Option {
   id: string;
   text: string;
+  imageUrl?: string | null;
 }
 
 interface Question {
   text: string;
   description?: string;
+  image?: string | null;
+  imageUrl?: string | null;
   options?: Option[];
   responseCount?: number;
 }
@@ -22,6 +25,7 @@ interface MultipleChoiceQuestionProps {
 const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({ question, onSubmit }) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const questionImage = question?.image || question?.imageUrl;
 
   const handleOptionSelect = (optionId: string): void => {
     if (!isSubmitting) {
@@ -58,6 +62,15 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({ questio
               {question?.description}
             </p>
           )}
+          {questionImage && (
+            <div className="mt-5 overflow-hidden rounded-xl border border-border bg-muted/30">
+              <img
+                src={questionImage}
+                alt="Question visual"
+                className="w-full max-h-[360px] object-cover"
+              />
+            </div>
+          )}
         </div>
 
         <div className="space-y-3 mb-6 md:mb-8">
@@ -72,21 +85,33 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({ questio
                   : 'border-border bg-background hover:border-primary/50 hover:bg-muted'
               } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
-              <div className="flex items-center gap-3 md:gap-4">
-                <div
-                  className={`flex-shrink-0 w-5 h-5 md:w-6 md:h-6 rounded-full border-2 transition-all duration-250 flex items-center justify-center ${
-                    selectedOption === option?.id
-                      ? 'border-primary bg-primary' 
-                      : 'border-muted-foreground/30'
-                  }`}
-                >
-                  {selectedOption === option?.id && (
-                    <AppIcon name="Check" size={12} className="text-white" />
-                  )}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 md:gap-4">
+                  <div
+                    className={`flex-shrink-0 w-5 h-5 md:w-6 md:h-6 rounded-full border-2 transition-all duration-250 flex items-center justify-center ${
+                      selectedOption === option?.id
+                        ? 'border-primary bg-primary' 
+                        : 'border-muted-foreground/30'
+                    }`}
+                  >
+                    {selectedOption === option?.id && (
+                      <AppIcon name="Check" size={12} className="text-white" />
+                    )}
+                  </div>
+                  <span className="text-base md:text-lg font-medium text-foreground flex-1">
+                    {option?.text}
+                  </span>
                 </div>
-                <span className="text-base md:text-lg font-medium text-foreground flex-1">
-                  {option?.text}
-                </span>
+
+                {option?.imageUrl && (
+                  <div className="pl-8 md:pl-10">
+                    <img
+                      src={option.imageUrl}
+                      alt=""
+                      className="w-full max-h-56 rounded-lg object-cover border border-border bg-muted"
+                    />
+                  </div>
+                )}
               </div>
             </button>
           ))}

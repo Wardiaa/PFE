@@ -15,6 +15,8 @@ interface Labels {
 interface Question {
   text: string;
   description?: string;
+  image?: string | null;
+  imageUrl?: string | null;
   scale?: Scale;
   labels?: Labels;
   responseCount?: number;
@@ -30,6 +32,7 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
   const [hoveredRating, setHoveredRating] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const questionImage = question?.image || question?.imageUrl;
 
   // Min is fixed at 1, max is adjustable
   const scale = { 
@@ -182,6 +185,15 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
             <p className="mt-3 text-sm md:text-base text-muted-foreground">
               {question?.description}
             </p>
+          )}
+          {questionImage && (
+            <div className="mt-5 overflow-hidden rounded-xl border border-border bg-muted/30">
+              <img
+                src={questionImage}
+                alt="Question visual"
+                className="w-full max-h-[360px] object-cover"
+              />
+            </div>
           )}
         </div>
 

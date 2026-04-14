@@ -5,6 +5,8 @@ import AppIcon from '../../../components/AppIcon';
 interface Question {
   text: string;
   description?: string;
+  image?: string | null;
+  imageUrl?: string | null;
   maxWords?: number;
   responseCount?: number;
 }
@@ -17,6 +19,7 @@ interface WordCloudQuestionProps {
 const WordCloudQuestion: React.FC<WordCloudQuestionProps> = ({ question, onSubmit }) => {
   const [words, setWords] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const questionImage = question?.image || question?.imageUrl;
 
   const maxWords = question?.maxWords || 5;
   const wordArray = words?.trim()?.split(/\s+/)?.filter(word => word?.length > 0);
@@ -65,6 +68,15 @@ const WordCloudQuestion: React.FC<WordCloudQuestionProps> = ({ question, onSubmi
             <p className="mt-3 text-sm md:text-base text-muted-foreground">
               {question?.description}
             </p>
+          )}
+          {questionImage && (
+            <div className="mt-5 overflow-hidden rounded-xl border border-border bg-muted/30">
+              <img
+                src={questionImage}
+                alt="Question visual"
+                className="w-full max-h-[360px] object-cover"
+              />
+            </div>
           )}
         </div>
 

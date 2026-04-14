@@ -92,6 +92,11 @@ const AudienceParticipation: React.FC = () => {
     if (code) sessionStorage.setItem('pending-session-code', code);
   }, [searchParams]);
 
+  const getQuestionImage = (question: Question | null): string | null => {
+    if (!question) return null;
+    return (question as any).image || (question as any).imageUrl || null;
+  };
+
   const mapQuestionType = (dbType: string): Question['type'] => {
     const mapping: Record<string, Question['type']> = {
       MULTIPLE_CHOICE: 'multiple-choice',
@@ -595,25 +600,25 @@ const AudienceParticipation: React.FC = () => {
 
             {currentQuestion.type === 'multiple-choice' && (
               <MultipleChoiceQuestion
-                question={{ text: currentQuestion.text, description: currentQuestion.description, options: currentQuestion.options, responseCount: 0 }}
+                question={{ text: currentQuestion.text, description: currentQuestion.description, image: getQuestionImage(currentQuestion), options: currentQuestion.options, responseCount: 0 }}
                 onSubmit={(r) => handleSubmitResponse({ optionId: r.optionId })}
               />
             )}
             {currentQuestion.type === 'open-text' && (
               <OpenTextQuestion
-                question={{ text: currentQuestion.text, description: currentQuestion.description, maxLength: 500, minLength: 1, responseCount: 0 }}
+                question={{ text: currentQuestion.text, description: currentQuestion.description, image: getQuestionImage(currentQuestion), maxLength: 500, minLength: 1, responseCount: 0 }}
                 onSubmit={(r) => handleSubmitResponse({ text: r.text })}
               />
             )}
             {currentQuestion.type === 'rating' && (
               <RatingScaleQuestion
-                question={{ text: currentQuestion.text, description: currentQuestion.description, scale: currentQuestion.scale, labels: currentQuestion.labels, displayStyle: currentQuestion.displayStyle || 'numbers', responseCount: 0 }}
+                question={{ text: currentQuestion.text, description: currentQuestion.description, image: getQuestionImage(currentQuestion), scale: currentQuestion.scale, labels: currentQuestion.labels, displayStyle: currentQuestion.displayStyle || 'numbers', responseCount: 0 }}
                 onSubmit={(r) => handleSubmitResponse({ rating: r.rating })}
               />
             )}
             {currentQuestion.type === 'word-cloud' && (
               <WordCloudQuestion
-                question={{ text: currentQuestion.text, description: currentQuestion.description, maxWords: 5, responseCount: 0 }}
+                question={{ text: currentQuestion.text, description: currentQuestion.description, image: getQuestionImage(currentQuestion), maxWords: 5, responseCount: 0 }}
                 onSubmit={(r) => handleSubmitResponse({ words: r.words })}
               />
             )}
