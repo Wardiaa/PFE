@@ -35,6 +35,7 @@ interface StepsProps {
   onThemeChange: (value: string) => void;
   onCategoryChange: (value: string) => void;
   onTagsChange: (tags: string[]) => void;
+  onCoverImageChange: (imageUrl: string | null) => void;
   onSettingsChange: (updates: any) => void;
   onTemplateSelect: (templateId: string) => void;
   onTemplateCustomize: (options: any) => void;
@@ -85,6 +86,7 @@ export function renderStep({
   onThemeChange,
   onCategoryChange,
   onTagsChange,
+  onCoverImageChange,
   onSettingsChange,
   onTemplateSelect,
   onTemplateCustomize,
@@ -128,6 +130,7 @@ export function renderStep({
           onThemeChange={onThemeChange}
           onCategoryChange={onCategoryChange}
           onTagsChange={onTagsChange}
+          onCoverImageChange={onCoverImageChange}
         />
       );
 

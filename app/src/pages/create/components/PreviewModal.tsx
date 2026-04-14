@@ -146,30 +146,37 @@ function getTheme(question: Question | null | undefined): Theme {
 
 // ─── Question type renderers ───────────────────────────────────────────────
 const MultipleChoiceRenderer = ({ options, theme }: { options: any[]; theme: Theme }) => (
-  <div className="space-y-2.5">
-    {options.map((opt) => (
-      <button
-        key={opt.id}
-        style={{
-          background: theme.optionBg,
-          borderColor: theme.optionBorder,
-          color: theme.text,
-        }}
-        className="w-full p-3 rounded-xl border-2 text-left transition-all"
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className="w-5 h-5 rounded-full border-2 flex-shrink-0"
-            style={{ borderColor: theme.optionBorder }}
-          />
-          <span className="text-xs">{opt.text}</span>
-        </div>
-      </button>
-    ))}
-  </div>
-);
+    <div className="space-y-2.5">
+      {options.map((opt) => (
+        <button
+          key={opt.id}
+          style={{
+            background: theme.optionBg,
+            borderColor: theme.optionBorder,
+            color: theme.text,
+          }}
+          className="w-full p-3 rounded-xl border-2 text-left transition-all"
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="w-5 h-5 rounded-full border-2 flex-shrink-0"
+              style={{ borderColor: theme.optionBorder }}
+            />
+            {opt.imageUrl && (
+              <img
+                src={opt.imageUrl}
+                alt=""
+                className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+              />
+            )}
+            <span className="text-xs">{opt.text}</span>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
 
-const OpenTextRenderer = ({ theme }: { theme: Theme }) => (
+  const OpenTextRenderer = ({ theme }: { theme: Theme }) => (
   <div className="space-y-3">
     <textarea
       placeholder="Type your answer here..."
@@ -379,9 +386,9 @@ const PhoneFrame = ({
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-4" style={{ background: theme.bg }}>
           <div className="relative space-y-4">
-            {(question as any)?.image && (
+            {question.imageUrl && (
               <img
-                src={(question as any).image}
+                src={question.imageUrl}
                 alt=""
                 className="w-full h-32 object-cover rounded-xl mb-3"
               />
@@ -457,9 +464,9 @@ const DesktopFrame = ({
         </div>
 
         {/* Question image */}
-        {(question as any)?.image && (
+        {question.imageUrl && (
           <img
-            src={(question as any).image}
+            src={question.imageUrl}
             alt=""
             className="w-full h-48 object-cover rounded-xl mb-5"
           />

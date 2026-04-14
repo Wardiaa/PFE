@@ -13,7 +13,7 @@ export interface DisplayContext {
   creatorId: string;
   status: ContextStatus;
   code: string;
-  coverImage?: string;
+  coverImage?: string | null;
   createdAt: string;
   updatedAt?: string;
   participantsCount: number;
@@ -30,6 +30,7 @@ function mapContext(row: any): DisplayContext {
     (sum: number, s: any) => sum + (s.participant_count ?? 0),
     0
   );
+
   const status: ContextStatus = row.status;
   const displayStatus: 'published' | 'draft' =
     status === 'ACTIVE' || status === 'CLOSED' ? 'published' : 'draft';
@@ -42,7 +43,7 @@ function mapContext(row: any): DisplayContext {
     creatorId: row.creator_id,
     status,
     code: row.code,
-    coverImage: row.cover_image ?? undefined,
+    coverImage: row.cover_image ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? undefined,
     participantsCount,

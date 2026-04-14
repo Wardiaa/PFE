@@ -9,7 +9,7 @@ import { QUESTION_TYPE_DETAILS } from "../../../lib/question-types";
 import type { ContextData, HistoryAction, Question } from "../types";
 
 // ---------------------------------------------------------------------------
-// Reducer — identical to original; no new action types added
+// Reducer
 // ---------------------------------------------------------------------------
 function historyReducer(state: ContextData, action: HistoryAction): ContextData {
   switch (action.type) {
@@ -26,7 +26,9 @@ function historyReducer(state: ContextData, action: HistoryAction): ContextData 
     case 'SET_CATEGORY':
       return { ...state, category: action.payload };
     case 'SET_TAGS':
-      return { ...state, tags: action.payload };
+        return { ...state, tags: action.payload };
+      case 'SET_COVER_IMAGE':
+        return { ...state, coverImage: action.payload };
     case 'UPDATE_QUESTION':
       return {
         ...state,
@@ -68,7 +70,8 @@ const INITIAL_STATE: ContextData = {
   theme: "default",
   category: "",
   tags: [],
-  questions: [],
+    coverImage: null,
+    questions: [],
   settings: DEFAULT_SETTINGS,
 };
 
@@ -123,16 +126,25 @@ function toDbQuestionType(localType: string): DbQuestionType {
 // There is NO correct_answer column — answers live inside options JSONB
 // ---------------------------------------------------------------------------
 function toDbQuestion(q: Question, contextId: string, questionOrder: number) {
-  return {
-    context_id:     contextId,
-    question_order: questionOrder,
-    type:           toDbQuestionType(q.type),
-    title:          q.title,
-    points:         q.points    ?? 10,
-    time_limit:     q.timeLimit ?? 30,
-    options:        q.options?.length ? q.options : [],
-  };
-}
+    return {
+      context_id: contextId,
+      question_order: questionOrder,
+      type: toDbQuestionType(q.type),
+      title: q.title,
+      description: q.description || null,
+      points: q.points ?? 10,
+      time_limit: q.timeLimit ?? 30,
+      locked: q.locked ?? false,
+      is_visible: q.isVisible ?? true,
+      options: q.options?.length ? q.options : [],
+      scale: q.scale ?? null,
+      labels: q.labels ?? null,
+      display_style: q.displayStyle ?? "numbers",
+      image_url: q.imageUrl || null,
+      theme: q.theme || null,
+      show_results_instantly: q.showResultsInstantly ?? false,
+    };
+  }
 
 // ---------------------------------------------------------------------------
 // Returns true if the string looks like a real Postgres UUID (from the DB).
@@ -240,21 +252,29 @@ export function useQuizBuilder() {
         dispatch({ type: 'SET_THEME',       payload: ctx.theme         || 'default' });
         dispatch({ type: 'SET_CATEGORY',    payload: ctx.category      || '' });
         dispatch({ type: 'SET_TAGS',        payload: ctx.tags          || [] });
+          dispatch({ type: 'SET_COVER_IMAGE', payload: ctx.cover_image || null });
         if (ctx.settings) {
           dispatch({ type: 'SET_SETTINGS', payload: ctx.settings });
         }
 
         // Map DB question rows → local Question shape, keeping the real DB UUID as id
         const localQuestions = (questions ?? []).map((q: any) => ({
-          id:        q.id,           // real UUID — preserved so future saves UPDATE in-place
-          type:      q.type,
-          title:     q.title,
-          options:   q.options     ?? [],
-          points:    q.points      ?? 10,
-          timeLimit: q.time_limit  ?? 30,
-          isVisible: q.is_visible  ?? true,
-          locked:    q.locked      ?? false,
-        }));
+            id: q.id,
+            type: q.type,
+            title: q.title,
+            description: q.description || "",
+            options: q.options ?? [],
+            points: q.points ?? 10,
+            timeLimit: q.time_limit ?? 30,
+            isVisible: q.is_visible ?? true,
+            locked: q.locked ?? false,
+            imageUrl: q.image_url || null,
+            scale: q.scale || undefined,
+            labels: q.labels || undefined,
+            displayStyle: q.display_style || "numbers",
+            theme: q.theme || undefined,
+            showResultsInstantly: q.show_results_instantly ?? false,
+          }));
         dispatch({ type: 'SET_QUESTIONS', payload: localQuestions });
 
         setContextType(ctx.type as SupabaseContextType);
@@ -266,7 +286,8 @@ export function useQuizBuilder() {
           theme: ctx.theme || 'default',
           category: ctx.category || '',
           tags: ctx.tags || [],
-          questions: localQuestions,
+            coverImage: ctx.cover_image || null,
+            questions: localQuestions,
           settings: ctx.settings || DEFAULT_SETTINGS,
         };
         setHistory([loadedState]);
@@ -302,6 +323,7 @@ export function useQuizBuilder() {
         dispatch({ type: 'SET_SETTINGS',    payload: parsed.settings    || DEFAULT_SETTINGS });
         dispatch({ type: 'SET_CATEGORY',    payload: parsed.category    || "" });
         dispatch({ type: 'SET_TAGS',        payload: parsed.tags        || [] });
+          dispatch({ type: 'SET_COVER_IMAGE', payload: parsed.coverImage || null });
         if (parsed.contextType) setContextType(parsed.contextType);
         toast({ title: "Draft restored", description: "Your unsaved changes have been restored" });
       } catch (error) {
@@ -356,6 +378,7 @@ export function useQuizBuilder() {
       dispatch({ type: 'SET_SETTINGS',    payload: prev.settings    });
       dispatch({ type: 'SET_CATEGORY',    payload: prev.category    });
       dispatch({ type: 'SET_TAGS',        payload: prev.tags        });
+        dispatch({ type: 'SET_COVER_IMAGE', payload: prev.coverImage || null });
       setHistoryIndex(historyIndex - 1);
       toast({ title: "Undo", description: "Last action undone", duration: 1500 });
     }
@@ -371,6 +394,7 @@ export function useQuizBuilder() {
       dispatch({ type: 'SET_SETTINGS',    payload: next.settings    });
       dispatch({ type: 'SET_CATEGORY',    payload: next.category    });
       dispatch({ type: 'SET_TAGS',        payload: next.tags        });
+        dispatch({ type: 'SET_COVER_IMAGE', payload: next.coverImage || null });
       setHistoryIndex(historyIndex + 1);
       toast({ title: "Redo", description: "Action restored", duration: 1500 });
     }
@@ -423,7 +447,8 @@ export function useQuizBuilder() {
   const handleThemeChange       = (value: string) => { dispatch({ type: 'SET_THEME',       payload: value }); markUnsaved(); };
   const handleCategoryChange    = (value: string) => { dispatch({ type: 'SET_CATEGORY',    payload: value }); markUnsaved(); };
   const handleTagsChange        = (tags: string[]) => { dispatch({ type: 'SET_TAGS',       payload: tags  }); markUnsaved(); };
-  const handleSettingsChange    = (updates: any)   => { dispatch({ type: 'SET_SETTINGS',   payload: { ...context.settings, ...updates } }); markUnsaved(); };
+    const handleCoverImageChange  = (imageUrl: string | null) => { dispatch({ type: 'SET_COVER_IMAGE', payload: imageUrl }); markUnsaved(); };
+    const handleSettingsChange    = (updates: any)   => { dispatch({ type: 'SET_SETTINGS',   payload: { ...context.settings, ...updates } }); markUnsaved(); };
 
   // ── Template helpers ───────────────────────────────────────────────────────
   const handleTemplateSelect = (templateId: string) => {
@@ -486,7 +511,8 @@ export function useQuizBuilder() {
           category:    context.category || null,
           tags:        context.tags     ?? [],
           settings:    context.settings,
-        })
+            cover_image: context.coverImage || null,
+          })
         .eq("id", draftContextId);
 
       if (ctxError) throw new Error(ctxError.message);
@@ -504,13 +530,22 @@ export function useQuizBuilder() {
         const { error } = await supabase
           .from("questions")
           .update({
-            question_order: localQuestions.indexOf(q),
-            type:           toDbQuestionType(q.type),
-            title:          q.title,
-            points:         q.points    ?? 10,
-            time_limit:     q.timeLimit ?? 30,
-            options:        q.options?.length ? q.options : [],
-          })
+              question_order: localQuestions.indexOf(q),
+              type: toDbQuestionType(q.type),
+              title: q.title,
+              description: q.description || null,
+              points: q.points ?? 10,
+              time_limit: q.timeLimit ?? 30,
+              locked: q.locked ?? false,
+              is_visible: q.isVisible ?? true,
+              options: q.options?.length ? q.options : [],
+              scale: q.scale ?? null,
+              labels: q.labels ?? null,
+              display_style: q.displayStyle ?? "numbers",
+              image_url: q.imageUrl || null,
+              theme: q.theme || null,
+              show_results_instantly: q.showResultsInstantly ?? false,
+            })
           .eq("id", q.id);
         if (error) throw new Error(error.message);
       }
@@ -520,16 +555,8 @@ export function useQuizBuilder() {
         const { data: inserted, error: insertErr } = await supabase
           .from("questions")
           .insert(
-            newLocalQuestions.map(q => ({
-              context_id:     draftContextId,
-              question_order: localQuestions.indexOf(q),
-              type:           toDbQuestionType(q.type),
-              title:          q.title,
-              points:         q.points    ?? 10,
-              time_limit:     q.timeLimit ?? 30,
-              options:        q.options?.length ? q.options : [],
-            }))
-          )
+              newLocalQuestions.map((q) => toDbQuestion(q, draftContextId, localQuestions.indexOf(q)))
+            )
           .select("id");
 
         if (insertErr) throw new Error(insertErr.message);
@@ -602,7 +629,7 @@ export function useQuizBuilder() {
         category:    context.category || null,
         tags:        context.tags     ?? [],
         settings:    context.settings,
-        cover_image: null,
+        cover_image: context.coverImage || null,
       })
       .select("id")
       .single();
@@ -842,7 +869,8 @@ export function useQuizBuilder() {
     handleThemeChange,
     handleCategoryChange,
     handleTagsChange,
-    handleSettingsChange,
+      handleCoverImageChange,
+      handleSettingsChange,
     toggleQuestionSelection,
     handleTemplateSelect,
     handleTemplateCustomize,
