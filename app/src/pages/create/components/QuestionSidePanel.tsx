@@ -10,24 +10,16 @@ import {
   validateImageFile,
 } from "../../../lib/cloudinary";
 import {
-  PencilRuler,
   MessageSquareText,
   Pointer,
   PaintRoller,
-  ChevronDown,
   X,
-  Send,
   Trash2,
-  Timer,
   Star,
   Shuffle,
   SkipForward,
   Eye,
-  EyeOff,
   Check,
-  ListChecks,
-  MessageSquare,
-  Cloud,
   BarChart2,
   HelpCircle,
   Lock,
@@ -178,7 +170,6 @@ const MentiToggle = ({ checked, onChange, disabled }: { checked: boolean; onChan
 
 function ThemePreviewCard({
   theme,
-  question,
   isSelected,
   onClick,
 }: {
@@ -663,7 +654,7 @@ export function QuestionSidePanel({
             <h3 className="text-sm font-bold text-slate-800">Time limit</h3>
             <HelpCircle className="w-3.5 h-3.5 text-slate-300" />
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-5 gap-2">
             {[15, 30, 45, 60].map((s) => (
               <button
                 key={s}
@@ -678,7 +669,21 @@ export function QuestionSidePanel({
                 {s}s
               </button>
             ))}
+            <button
+              onClick={() => onUpdateQuestion({ timeLimit: null })}
+              className={cn(
+                "py-2 rounded-lg text-xs font-bold transition-all",
+                q.timeLimit == null
+                  ? "bg-[#6366F1] text-white"
+                  : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200"
+              )}
+            >
+              No timer
+            </button>
           </div>
+          <p className="text-[11px] text-slate-500">
+            Choose “No timer” when participants should have unlimited time to answer this question.
+          </p>
         </section>
 
         <div className="h-px bg-slate-100" />
@@ -962,7 +967,7 @@ export function QuestionSidePanel({
 
       {/* 2. NAVIGATION RAIL - ORIGINAL 92px WIDTH */}
       <div className="w-[92px] bg-white border-l border-slate-200 flex flex-col items-center py-4 gap-3">
-        {menuItems.map((item, i) => {
+        {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeMenu === item.id && isOpen;
           const hasNotification = item.id === "comments" && comments.length > 0;

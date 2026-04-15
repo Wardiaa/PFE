@@ -33,8 +33,10 @@ function computeRemainingFromDbRow(
     timer_paused_remaining: number | null;
     timer_resumed_at: string | null;
   },
-  timeLimit: number
-): number {
+  timeLimit: number | null
+): number | null {
+  if (timeLimit == null || timeLimit <= 0) return null;
+
   const { is_paused, current_question_started_at, timer_paused_remaining, timer_resumed_at } = row;
 
   if (is_paused && timer_paused_remaining != null) {
@@ -60,7 +62,7 @@ const AudienceParticipation: React.FC = () => {
   const [participantSession, setParticipantSession] = useState<ParticipantSession | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [error, setError] = useState<{ type?: string; message?: string } | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [, setIsLoading] = useState(false);
   const [timerRemaining, setTimerRemaining] = useState<number>(0);
   const [timerTotal, setTimerTotal] = useState<number>(0);
   const [questionActive, setQuestionActive] = useState<boolean>(true);
@@ -148,17 +150,17 @@ const AudienceParticipation: React.FC = () => {
 
   // ── Apply a question directly from cached session data (zero DB round-trip)
   const applyQuestion = useCallback(
-    (question: Question, timeLimit: number, startedAt?: string) => {
-      const limit = timeLimit || 30;
-      let remaining = limit;
-      if (startedAt) {
+    (question: Question, timeLimit: number | null, startedAt?: string) => {
+      const limit = timeLimit == null || timeLimit <= 0 ? null : timeLimit;
+      let remaining = limit ?? 0;
+      if (limit !== null && startedAt) {
         const elapsed = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
         remaining = Math.max(0, limit - elapsed);
       }
 
       setCurrentQuestion(question);
       currentQuestionRef.current = question;
-      setTimerTotal(limit);
+      setTimerTotal(limit ?? 0);
       setTimerRemaining(remaining);
       timerRemainingRef.current = remaining;
       setQuestionActive(true);
@@ -169,14 +171,14 @@ const AudienceParticipation: React.FC = () => {
       isPausedRef.current = false;
       setSessionState('question');
       sessionStateRef.current = 'question';
-      if (remaining > 0) startLocalCountdown();
+      if (limit !== null && remaining > 0) startLocalCountdown();
     },
     [startLocalCountdown]
   );
 
   // ── Load question — tries cache first, falls back to DB ─────────────────
   const loadQuestion = useCallback(
-    async (questionId: string, questionIndex: number, timeLimit?: number, startedAt?: string) => {
+    async (questionId: string, questionIndex: number, timeLimit?: number | null, startedAt?: string) => {
       if (!participantSessionRef.current) return;
 
       const cachedQ = participantSessionRef.current.session.presentation.questions.find(
@@ -184,7 +186,7 @@ const AudienceParticipation: React.FC = () => {
       );
 
       if (cachedQ) {
-        applyQuestion(cachedQ, cachedQ.timeLimit || timeLimit || 30, startedAt);
+        applyQuestion(cachedQ, cachedQ.timeLimit ?? timeLimit ?? null, startedAt);
         return;
       }
 
@@ -217,7 +219,7 @@ const AudienceParticipation: React.FC = () => {
           displayStyle: questionData.display_style,
         };
 
-        applyQuestion(newQuestion, questionData.time_limit || timeLimit || 30, startedAt);
+        applyQuestion(newQuestion, questionData.time_limit ?? timeLimit ?? null, startedAt);
       } catch (err) {
         console.error('Load question error:', err);
         setSessionState('waiting');
@@ -237,7 +239,7 @@ const AudienceParticipation: React.FC = () => {
         case 'QUESTION_CHANGE': {
           const questionId = payload?.questionId as string | undefined;
           const questionIndex = (payload?.questionIndex as number) ?? 0;
-          const timeLimit = (payload?.timeLimit as number) ?? 30;
+          const timeLimit = payload?.timeLimit as number | null | undefined;
           const startedAt = payload?.startedAt as string | undefined;
           if (questionId) {
             stopLocalCountdown();
@@ -329,7 +331,7 @@ const AudienceParticipation: React.FC = () => {
               setTimerRemaining(frozen);
               timerRemainingRef.current = frozen;
             } else {
-              const timeLimit = currentQuestionRef.current?.timeLimit ?? 30;
+              const timeLimit = currentQuestionRef.current?.timeLimit ?? null;
               const recalculated = computeRemainingFromDbRow(
                 {
                   is_paused: false,
@@ -339,9 +341,18 @@ const AudienceParticipation: React.FC = () => {
                 },
                 timeLimit
               );
-              setTimerRemaining(recalculated);
-              timerRemainingRef.current = recalculated;
-              if (recalculated > 0 && questionActiveRef.current) startLocalCountdown();
+              if (recalculated === null) {
+                setTimerRemaining(0);
+                timerRemainingRef.current = 0;
+                setQuestionActive(true);
+                questionActiveRef.current = true;
+                setQuestionClosed(false);
+                questionClosedRef.current = false;
+              } else {
+                setTimerRemaining(recalculated);
+                timerRemainingRef.current = recalculated;
+                if (recalculated > 0 && questionActiveRef.current) startLocalCountdown();
+              }
             }
           }
 
@@ -404,7 +415,7 @@ const AudienceParticipation: React.FC = () => {
       if (result.session.status === 'ACTIVE' && result.session.currentQuestionIndex >= 0) {
         const currentQ = result.session.presentation.questions[result.session.currentQuestionIndex];
         if (currentQ?.id) {
-          const timeLimit = currentQ.timeLimit || 30;
+          const timeLimit = currentQ.timeLimit ?? null;
           const remaining = computeRemainingFromDbRow(
             {
               is_paused: paused,
@@ -417,16 +428,16 @@ const AudienceParticipation: React.FC = () => {
 
           setCurrentQuestion(currentQ);
           currentQuestionRef.current = currentQ;
-          setTimerTotal(timeLimit);
-          setTimerRemaining(remaining);
-          timerRemainingRef.current = remaining;
+          setTimerTotal(timeLimit ?? 0);
+          setTimerRemaining(remaining ?? 0);
+          timerRemainingRef.current = remaining ?? 0;
           setQuestionActive(true);
           questionActiveRef.current = true;
           setQuestionClosed(false);
           questionClosedRef.current = false;
           setSessionState('question');
           sessionStateRef.current = 'question';
-          if (!paused && remaining > 0) startLocalCountdown();
+          if (timeLimit !== null && !paused && remaining !== null && remaining > 0) startLocalCountdown();
         } else {
           setSessionState('waiting');
           sessionStateRef.current = 'waiting';
@@ -528,7 +539,32 @@ const AudienceParticipation: React.FC = () => {
   const renderTimerBar = () => {
     if (sessionState !== 'question' || !currentQuestion) return null;
 
-    const total = timerTotal || currentQuestion.timeLimit || 30;
+    const total = timerTotal || currentQuestion.timeLimit || 0;
+    if (!total || total <= 0) {
+      return (
+        <div className="fixed top-0 left-0 right-0 z-50">
+          <div className="flex justify-between px-4 pt-2">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              {wsConnected ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                  Live
+                </>
+              ) : (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
+                  Connecting...
+                </>
+              )}
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold shadow-sm border bg-background border-border text-foreground">
+              <AppIcon name={isPaused ? 'PauseCircle' : 'Infinity'} size={12} />
+              <span>{isPaused ? 'Paused' : 'No timer'}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
     const fraction = total > 0 ? timerRemaining / total : 0;
     const isWarning = timerRemaining <= 10 && timerRemaining > 0;
 

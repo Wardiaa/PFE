@@ -72,6 +72,20 @@ const HostSession: React.FC = () => {
     ? responses[currentQuestion.id] || {}
     : {};
 
+  const getQuestionTimeLimit = (question?: Question | null): number | null => {
+    if (!question || question.timeLimit == null || question.timeLimit <= 0) return null;
+    return question.timeLimit;
+  };
+
+  const applyQuestionTimer = (question?: Question | null) => {
+    const limit = getQuestionTimeLimit(question);
+    setTimer(limit ?? 0);
+    timerRef.current = limit ?? 0;
+    setTimerActive(limit !== null);
+    timerActiveRef.current = limit !== null;
+    return limit;
+  };
+
   // Keep refs in sync
   useEffect(() => { sessionRef.current = session; }, [session]);
   useEffect(() => { currentQuestionRef.current = currentQuestion; }, [currentQuestion]);
@@ -216,8 +230,11 @@ const HostSession: React.FC = () => {
           ) {
             const currentQ = questions[existingSession.current_question_index];
             if (currentQ) {
-              let remaining: number;
-              if (existingSession.is_paused && existingSession.timer_paused_remaining != null) {
+              const limit = getQuestionTimeLimit(currentQ);
+              let remaining = limit ?? 0;
+              if (limit === null) {
+                remaining = 0;
+              } else if (existingSession.is_paused && existingSession.timer_paused_remaining != null) {
                 remaining = existingSession.timer_paused_remaining;
               } else if (
                 !existingSession.is_paused &&
@@ -232,14 +249,14 @@ const HostSession: React.FC = () => {
                 const elapsed = Math.floor(
                   (Date.now() - new Date(existingSession.current_question_started_at).getTime()) / 1000
                 );
-                remaining = Math.max(0, (currentQ.timeLimit || 30) - elapsed);
+                remaining = Math.max(0, limit - elapsed);
               } else {
-                remaining = currentQ.timeLimit || 30;
+                remaining = limit;
               }
 
               setTimer(remaining);
               timerRef.current = remaining;
-              const shouldBeActive = !existingSession.is_paused && remaining > 0;
+              const shouldBeActive = limit !== null && !existingSession.is_paused && remaining > 0;
               setTimerActive(shouldBeActive);
               timerActiveRef.current = shouldBeActive;
             }
@@ -364,10 +381,7 @@ const HostSession: React.FC = () => {
     await SessionService.setCurrentQuestion(session.id, 0, firstQuestion.id);
 
     setCurrentQuestionIndex(0);
-    setTimer(firstQuestion.timeLimit || 30);
-    timerRef.current = firstQuestion.timeLimit || 30;
-    setTimerActive(true);
-    timerActiveRef.current = true;
+    const timeLimit = applyQuestionTimer(firstQuestion);
     setShowResults(false);
     setIsPaused(false);
     isPausedRef.current = false;
@@ -378,7 +392,7 @@ const HostSession: React.FC = () => {
         sessionId: session.id,
         questionId: firstQuestion.id,
         questionIndex: 0,
-        timeLimit: firstQuestion.timeLimit || 30,
+        timeLimit,
         startedAt,
       },
     });
@@ -396,10 +410,7 @@ const HostSession: React.FC = () => {
     await SessionService.setCurrentQuestion(session.id, newIndex, prevQuestion?.id);
 
     setCurrentQuestionIndex(newIndex);
-    setTimer(prevQuestion?.timeLimit || 30);
-    timerRef.current = prevQuestion?.timeLimit || 30;
-    setTimerActive(true);
-    timerActiveRef.current = true;
+    const timeLimit = applyQuestionTimer(prevQuestion);
     setShowResults(false);
     setIsPaused(false);
     isPausedRef.current = false;
@@ -409,7 +420,7 @@ const HostSession: React.FC = () => {
       payload: {
         questionId: prevQuestion?.id,
         questionIndex: newIndex,
-        timeLimit: prevQuestion?.timeLimit || 30,
+        timeLimit,
         startedAt,
       },
     });
@@ -426,10 +437,7 @@ const HostSession: React.FC = () => {
       await SessionService.setCurrentQuestion(session.id, newIndex, nextQuestion?.id);
 
       setCurrentQuestionIndex(newIndex);
-      setTimer(nextQuestion?.timeLimit || 30);
-      timerRef.current = nextQuestion?.timeLimit || 30;
-      setTimerActive(true);
-      timerActiveRef.current = true;
+      const timeLimit = applyQuestionTimer(nextQuestion);
       setShowResults(false);
       setIsPaused(false);
       isPausedRef.current = false;
@@ -439,7 +447,7 @@ const HostSession: React.FC = () => {
         payload: {
           questionId: nextQuestion?.id,
           questionIndex: newIndex,
-          timeLimit: nextQuestion?.timeLimit || 30,
+          timeLimit,
           startedAt,
         },
       });
@@ -489,10 +497,7 @@ const HostSession: React.FC = () => {
     await SessionService.setCurrentQuestion(session.id, 0, firstQuestion?.id);
 
     setCurrentQuestionIndex(0);
-    setTimer(firstQuestion?.timeLimit || 30);
-    timerRef.current = firstQuestion?.timeLimit || 30;
-    setTimerActive(true);
-    timerActiveRef.current = true;
+    const timeLimit = applyQuestionTimer(firstQuestion);
     setShowResults(false);
     setIsPaused(false);
     isPausedRef.current = false;
@@ -502,7 +507,7 @@ const HostSession: React.FC = () => {
       payload: {
         questionId: firstQuestion?.id,
         questionIndex: 0,
-        timeLimit: firstQuestion?.timeLimit || 30,
+        timeLimit,
         startedAt,
       },
     });
@@ -519,7 +524,11 @@ const HostSession: React.FC = () => {
     navigate(`/results/${session.id}`);
   };
 
-  const handleViewResults = (): void => {
+  const handleToggleQuestionResults = (): void => {
+    setShowResults((prev) => !prev);
+  };
+
+  const handleViewFinalResults = (): void => {
     if (session) navigate(`/results/${session.id}`);
   };
 
@@ -712,7 +721,13 @@ const HostSession: React.FC = () => {
               Real-time
             </div>
           )}
-          {!showResults && (
+          {currentQuestion && getQuestionTimeLimit(currentQuestion) === null && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted">
+              <AppIcon name="Infinity" size={16} className="text-primary" />
+              <span className="font-semibold text-primary">No timer</span>
+            </div>
+          )}
+          {!showResults && currentQuestion && getQuestionTimeLimit(currentQuestion) !== null && (
             <div
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
                 isPaused ? 'bg-yellow-500/20' : 'bg-muted'
@@ -731,18 +746,18 @@ const HostSession: React.FC = () => {
         </div>
       </header>
 
-      {!showResults && currentQuestion && (
+      {!showResults && currentQuestion && getQuestionTimeLimit(currentQuestion) !== null && (
         <div className="h-1 w-full bg-muted/40">
           {isPaused ? (
             <div
               className="h-full bg-yellow-500"
-              style={{ width: `${Math.max(0, (timer / (currentQuestion.timeLimit || 30)) * 100)}%` }}
+              style={{ width: `${Math.max(0, (timer / (getQuestionTimeLimit(currentQuestion) || 1)) * 100)}%` }}
             />
           ) : timerActive ? (
             <motion.div
               className="h-full bg-primary origin-left"
               initial={false}
-              animate={{ scaleX: timer / (currentQuestion.timeLimit || 30) }}
+              animate={{ scaleX: timer / (getQuestionTimeLimit(currentQuestion) || 1) }}
               transition={{ duration: 1, ease: 'linear' }}
               style={{ transformOrigin: 'left' }}
             />
@@ -795,22 +810,21 @@ const HostSession: React.FC = () => {
         </div>
       </main>
 
-      {!showResults && (
-        <ControlPanel
-          sessionCode={session.code}
-          participantCount={participants.length}
-          responseProgress={responseProgress}
-          currentQuestion={currentQuestionIndex + 1}
-          totalQuestions={session.presentation.questions.length}
-          isPaused={isPaused}
-          onPrevious={handlePrevious}
-          onNext={handleNext}
-          onPause={handlePause}
-          onRestart={handleRestart}
-          onEnd={handleEnd}
-          onViewResults={handleViewResults}
-        />
-      )}
+      <ControlPanel
+        sessionCode={session.code}
+        participantCount={participants.length}
+        responseProgress={responseProgress}
+        currentQuestion={currentQuestionIndex + 1}
+        totalQuestions={session.presentation.questions.length}
+        isPaused={isPaused}
+        onPrevious={handlePrevious}
+        onNext={handleNext}
+        onPause={handlePause}
+        onRestart={handleRestart}
+        onEnd={handleEnd}
+        onToggleQuestionResults={handleToggleQuestionResults}
+        isShowingResults={showResults}
+      />
 
       {isPaused && <PauseOverlay onResume={handlePause} />}
 
@@ -818,7 +832,7 @@ const HostSession: React.FC = () => {
         isOpen={isEndModalOpen}
         onClose={() => setIsEndModalOpen(false)}
         onConfirm={handleConfirmEnd}
-        onViewResults={handleViewResults}
+        onViewResults={handleViewFinalResults}
       />
     </div>
   );

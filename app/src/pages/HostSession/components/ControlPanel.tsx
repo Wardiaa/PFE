@@ -14,7 +14,8 @@ interface ControlPanelProps {
   onPause: () => void;
   onRestart: () => void;
   onEnd: () => void;
-  onViewResults: () => void;
+  onToggleQuestionResults: () => void;
+  isShowingResults: boolean;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -29,7 +30,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   onPause,
   onRestart,
   onEnd,
-  onViewResults
+  onToggleQuestionResults,
+  isShowingResults
 }) => {
   return (
     <div className="fixed bottom-4 md:bottom-6 left-4 md:left-6 right-4 md:right-6 lg:left-auto lg:right-6 lg:w-96 z-50">
@@ -113,12 +115,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             />
             <Button
               variant="default"
-              icon="BarChart3"
+              icon={isShowingResults ? 'EyeOff' : 'BarChart3'}
               iconPosition="left"
-              onClick={onViewResults}
+              onClick={onToggleQuestionResults}
               className="flex-1"
             >
-              Results
+              {isShowingResults ? 'Hide Results' : 'Show Results'}
             </Button>
           </div>
 
