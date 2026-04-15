@@ -96,13 +96,72 @@ export function useContexts(userId: string | null) {
   }, [fetchContexts]);
 
   const deleteContext = async (id: string) => {
-    const { error: deleteError } = await supabase
-      .from('contexts')
-      .delete()
-      .eq('id', id);
+    try {
+      // Step 1: Get all session IDs for this context
+      const { data: sessions, error: sessionsError } = await supabase
+        .from('sessions')
+        .select('id')
+        .eq('context_id', id);
 
-    if (!deleteError) {
+      if (sessionsError) {
+        console.error('Error fetching sessions:', sessionsError);
+        throw sessionsError;
+      }
+
+      // Step 2: Delete responses for each session
+      if (sessions && sessions.length > 0) {
+        const sessionIds = sessions.map(s => s.id);
+        
+        const { error: responsesError } = await supabase
+          .from('responses')
+          .delete()
+          .in('session_id', sessionIds);
+
+        if (responsesError) {
+          console.error('Error deleting responses:', responsesError);
+          throw responsesError;
+        }
+      }
+
+      // Step 3: Delete sessions
+      const { error: deleteSessionsError } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('context_id', id);
+
+      if (deleteSessionsError) {
+        console.error('Error deleting sessions:', deleteSessionsError);
+        throw deleteSessionsError;
+      }
+
+      // Step 4: Delete questions
+      const { error: deleteQuestionsError } = await supabase
+        .from('questions')
+        .delete()
+        .eq('context_id', id);
+
+      if (deleteQuestionsError) {
+        console.error('Error deleting questions:', deleteQuestionsError);
+        throw deleteQuestionsError;
+      }
+
+      // Step 5: Finally delete the context
+      const { error: deleteContextError } = await supabase
+        .from('contexts')
+        .delete()
+        .eq('id', id);
+
+      if (deleteContextError) {
+        console.error('Error deleting context:', deleteContextError);
+        throw deleteContextError;
+      }
+
+      // Step 6: Update local state
       setContexts((prev) => prev.filter((c) => c.id !== id));
+      
+    } catch (err: any) {
+      console.error('Delete context failed:', err);
+      throw new Error(err.message || 'Failed to delete context');
     }
   };
 

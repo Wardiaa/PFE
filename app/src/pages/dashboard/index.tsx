@@ -5,7 +5,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useContexts, type DisplayContext } from '../../lib/useContexts';
 import { Button } from '../../components/ui/button';
 import {
-  Plus,
   Grid3x3,
   List,
   FileText,
@@ -36,6 +35,7 @@ const Dashboard: React.FC = () => {
   const [isFilterCollapsed, setIsFilterCollapsed] = useState(true);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteIds, setDeleteIds] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   if (!user) {
     navigate('/auth');
@@ -112,13 +112,20 @@ const Dashboard: React.FC = () => {
   };
 
   const confirmDelete = async () => {
-    await Promise.all(deleteIds.map((id) => deleteContext(id)));
-    if (selectedContext && deleteIds.includes(selectedContext.id)) {
-      setSelectedContext(null);
+    setIsDeleting(true);
+    try {
+      await Promise.all(deleteIds.map((id) => deleteContext(id)));
+      if (selectedContext && deleteIds.includes(selectedContext.id)) {
+        setSelectedContext(null);
+      }
+      setDeleteModalOpen(false);
+      setDeleteIds([]);
+      setSelectedIds([]);
+    } catch (error) {
+      console.error('Delete failed:', error);
+    } finally {
+      setIsDeleting(false);
     }
-    setDeleteModalOpen(false);
-    setDeleteIds([]);
-    setSelectedIds([]);
   };
 
   const handleExport = () => {
@@ -507,6 +514,7 @@ const Dashboard: React.FC = () => {
             setDeleteModalOpen(false);
             setDeleteIds([]);
           }}
+          isDeleting={isDeleting}
         />
       )}
     </div>
