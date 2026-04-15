@@ -1,4 +1,3 @@
-// src/lib/presentation.types.ts
 export type QuestionType = 
   | 'multiple-choice'
   | 'rating'
@@ -36,6 +35,7 @@ export interface Question {
   points?: number;
   image?: string;
   displayStyle?: DisplayStyle;
+  showResultsInstantly?: boolean;
 }
 
 export interface Presentation {

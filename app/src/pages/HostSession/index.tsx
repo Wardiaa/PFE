@@ -33,6 +33,7 @@ const HostSession: React.FC = () => {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(-1);
   const [showResults, setShowResults] = useState<boolean>(false);
+  const [showCorrectAnswer, setShowCorrectAnswer] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isEndModalOpen, setIsEndModalOpen] = useState<boolean>(false);
   const [timer, setTimer] = useState<number>(0);
@@ -71,6 +72,8 @@ const HostSession: React.FC = () => {
   const currentResponses: QuestionResponses = currentQuestion
     ? responses[currentQuestion.id] || {}
     : {};
+
+  const isCurrentMultipleChoice = currentQuestion?.type === 'multiple-choice';
 
   const getQuestionTimeLimit = (question?: Question | null): number | null => {
     if (!question || question.timeLimit == null || question.timeLimit <= 0) return null;
@@ -126,7 +129,6 @@ const HostSession: React.FC = () => {
 
     if (
       currentQuestionIndex >= 0 &&
-      !showResults &&
       timerActiveRef.current &&
       timerRef.current > 0
     ) {
@@ -154,7 +156,7 @@ const HostSession: React.FC = () => {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQuestionIndex, showResults, timerActive]);
+  },[currentQuestionIndex, timerActive, timerRef.current, isPaused]);
 
   useEffect(() => () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); }, []);
 
@@ -180,7 +182,8 @@ const HostSession: React.FC = () => {
               id, title,
               questions (
                 id, title, description, type, points, time_limit,
-                options, scale, labels, display_style, image_url, question_order
+                options, scale, labels, display_style, image_url, question_order,
+                show_results_instantly
               )
             `)
             .eq('id', existingSession.context_id)
@@ -202,6 +205,7 @@ const HostSession: React.FC = () => {
               points: q.points,
               image: q.image_url,
               displayStyle: q.display_style,
+              showResultsInstantly: q.show_results_instantly ?? false,
             }));
 
           const sessionData: Session = {
@@ -230,6 +234,10 @@ const HostSession: React.FC = () => {
           ) {
             const currentQ = questions[existingSession.current_question_index];
             if (currentQ) {
+              if (currentQ.showResultsInstantly) {
+                setShowResults(true);
+              }
+
               const limit = getQuestionTimeLimit(currentQ);
               let remaining = limit ?? 0;
               if (limit === null) {
@@ -366,7 +374,14 @@ const HostSession: React.FC = () => {
     };
   }, [session, toast]);
 
-  // ── Handlers ─────────────────────────────────────────────────────────────
+  const applyQuestionSettings = (question?: Question) => {
+    if (question?.showResultsInstantly) {
+      setShowResults(true);
+    } else {
+      setShowResults(false);
+    }
+    setShowCorrectAnswer(false);
+  };
 
   const handleStart = async (): Promise<void> => {
     if (!session) return;
@@ -382,7 +397,7 @@ const HostSession: React.FC = () => {
 
     setCurrentQuestionIndex(0);
     const timeLimit = applyQuestionTimer(firstQuestion);
-    setShowResults(false);
+    applyQuestionSettings(firstQuestion);
     setIsPaused(false);
     isPausedRef.current = false;
 
@@ -411,7 +426,7 @@ const HostSession: React.FC = () => {
 
     setCurrentQuestionIndex(newIndex);
     const timeLimit = applyQuestionTimer(prevQuestion);
-    setShowResults(false);
+    applyQuestionSettings(prevQuestion);
     setIsPaused(false);
     isPausedRef.current = false;
 
@@ -438,7 +453,7 @@ const HostSession: React.FC = () => {
 
       setCurrentQuestionIndex(newIndex);
       const timeLimit = applyQuestionTimer(nextQuestion);
-      setShowResults(false);
+      applyQuestionSettings(nextQuestion);
       setIsPaused(false);
       isPausedRef.current = false;
 
@@ -498,7 +513,7 @@ const HostSession: React.FC = () => {
 
     setCurrentQuestionIndex(0);
     const timeLimit = applyQuestionTimer(firstQuestion);
-    setShowResults(false);
+    applyQuestionSettings(firstQuestion);
     setIsPaused(false);
     isPausedRef.current = false;
 
@@ -526,6 +541,10 @@ const HostSession: React.FC = () => {
 
   const handleToggleQuestionResults = (): void => {
     setShowResults((prev) => !prev);
+  };
+
+  const handleToggleCorrectAnswer = (): void => {
+    setShowCorrectAnswer((prev) => !prev);
   };
 
   const handleViewFinalResults = (): void => {
@@ -727,7 +746,7 @@ const HostSession: React.FC = () => {
               <span className="font-semibold text-primary">No timer</span>
             </div>
           )}
-          {!showResults && currentQuestion && getQuestionTimeLimit(currentQuestion) !== null && (
+          {currentQuestion && getQuestionTimeLimit(currentQuestion) !== null && (
             <div
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
                 isPaused ? 'bg-yellow-500/20' : 'bg-muted'
@@ -746,7 +765,7 @@ const HostSession: React.FC = () => {
         </div>
       </header>
 
-      {!showResults && currentQuestion && getQuestionTimeLimit(currentQuestion) !== null && (
+      {currentQuestion && getQuestionTimeLimit(currentQuestion) !== null && (
         <div className="h-1 w-full bg-muted/40">
           {isPaused ? (
             <div
@@ -772,6 +791,7 @@ const HostSession: React.FC = () => {
               question={currentQuestion}
               responses={currentResponses}
               showResults={showResults}
+              showCorrectAnswer={showCorrectAnswer}
             />
           )}
 
@@ -824,6 +844,9 @@ const HostSession: React.FC = () => {
         onEnd={handleEnd}
         onToggleQuestionResults={handleToggleQuestionResults}
         isShowingResults={showResults}
+        showCorrectAnswer={showCorrectAnswer}
+        onToggleCorrectAnswer={handleToggleCorrectAnswer}
+        isMultipleChoice={isCurrentMultipleChoice}
       />
 
       {isPaused && <PauseOverlay onResume={handlePause} />}

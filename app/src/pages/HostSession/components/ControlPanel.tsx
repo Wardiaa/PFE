@@ -16,6 +16,9 @@ interface ControlPanelProps {
   onEnd: () => void;
   onToggleQuestionResults: () => void;
   isShowingResults: boolean;
+  showCorrectAnswer: boolean;
+  onToggleCorrectAnswer: () => void;
+  isMultipleChoice: boolean;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -31,13 +34,15 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   onRestart,
   onEnd,
   onToggleQuestionResults,
-  isShowingResults
+  isShowingResults,
+  showCorrectAnswer,
+  onToggleCorrectAnswer,
+  isMultipleChoice
 }) => {
   return (
     <div className="fixed bottom-4 md:bottom-6 left-4 md:left-6 right-4 md:right-6 lg:left-auto lg:right-6 lg:w-96 z-50">
       <div className="bg-card border-2 border-border rounded-xl shadow-2xl p-4 md:p-6">
         <div className="space-y-4">
-          {/* Session Info */}
           <div className="flex items-center justify-between pb-4 border-b border-border">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -124,7 +129,20 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             </Button>
           </div>
 
-          {/* Session Controls */}
+          {isMultipleChoice && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant={showCorrectAnswer ? 'default' : 'outline'}
+                icon={showCorrectAnswer ? 'EyeOff' : 'Check'}
+                iconPosition="left"
+                onClick={onToggleCorrectAnswer}
+                className="flex-1"
+              >
+                {showCorrectAnswer ? 'Hide Correct Answer' : 'Show Correct Answer'}
+              </Button>
+            </div>
+          )}
+
           <div className="flex items-center gap-2 pt-4 border-t border-border">
             <Button
               variant="outline"

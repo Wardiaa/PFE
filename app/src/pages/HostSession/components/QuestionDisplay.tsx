@@ -14,13 +14,15 @@ interface QuestionDisplayProps {
   question: Question;
   responses: QuestionResponses;
   showResults?: boolean;
+  showCorrectAnswer?: boolean;
   onResponseUpdate?: () => void;
 }
 
 const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ 
   question, 
   responses, 
-  showResults = false 
+  showResults = false,
+  showCorrectAnswer = false,
 }) => {
   const questionImage = (question as any).image || (question as any).imageUrl;
 
@@ -53,7 +55,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
           const optionImage = (option as any).imageUrl || (option as any).image;
           const responseCount = responses[option.id] || 0;
           const percentage = totalResponses > 0 ? Math.round((responseCount / totalResponses) * 100) : 0;
-          const isCorrect = showResults && option.isCorrect;
+          const isCorrect = showCorrectAnswer && option.isCorrect;
 
           return (
             <motion.div
@@ -78,7 +80,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                 <p className="text-base md:text-lg lg:text-xl font-medium text-foreground flex-1">
                   {option.text}
                 </p>
-                {showResults && option.isCorrect && (
+                {isCorrect && (
                   <AppIcon name="CheckCircle" size={24} className="text-green-600 flex-shrink-0" />
                 )}
               </div>
@@ -105,7 +107,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                   </div>
                   <div className="h-2 md:h-3 bg-muted rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-primary transition-all duration-500 rounded-full"
+                      className={`h-full transition-all duration-500 rounded-full ${isCorrect ? 'bg-green-500' : 'bg-primary'}`}
                       style={{ width: `${percentage}%` }}
                     />
                   </div>

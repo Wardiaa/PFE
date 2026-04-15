@@ -1,5 +1,4 @@
-// QuestionSidePanel.tsx - ORIGINAL LAYOUT WITH NEW UI CONTENT (NO INVALID PROPS)
-import { useState, type ChangeEvent } from "react";
+import { useState, useEffect, type ChangeEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../../../lib/utils";
 import type { Question } from "../types";
@@ -18,7 +17,6 @@ import {
   Star,
   Shuffle,
   SkipForward,
-  Eye,
   Check,
   BarChart2,
   HelpCircle,
@@ -49,9 +47,8 @@ interface InteractivitySettings {
   qaVisibleToAll: boolean;
   qaModeration: boolean;
   allowSkip: boolean;
-  showCorrectAnswer: boolean;
   shuffleOptions: boolean;
-  showResultsInstantly: boolean; // NEW SETTING
+  showResultsInstantly: boolean;
 }
 
 interface QuestionSidePanelProps {
@@ -153,7 +150,6 @@ const QUESTION_THEMES = [
   },
 ];
 
-// Menti-style toggle component
 const MentiToggle = ({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) => (
   <button
     onClick={() => !disabled && onChange(!checked)}
@@ -234,17 +230,25 @@ export function QuestionSidePanel({
   const [newComment, setNewComment] = useState("");
   const [uploadingOptionIndex, setUploadingOptionIndex] = useState<number | null>(null);
   const [optionImageError, setOptionImageError] = useState<string | null>(null);
-// Local state for interactivity settings (UI-only, not saved to Question yet)
+
   const [interactivitySettings, setInteractivitySettings] = useState<InteractivitySettings>({
     requireNames: false,
     qaEnabled: true,
     qaVisibleToAll: true,
     qaModeration: false,
     allowSkip: false,
-    showCorrectAnswer: false,
     shuffleOptions: false,
-    showResultsInstantly: false, 
+    showResultsInstantly: false,
   });
+
+  useEffect(() => {
+    if (currentQuestion) {
+      setInteractivitySettings(prev => ({
+        ...prev,
+        showResultsInstantly: currentQuestion.showResultsInstantly ?? false,
+      }));
+    }
+  }, [currentQuestion?.id, currentQuestion?.showResultsInstantly]);
 
   const handleMenuClick = (menuId: string) => {
     if (activeMenu === menuId && isOpen) {
@@ -820,21 +824,6 @@ export function QuestionSidePanel({
               </div>
             )}
 
-            {/* Show Correct Answer - UI only */}
-            {hasOptions && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Eye className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-xs text-slate-600">Show correct answer</span>
-                </div>
-                <MentiToggle 
-                  checked={interactivitySettings.showCorrectAnswer} 
-                  onChange={(val) => setInteractivitySettings(prev => ({ ...prev, showCorrectAnswer: val }))} 
-                />
-              </div>
-            )}
-
-            {/* Show results instantly the moment a participant answers */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <BarChart2 className="w-3.5 h-3.5 text-slate-400" />
@@ -842,7 +831,10 @@ export function QuestionSidePanel({
               </div>
               <MentiToggle 
                 checked={interactivitySettings.showResultsInstantly} 
-                onChange={(val) => setInteractivitySettings(prev => ({ ...prev, showResultsInstantly: val }))} 
+                onChange={(val) => {
+                  setInteractivitySettings(prev => ({ ...prev, showResultsInstantly: val }));
+                  onUpdateQuestion({ showResultsInstantly: val });
+                }} 
               />
             </div>
 
@@ -929,7 +921,6 @@ export function QuestionSidePanel({
   return (
     <div className="absolute right-0 top-0 h-full flex z-30 bg-white">
 
-      {/* 1. CONTENT PANEL - ORIGINAL 360px WIDTH */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -940,24 +931,18 @@ export function QuestionSidePanel({
             className="bg-white border-l border-slate-200 overflow-hidden h-full"
           >
             <div className="w-[360px] h-full flex flex-col">
-              {/* Header */}
-              <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
-                <h2 className="text-xl font-bold text-slate-900 capitalize">{panelTitle}</h2>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                  {panelTitle}
+                </h3>
                 <button
                   onClick={onToggle}
-                  className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
+                  className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4 text-slate-400" />
                 </button>
               </div>
-
-              {/* Panel Body - No question indicator */}
-              <div
-                className={cn(
-                  "flex-1 overflow-y-auto px-6 pb-6 min-h-0",
-                  activeMenu === "comments" && "flex flex-col"
-                )}
-              >
+              <div className="flex-1 overflow-y-auto px-5 py-5">
                 {renderPanelContent()}
               </div>
             </div>
@@ -965,30 +950,24 @@ export function QuestionSidePanel({
         )}
       </AnimatePresence>
 
-      {/* 2. NAVIGATION RAIL - ORIGINAL 92px WIDTH */}
-      <div className="w-[92px] bg-white border-l border-slate-200 flex flex-col items-center py-4 gap-3">
+      <div className="w-[92px] bg-white border-l border-slate-200 flex flex-col items-center py-4 gap-1 shrink-0 h-full">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeMenu === item.id && isOpen;
-          const hasNotification = item.id === "comments" && comments.length > 0;
           return (
-            <div key={item.id} className="flex flex-col items-center">
-              <button
-                onClick={() => handleMenuClick(item.id)}
-                className={cn(
-                  "w-[76px] h-[76px] rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all duration-200 border-2 relative",
-                  isActive
-                    ? "bg-white border-[#6366F1] text-[#4F46E5] shadow-lg shadow-indigo-50"
-                    : "bg-white border-transparent text-slate-600 hover:bg-slate-50"
-                )}
-              >
-                <Icon className={cn("w-6 h-6", isActive ? "text-[#4F46E5]" : "text-black")} />
-                <span className="text-[11px] font-bold">{item.label}</span>
-                {hasNotification && (
-                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-indigo-600" />
-                )}
-              </button>
-            </div>
+            <button
+              key={item.id}
+              onClick={() => handleMenuClick(item.id)}
+              className={cn(
+                "w-[76px] h-[76px] flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all",
+                isActive
+                  ? "bg-indigo-50 text-[#6366F1]"
+                  : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+              )}
+            >
+              <Icon className="w-6 h-6" />
+              <span className="text-[11px] font-semibold">{item.label}</span>
+            </button>
           );
         })}
       </div>
