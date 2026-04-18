@@ -42,7 +42,7 @@ interface Comment {
 
 // Local interactivity settings state
 interface InteractivitySettings {
-  requireNames: boolean;
+  hideParticipantNames: boolean;
   qaEnabled: boolean;
   qaVisibleToAll: boolean;
   qaModeration: boolean;
@@ -150,17 +150,30 @@ const QUESTION_THEMES = [
   },
 ];
 
-const MentiToggle = ({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) => (
+const MentiToggle = ({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) => (
   <button
     onClick={() => !disabled && onChange(!checked)}
     disabled={disabled}
     className={cn(
       "w-9 h-5 rounded-full transition-all relative flex items-center px-0.5",
       checked ? "bg-[#6366F1]" : "bg-slate-200",
-      disabled && "opacity-40 cursor-not-allowed"
+      disabled && "opacity-40 cursor-not-allowed",
     )}
   >
-    <div className={cn("w-4 h-4 bg-white rounded-full shadow transition-transform", checked ? "translate-x-4" : "translate-x-0")} />
+    <div
+      className={cn(
+        "w-4 h-4 bg-white rounded-full shadow transition-transform",
+        checked ? "translate-x-4" : "translate-x-0",
+      )}
+    />
   </button>
 );
 
@@ -169,7 +182,7 @@ function ThemePreviewCard({
   isSelected,
   onClick,
 }: {
-  theme: typeof QUESTION_THEMES[0];
+  theme: (typeof QUESTION_THEMES)[0];
   question: Question | null;
   isSelected: boolean;
   onClick: () => void;
@@ -181,11 +194,18 @@ function ThemePreviewCard({
         "relative w-full rounded-2xl overflow-hidden border-2 transition-all duration-200 group",
         isSelected
           ? "border-[#6366F1] shadow-lg shadow-indigo-100"
-          : "border-transparent hover:border-slate-300"
+          : "border-transparent hover:border-slate-300",
       )}
     >
-      <div className={cn("w-full h-28 bg-gradient-to-br p-4 flex flex-col gap-2", theme.preview)}>
-        <div className={cn("h-2.5 rounded-full w-3/4", theme.accent, "opacity-80")} />
+      <div
+        className={cn(
+          "w-full h-28 bg-gradient-to-br p-4 flex flex-col gap-2",
+          theme.preview,
+        )}
+      >
+        <div
+          className={cn("h-2.5 rounded-full w-3/4", theme.accent, "opacity-80")}
+        />
         <div className={cn("h-2 rounded-full w-1/2 bg-white opacity-20")} />
         <div className="flex flex-col gap-1.5 mt-1">
           {[1, 2].map((i) => (
@@ -194,18 +214,28 @@ function ThemePreviewCard({
               className={cn(
                 "h-6 rounded-lg flex items-center px-2 gap-2 border",
                 theme.border,
-                "bg-white/10"
+                "bg-white/10",
               )}
             >
               <div
-                className={cn("w-2.5 h-2.5 rounded-full border flex-shrink-0", theme.border, "border-2")}
+                className={cn(
+                  "w-2.5 h-2.5 rounded-full border flex-shrink-0",
+                  theme.border,
+                  "border-2",
+                )}
               />
               <div className="h-1.5 rounded-full bg-white/30 flex-1" />
             </div>
           ))}
         </div>
       </div>
-      <div className={cn("px-3 py-2 flex items-center justify-between", theme.bg, theme.text)}>
+      <div
+        className={cn(
+          "px-3 py-2 flex items-center justify-between",
+          theme.bg,
+          theme.text,
+        )}
+      >
         <span className="text-xs font-semibold">{theme.label}</span>
         {isSelected && (
           <div className="w-4 h-4 rounded-full bg-indigo-600 flex items-center justify-center">
@@ -228,27 +258,35 @@ export function QuestionSidePanel({
   const [activeMenu, setActiveMenu] = useState<string>("edit");
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
-  const [uploadingOptionIndex, setUploadingOptionIndex] = useState<number | null>(null);
+  const [uploadingOptionIndex, setUploadingOptionIndex] = useState<
+    number | null
+  >(null);
   const [optionImageError, setOptionImageError] = useState<string | null>(null);
 
-  const [interactivitySettings, setInteractivitySettings] = useState<InteractivitySettings>({
-    requireNames: false,
-    qaEnabled: true,
-    qaVisibleToAll: true,
-    qaModeration: false,
-    allowSkip: false,
-    shuffleOptions: false,
-    showResultsInstantly: false,
-  });
+  const [interactivitySettings, setInteractivitySettings] =
+    useState<InteractivitySettings>({
+      hideParticipantNames: false,
+      qaEnabled: true,
+      qaVisibleToAll: true,
+      qaModeration: false,
+      allowSkip: false,
+      shuffleOptions: false,
+      showResultsInstantly: false,
+    });
 
   useEffect(() => {
     if (currentQuestion) {
-      setInteractivitySettings(prev => ({
+      setInteractivitySettings((prev) => ({
         ...prev,
         showResultsInstantly: currentQuestion.showResultsInstantly ?? false,
+        hideParticipantNames: currentQuestion.hideParticipantNames ?? false,
       }));
     }
-  }, [currentQuestion?.id, currentQuestion?.showResultsInstantly]);
+  }, [
+    currentQuestion?.id,
+    currentQuestion?.showResultsInstantly,
+    currentQuestion?.hideParticipantNames,
+  ]);
 
   const handleMenuClick = (menuId: string) => {
     if (activeMenu === menuId && isOpen) {
@@ -348,23 +386,27 @@ export function QuestionSidePanel({
     }
   };
 
-
   // Edit Panel - New UI Style
   const renderEditPanel = () => {
     if (!currentQuestion) {
       return (
         <div className="text-center py-20">
           <BarChart2 className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-          <p className="text-sm font-semibold text-slate-400">No question selected</p>
-          <p className="text-xs text-slate-300 mt-1">Select a question to edit</p>
+          <p className="text-sm font-semibold text-slate-400">
+            No question selected
+          </p>
+          <p className="text-xs text-slate-300 mt-1">
+            Select a question to edit
+          </p>
         </div>
       );
     }
 
-    const isChoiceType = currentQuestion.type === "multiple-choice" || 
-                         currentQuestion.type === "SINGLE_CHOICE" ||
-                         currentQuestion.type === "MULTIPLE_CHOICE" ||
-                         currentQuestion.type === "POLL";
+    const isChoiceType =
+      currentQuestion.type === "multiple-choice" ||
+      currentQuestion.type === "SINGLE_CHOICE" ||
+      currentQuestion.type === "MULTIPLE_CHOICE" ||
+      currentQuestion.type === "POLL";
 
     return (
       <div className="space-y-6">
@@ -374,16 +416,23 @@ export function QuestionSidePanel({
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
           <h2 className="text-lg font-medium text-slate-800">
-            {currentQuestion.type === "multiple-choice" ? "Multiple Choice" :
-             currentQuestion.type === "open-text" ? "Open Text" :
-             currentQuestion.type === "word-cloud" ? "Word Cloud" :
-             currentQuestion.type === "rating-scale" ? "Rating Scale" : "Question"}
+            {currentQuestion.type === "multiple-choice"
+              ? "Multiple Choice"
+              : currentQuestion.type === "open-text"
+                ? "Open Text"
+                : currentQuestion.type === "word-cloud"
+                  ? "Word Cloud"
+                  : currentQuestion.type === "rating-scale"
+                    ? "Rating Scale"
+                    : "Question"}
           </h2>
         </div>
 
         {/* Question Title Input */}
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Question</label>
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            Question
+          </label>
           <input
             type="text"
             value={currentQuestion.title || ""}
@@ -395,7 +444,9 @@ export function QuestionSidePanel({
 
         {/* Description Input */}
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Description (optional)</label>
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            Description (optional)
+          </label>
           <textarea
             value={currentQuestion.description || ""}
             onChange={(e) => onUpdateQuestion({ description: e.target.value })}
@@ -407,107 +458,123 @@ export function QuestionSidePanel({
         {/* Options Section (for choice types) */}
         {isChoiceType && (
           <div className="space-y-3">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Options</label>
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Options
+            </label>
             <div className="space-y-2">
               {currentQuestion.options?.map((opt, idx) => (
-                  <div key={opt.id} className="space-y-2">
-                    <div className="flex items-center gap-2 group">
-                      <button
-                        onClick={() => {
-                          const newOpts = [...(currentQuestion.options || [])];
-                          newOpts[idx] = {
-                            ...newOpts[idx],
-                            isCorrect: !newOpts[idx].isCorrect,
-                          };
-                          onUpdateQuestion({ options: newOpts });
-                        }}
+                <div key={opt.id} className="space-y-2">
+                  <div className="flex items-center gap-2 group">
+                    <button
+                      onClick={() => {
+                        const newOpts = [...(currentQuestion.options || [])];
+                        newOpts[idx] = {
+                          ...newOpts[idx],
+                          isCorrect: !newOpts[idx].isCorrect,
+                        };
+                        onUpdateQuestion({ options: newOpts });
+                      }}
+                      className={cn(
+                        "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors shrink-0",
+                        opt.isCorrect
+                          ? "bg-[#6366F1] border-[#6366F1]"
+                          : "border-slate-200",
+                      )}
+                    >
+                      {opt.isCorrect && (
+                        <Check className="w-3 h-3 text-white" />
+                      )}
+                    </button>
+
+                    <div className="flex-1 flex items-center gap-2 bg-[#F1F3F5] rounded-xl px-3 py-2.5 border border-transparent focus-within:border-slate-200 transition-all">
+                      <div
                         className={cn(
-                          "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors shrink-0",
-                          opt.isCorrect
-                            ? "bg-[#6366F1] border-[#6366F1]"
-                            : "border-slate-200",
+                          "w-4 h-4 rounded-full shrink-0",
+                          idx === 0
+                            ? "bg-blue-500"
+                            : idx === 1
+                              ? "bg-rose-400"
+                              : idx === 2
+                                ? "bg-indigo-900"
+                                : "bg-emerald-500",
                         )}
-                      >
-                        {opt.isCorrect && <Check className="w-3 h-3 text-white" />}
-                      </button>
+                      />
 
-                      <div className="flex-1 flex items-center gap-2 bg-[#F1F3F5] rounded-xl px-3 py-2.5 border border-transparent focus-within:border-slate-200 transition-all">
-                        <div
-                          className={cn(
-                            "w-4 h-4 rounded-full shrink-0",
-                            idx === 0
-                              ? "bg-blue-500"
-                              : idx === 1
-                                ? "bg-rose-400"
-                                : idx === 2
-                                  ? "bg-indigo-900"
-                                  : "bg-emerald-500",
-                          )}
-                        />
-
-                        <input
-                          type="text"
-                          value={opt.text}
-                          onChange={(e) => updateOption(idx, { text: e.target.value })}
-                          className="bg-transparent border-none outline-none text-sm w-full font-medium"
-                          placeholder={'Option ' + (idx + 1)}
-                        />
-
-                        <button
-                          type="button"
-                          onClick={() => document.getElementById(`option-image-${opt.id}`)?.click()}
-                          disabled={uploadingOptionIndex === idx}
-                          className="w-8 h-8 shrink-0 rounded-lg bg-white border border-slate-200 flex items-center justify-center hover:border-[#6366F1] hover:text-[#6366F1] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                          title={opt.imageUrl ? "Change option image" : "Upload option image"}
-                        >
-                          {uploadingOptionIndex === idx ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-[#6366F1]" />
-                          ) : (
-                            <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
-                          )}
-                        </button>
-                        <input
-                          id={`option-image-${opt.id}`}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(event) => handleOptionImageUpload(idx, event)}
-                          disabled={uploadingOptionIndex === idx}
-                        />
-                      </div>
+                      <input
+                        type="text"
+                        value={opt.text}
+                        onChange={(e) =>
+                          updateOption(idx, { text: e.target.value })
+                        }
+                        className="bg-transparent border-none outline-none text-sm w-full font-medium"
+                        placeholder={"Option " + (idx + 1)}
+                      />
 
                       <button
-                        onClick={() => {
-                          const newOpts = (currentQuestion.options || []).filter(
-                            (_, i) => i !== idx,
-                          );
-                          onUpdateQuestion({ options: newOpts });
-                        }}
-                        className="text-slate-400 hover:text-rose-500 shrink-0"
+                        type="button"
+                        onClick={() =>
+                          document
+                            .getElementById(`option-image-${opt.id}`)
+                            ?.click()
+                        }
+                        disabled={uploadingOptionIndex === idx}
+                        className="w-8 h-8 shrink-0 rounded-lg bg-white border border-slate-200 flex items-center justify-center hover:border-[#6366F1] hover:text-[#6366F1] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                        title={
+                          opt.imageUrl
+                            ? "Change option image"
+                            : "Upload option image"
+                        }
                       >
-                        <X className="w-4 h-4" />
+                        {uploadingOptionIndex === idx ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-[#6366F1]" />
+                        ) : (
+                          <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
+                        )}
                       </button>
+                      <input
+                        id={`option-image-${opt.id}`}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) =>
+                          handleOptionImageUpload(idx, event)
+                        }
+                        disabled={uploadingOptionIndex === idx}
+                      />
                     </div>
 
-                    {opt.imageUrl && (
-                      <div className="ml-7 relative w-full max-w-[220px] overflow-hidden rounded-xl border border-slate-200 bg-white">
-                        <img
-                          src={opt.imageUrl}
-                          alt=""
-                          className="w-full h-28 object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeOptionImage(idx)}
-                          className="absolute top-2 right-2 p-1.5 rounded-full bg-rose-500 text-white hover:bg-rose-600 transition-colors"
-                          title="Remove option image"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
+                    <button
+                      onClick={() => {
+                        const newOpts = (currentQuestion.options || []).filter(
+                          (_, i) => i !== idx,
+                        );
+                        onUpdateQuestion({ options: newOpts });
+                      }}
+                      className="text-slate-400 hover:text-rose-500 shrink-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
-                ))}
+
+                  {opt.imageUrl && (
+                    <div className="ml-7 relative w-full max-w-[220px] overflow-hidden rounded-xl border border-slate-200 bg-white">
+                      <img
+                        src={opt.imageUrl}
+                        alt=""
+                        className="w-full h-28 object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeOptionImage(idx)}
+                        className="absolute top-2 right-2 p-1.5 rounded-full bg-rose-500 text-white hover:bg-rose-600 transition-colors"
+                        title="Remove option image"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
 
             {optionImageError && (
@@ -516,14 +583,14 @@ export function QuestionSidePanel({
               </p>
             )}
 
-            <button 
+            <button
               onClick={() => {
                 const newOpts = [...(currentQuestion.options || [])];
                 const newId = `${currentQuestion.id}-${Date.now()}`;
-                newOpts.push({ 
-                  id: newId, 
-                  text: `Option ${newOpts.length + 1}`, 
-                  isCorrect: false 
+                newOpts.push({
+                  id: newId,
+                  text: `Option ${newOpts.length + 1}`,
+                  isCorrect: false,
                 });
                 onUpdateQuestion({ options: newOpts });
               }}
@@ -535,17 +602,21 @@ export function QuestionSidePanel({
         )}
 
         <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Question Image</label>
-            <ImageUploadWidget
-              currentImageUrl={currentQuestion.imageUrl || undefined}
-              onImageSelect={(imageUrl) => onUpdateQuestion({ imageUrl })}
-              onImageRemove={() => onUpdateQuestion({ imageUrl: null })}
-            />
-          </div>
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            Question Image
+          </label>
+          <ImageUploadWidget
+            currentImageUrl={currentQuestion.imageUrl || undefined}
+            onImageSelect={(imageUrl) => onUpdateQuestion({ imageUrl })}
+            onImageRemove={() => onUpdateQuestion({ imageUrl: null })}
+          />
+        </div>
 
-          {/* Quick Actions */}
+        {/* Quick Actions */}
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Actions</label>
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            Actions
+          </label>
           <div className="grid grid-cols-2 gap-2">
             {onDuplicateQuestion && (
               <button
@@ -578,7 +649,9 @@ export function QuestionSidePanel({
         {comments.length === 0 ? (
           <div className="text-center py-16">
             <MessageSquareText className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-            <p className="text-sm font-semibold text-slate-400">No comments yet</p>
+            <p className="text-sm font-semibold text-slate-400">
+              No comments yet
+            </p>
             <p className="text-xs text-slate-300 mt-1">
               Leave notes for collaborators or yourself
             </p>
@@ -591,15 +664,22 @@ export function QuestionSidePanel({
               </div>
               <div className="flex-1 space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-700">{comment.author}</span>
+                  <span className="text-sm font-medium text-slate-700">
+                    {comment.author}
+                  </span>
                   <span className="text-[10px] text-slate-400">
-                    {comment.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {comment.timestamp.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </span>
                 </div>
                 <p className="text-sm text-slate-600">{comment.text}</p>
                 <div className="flex items-center gap-3">
-                  <button className="text-[11px] font-bold text-slate-800 pt-1 hover:text-indigo-600">Reply</button>
-                  <button 
+                  <button className="text-[11px] font-bold text-slate-800 pt-1 hover:text-indigo-600">
+                    Reply
+                  </button>
+                  <button
                     onClick={() => handleDeleteComment(comment.id)}
                     className="text-[11px] font-bold text-rose-500 pt-1 hover:text-rose-600"
                   >
@@ -638,17 +718,22 @@ export function QuestionSidePanel({
       return (
         <div className="text-center py-20">
           <Pointer className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-          <p className="text-sm font-semibold text-slate-400">No question selected</p>
-          <p className="text-xs text-slate-300 mt-1">Select a question to configure interactivity</p>
+          <p className="text-sm font-semibold text-slate-400">
+            No question selected
+          </p>
+          <p className="text-xs text-slate-300 mt-1">
+            Select a question to configure interactivity
+          </p>
         </div>
       );
     }
 
-    const hasOptions = q.type === "multiple-choice" || 
-                       q.type === "SINGLE_CHOICE" || 
-                       q.type === "MULTIPLE_CHOICE" || 
-                       q.type === "TRUE_FALSE" || 
-                       q.type === "POLL";
+    const hasOptions =
+      q.type === "multiple-choice" ||
+      q.type === "SINGLE_CHOICE" ||
+      q.type === "MULTIPLE_CHOICE" ||
+      q.type === "TRUE_FALSE" ||
+      q.type === "POLL";
 
     return (
       <div className="space-y-6">
@@ -667,7 +752,7 @@ export function QuestionSidePanel({
                   "py-2 rounded-lg text-xs font-bold transition-all",
                   q.timeLimit === s
                     ? "bg-[#6366F1] text-white"
-                    : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200"
+                    : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200",
                 )}
               >
                 {s}s
@@ -679,14 +764,15 @@ export function QuestionSidePanel({
                 "py-2 rounded-lg text-xs font-bold transition-all",
                 q.timeLimit == null
                   ? "bg-[#6366F1] text-white"
-                  : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200"
+                  : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200",
               )}
             >
               No timer
             </button>
           </div>
           <p className="text-[11px] text-slate-500">
-            Choose “No timer” when participants should have unlimited time to answer this question.
+            Choose “No timer” when participants should have unlimited time to
+            answer this question.
           </p>
         </section>
 
@@ -707,7 +793,7 @@ export function QuestionSidePanel({
                   "py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1",
                   q.points === p
                     ? "bg-amber-500 text-white"
-                    : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200"
+                    : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200",
                 )}
               >
                 <Star className="w-3 h-3" />
@@ -722,14 +808,26 @@ export function QuestionSidePanel({
         {/* Participant Names Section - UI only */}
         <section className="space-y-3">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-slate-800">Participant names</h3>
-            <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold uppercase">Pro</span>
+            <h3 className="text-sm font-bold text-slate-800">
+              Participant names
+            </h3>
+            <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold uppercase">
+              Pro
+            </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-600">Participant names are required</span>
-            <MentiToggle 
-              checked={interactivitySettings.requireNames} 
-              onChange={(val) => setInteractivitySettings(prev => ({ ...prev, requireNames: val }))} 
+            <span className="text-xs text-slate-600">
+              Hide participant names{" "}
+            </span>
+            <MentiToggle
+              checked={interactivitySettings.hideParticipantNames}
+              onChange={(val) => {
+                setInteractivitySettings((prev) => ({
+                  ...prev,
+                  hideParticipantNames: val,
+                }));
+                onUpdateQuestion({ hideParticipantNames: val });
+              }}
             />
           </div>
         </section>
@@ -743,14 +841,27 @@ export function QuestionSidePanel({
             <HelpCircle className="w-3.5 h-3.5 text-slate-300" />
           </div>
           <div className="flex gap-1.5">
-            {[PawPrint, Heart, HelpCircle, ThumbsUp, ThumbsDown].map((Icon, i) => (
-              <button key={i} className={cn(
-                "w-9 h-9 rounded-lg border flex items-center justify-center transition-all",
-                i === 3 ? "border-[#6366F1] bg-indigo-50/50" : "border-slate-200 bg-white hover:border-slate-300"
-              )}>
-                <Icon className={cn("w-4 h-4", i === 3 ? "text-slate-800" : "text-slate-800")} fill={i === 3 ? "currentColor" : "none"} />
-              </button>
-            ))}
+            {[PawPrint, Heart, HelpCircle, ThumbsUp, ThumbsDown].map(
+              (Icon, i) => (
+                <button
+                  key={i}
+                  className={cn(
+                    "w-9 h-9 rounded-lg border flex items-center justify-center transition-all",
+                    i === 3
+                      ? "border-[#6366F1] bg-indigo-50/50"
+                      : "border-slate-200 bg-white hover:border-slate-300",
+                  )}
+                >
+                  <Icon
+                    className={cn(
+                      "w-4 h-4",
+                      i === 3 ? "text-slate-800" : "text-slate-800",
+                    )}
+                    fill={i === 3 ? "currentColor" : "none"}
+                  />
+                </button>
+              ),
+            )}
           </div>
         </section>
 
@@ -765,16 +876,28 @@ export function QuestionSidePanel({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs text-slate-600">Enable Q&A</span>
-              <MentiToggle 
-                checked={interactivitySettings.qaEnabled} 
-                onChange={(val) => setInteractivitySettings(prev => ({ ...prev, qaEnabled: val }))} 
+              <MentiToggle
+                checked={interactivitySettings.qaEnabled}
+                onChange={(val) =>
+                  setInteractivitySettings((prev) => ({
+                    ...prev,
+                    qaEnabled: val,
+                  }))
+                }
               />
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-600 leading-tight">Questions are visible to everyone</span>
-              <MentiToggle 
-                checked={interactivitySettings.qaVisibleToAll} 
-                onChange={(val) => setInteractivitySettings(prev => ({ ...prev, qaVisibleToAll: val }))} 
+              <span className="text-xs text-slate-600 leading-tight">
+                Questions are visible to everyone
+              </span>
+              <MentiToggle
+                checked={interactivitySettings.qaVisibleToAll}
+                onChange={(val) =>
+                  setInteractivitySettings((prev) => ({
+                    ...prev,
+                    qaVisibleToAll: val,
+                  }))
+                }
               />
             </div>
             <div className="flex items-center justify-between">
@@ -784,9 +907,14 @@ export function QuestionSidePanel({
                   <Star className="w-2.5 h-2.5 text-emerald-700 fill-current" />
                 </div>
               </div>
-              <MentiToggle 
-                checked={interactivitySettings.qaModeration} 
-                onChange={(val) => setInteractivitySettings(prev => ({ ...prev, qaModeration: val }))} 
+              <MentiToggle
+                checked={interactivitySettings.qaModeration}
+                onChange={(val) =>
+                  setInteractivitySettings((prev) => ({
+                    ...prev,
+                    qaModeration: val,
+                  }))
+                }
               />
             </div>
           </div>
@@ -804,9 +932,14 @@ export function QuestionSidePanel({
                 <SkipForward className="w-3.5 h-3.5 text-slate-400" />
                 <span className="text-xs text-slate-600">Allow skip</span>
               </div>
-              <MentiToggle 
-                checked={interactivitySettings.allowSkip} 
-                onChange={(val) => setInteractivitySettings(prev => ({ ...prev, allowSkip: val }))} 
+              <MentiToggle
+                checked={interactivitySettings.allowSkip}
+                onChange={(val) =>
+                  setInteractivitySettings((prev) => ({
+                    ...prev,
+                    allowSkip: val,
+                  }))
+                }
               />
             </div>
 
@@ -815,11 +948,18 @@ export function QuestionSidePanel({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Shuffle className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-xs text-slate-600">Shuffle options</span>
+                  <span className="text-xs text-slate-600">
+                    Shuffle options
+                  </span>
                 </div>
-                <MentiToggle 
-                  checked={interactivitySettings.shuffleOptions} 
-                  onChange={(val) => setInteractivitySettings(prev => ({ ...prev, shuffleOptions: val }))}
+                <MentiToggle
+                  checked={interactivitySettings.shuffleOptions}
+                  onChange={(val) =>
+                    setInteractivitySettings((prev) => ({
+                      ...prev,
+                      shuffleOptions: val,
+                    }))
+                  }
                 />
               </div>
             )}
@@ -827,26 +967,35 @@ export function QuestionSidePanel({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <BarChart2 className="w-3.5 h-3.5 text-slate-400" />
-                <span className="text-xs text-slate-600">Show results instantly</span>
+                <span className="text-xs text-slate-600">
+                  Show results instantly
+                </span>
               </div>
-              <MentiToggle 
-                checked={interactivitySettings.showResultsInstantly} 
+              <MentiToggle
+                checked={interactivitySettings.showResultsInstantly}
                 onChange={(val) => {
-                  setInteractivitySettings(prev => ({ ...prev, showResultsInstantly: val }));
+                  setInteractivitySettings((prev) => ({
+                    ...prev,
+                    showResultsInstantly: val,
+                  }));
                   onUpdateQuestion({ showResultsInstantly: val });
-                }} 
+                }}
               />
             </div>
 
             {/* Lock Question - uses existing property */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {q.locked ? <Lock className="w-3.5 h-3.5 text-amber-500" /> : <Unlock className="w-3.5 h-3.5 text-slate-400" />}
+                {q.locked ? (
+                  <Lock className="w-3.5 h-3.5 text-amber-500" />
+                ) : (
+                  <Unlock className="w-3.5 h-3.5 text-slate-400" />
+                )}
                 <span className="text-xs text-slate-600">Lock question</span>
               </div>
-              <MentiToggle 
-                checked={q.locked || false} 
-                onChange={(val) => onUpdateQuestion({ locked: val })} 
+              <MentiToggle
+                checked={q.locked || false}
+                onChange={(val) => onUpdateQuestion({ locked: val })}
               />
             </div>
           </div>
@@ -861,8 +1010,12 @@ export function QuestionSidePanel({
       return (
         <div className="text-center py-20">
           <PaintRoller className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-          <p className="text-sm font-semibold text-slate-400">No question selected</p>
-          <p className="text-xs text-slate-300 mt-1">Select a question to apply a theme</p>
+          <p className="text-sm font-semibold text-slate-400">
+            No question selected
+          </p>
+          <p className="text-xs text-slate-300 mt-1">
+            Select a question to apply a theme
+          </p>
         </div>
       );
     }
@@ -870,9 +1023,12 @@ export function QuestionSidePanel({
     return (
       <div className="space-y-5">
         <div>
-          <p className="text-sm font-bold text-slate-800 mb-1">Question Theme</p>
+          <p className="text-sm font-bold text-slate-800 mb-1">
+            Question Theme
+          </p>
           <p className="text-xs text-slate-400">
-            Choose a visual style for this question. It will appear in the participant preview.
+            Choose a visual style for this question. It will appear in the
+            participant preview.
           </p>
         </div>
 
@@ -916,11 +1072,11 @@ export function QuestionSidePanel({
     }
   };
 
-  const panelTitle = menuItems.find((m) => m.id === activeMenu)?.label ?? "Edit";
+  const panelTitle =
+    menuItems.find((m) => m.id === activeMenu)?.label ?? "Edit";
 
   return (
     <div className="absolute right-0 top-0 h-full flex z-30 bg-white">
-
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -962,7 +1118,7 @@ export function QuestionSidePanel({
                 "w-[76px] h-[76px] flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all",
                 isActive
                   ? "bg-indigo-50 text-[#6366F1]"
-                  : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                  : "text-slate-400 hover:text-slate-600 hover:bg-slate-50",
               )}
             >
               <Icon className="w-6 h-6" />

@@ -1,6 +1,11 @@
 // src/lib/session.service.ts
-import { supabase } from '../lib/supabase';
-import type { Session, Participant, Question, QuestionResponses } from '../lib/presentation.types';
+import { supabase } from "../lib/supabase";
+import type {
+  Session,
+  Participant,
+  Question,
+  QuestionResponses,
+} from "../lib/presentation.types";
 
 export interface CreateSessionParams {
   contextId: string;
@@ -23,11 +28,15 @@ export interface SubmitResponseParams {
 
 export class SessionService {
   // Create a new session from a context
-  static async createSession({ contextId, hostId }: CreateSessionParams): Promise<Session | null> {
+  static async createSession({
+    contextId,
+    hostId,
+  }: CreateSessionParams): Promise<Session | null> {
     try {
       const { data: context, error: contextError } = await supabase
-        .from('contexts')
-        .select(`
+        .from("contexts")
+        .select(
+          `
           id,
           title,
           questions (
@@ -42,14 +51,16 @@ export class SessionService {
             labels,
             display_style,
             image_url,
-            question_order
+            question_order,
+            hide_participant_names
           )
-        `)
-        .eq('id', contextId)
+        `,
+        )
+        .eq("id", contextId)
         .maybeSingle();
 
       if (contextError) {
-        console.error('Context fetch error:', contextError);
+        console.error("Context fetch error:", contextError);
         throw new Error(`Context not found: ${contextError.message}`);
       }
 
@@ -58,11 +69,11 @@ export class SessionService {
       }
 
       const { data: session, error: sessionError } = await supabase
-        .from('sessions')
+        .from("sessions")
         .insert({
           context_id: contextId,
           host_id: hostId,
-          status: 'WAITING',
+          status: "WAITING",
           current_question_index: -1,
           settings: {},
         })
@@ -70,12 +81,12 @@ export class SessionService {
         .single();
 
       if (sessionError) {
-        console.error('Session creation error:', sessionError);
+        console.error("Session creation error:", sessionError);
         throw new Error(`Failed to create session: ${sessionError.message}`);
       }
 
       if (!session) {
-        throw new Error('No session data returned');
+        throw new Error("No session data returned");
       }
 
       const questionsArray = context.questions || [];
@@ -94,6 +105,7 @@ export class SessionService {
           points: q.points,
           image: q.image_url || undefined,
           displayStyle: q.display_style,
+          hideParticipantNames: q.hide_participant_names ?? false,
         }));
 
       return {
@@ -106,45 +118,53 @@ export class SessionService {
           title: context.title,
           questions,
         },
-        status: session.status as 'WAITING' | 'ACTIVE' | 'PAUSED' | 'ENDED',
+        status: session.status as "WAITING" | "ACTIVE" | "PAUSED" | "ENDED",
         currentQuestionIndex: session.current_question_index,
       };
     } catch (error) {
-      console.error('Create session error:', error);
+      console.error("Create session error:", error);
       return null;
     }
   }
 
   // Join an existing session
-  static async joinSession({ sessionCode, participantName, userId, isAnonymous = false }: JoinSessionParams): Promise<{
+  static async joinSession({
+    sessionCode,
+    participantName,
+    userId,
+    isAnonymous = false,
+  }: JoinSessionParams): Promise<{
     session: Session;
     participantId: string;
   } | null> {
     try {
       const { data: session, error: sessionError } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('code', sessionCode.toUpperCase())
+        .from("sessions")
+        .select("*")
+        .eq("code", sessionCode.toUpperCase())
         .maybeSingle();
 
-      console.log('Session found:', { session, sessionError });
+      console.log("Session found:", { session, sessionError });
 
       if (sessionError) {
-        console.error('Session fetch error:', sessionError);
+        console.error("Session fetch error:", sessionError);
         throw new Error(`Database error: ${sessionError.message}`);
       }
 
       if (!session) {
-        throw new Error(`No session found with code "${sessionCode}". Please check the code and try again.`);
+        throw new Error(
+          `No session found with code "${sessionCode}". Please check the code and try again.`,
+        );
       }
 
-      if (session.status === 'ENDED') {
-        throw new Error('This session has already ended.');
+      if (session.status === "ENDED") {
+        throw new Error("This session has already ended.");
       }
 
       const { data: context, error: contextError } = await supabase
-        .from('contexts')
-        .select(`
+        .from("contexts")
+        .select(
+          `
           id,
           title,
           questions (
@@ -159,20 +179,22 @@ export class SessionService {
             labels,
             display_style,
             image_url,
-            question_order
+            question_order,
+            hide_participant_names
           )
-        `)
-        .eq('id', session.context_id)
+        `,
+        )
+        .eq("id", session.context_id)
         .maybeSingle();
 
-      console.log('Context with questions:', { context, contextError });
+      console.log("Context with questions:", { context, contextError });
 
       if (contextError) {
-        console.error('Context fetch error:', contextError);
+        console.error("Context fetch error:", contextError);
       }
 
       const { data: participant, error: participantError } = await supabase
-        .from('participants')
+        .from("participants")
         .insert({
           session_id: session.id,
           user_id: userId || null,
@@ -183,12 +205,12 @@ export class SessionService {
         .single();
 
       if (participantError || !participant) {
-        console.error('Failed to join session:', participantError);
-        throw new Error('Failed to join session');
+        console.error("Failed to join session:", participantError);
+        throw new Error("Failed to join session");
       }
 
       const questionsArray = context?.questions || [];
-      console.log('Questions array length:', questionsArray.length);
+      console.log("Questions array length:", questionsArray.length);
 
       const questions: Question[] = questionsArray
         .sort((a: any, b: any) => a.question_order - b.question_order)
@@ -205,9 +227,10 @@ export class SessionService {
           points: q.points,
           image: q.image_url || undefined,
           displayStyle: q.display_style,
+          hideParticipantNames: q.hide_participant_names ?? false,
         }));
 
-      console.log('Formatted questions:', questions);
+      console.log("Formatted questions:", questions);
 
       return {
         session: {
@@ -217,10 +240,10 @@ export class SessionService {
           startTime: new Date(session.created_at),
           presentation: {
             id: session.context_id,
-            title: context?.title || 'Untitled Session',
+            title: context?.title || "Untitled Session",
             questions,
           },
-          status: session.status as 'WAITING' | 'ACTIVE' | 'PAUSED' | 'ENDED',
+          status: session.status as "WAITING" | "ACTIVE" | "PAUSED" | "ENDED",
           currentQuestionIndex: session.current_question_index,
           currentQuestionId: session.current_question_id,
           currentQuestionStartedAt: session.current_question_started_at
@@ -230,32 +253,35 @@ export class SessionService {
         participantId: participant.id,
       };
     } catch (error) {
-      console.error('Join session error:', error);
+      console.error("Join session error:", error);
       throw error;
     }
   }
 
   // Submit a response
-  static async submitResponse({ sessionId, participantId, questionId, answer }: SubmitResponseParams): Promise<boolean> {
+  static async submitResponse({
+    sessionId,
+    participantId,
+    questionId,
+    answer,
+  }: SubmitResponseParams): Promise<boolean> {
     try {
-      const { error } = await supabase
-        .from('responses')
-        .insert({
-          session_id: sessionId,
-          participant_id: participantId,
-          question_id: questionId,
-          answer: answer,
-          submitted_at: new Date().toISOString(),
-        });
+      const { error } = await supabase.from("responses").insert({
+        session_id: sessionId,
+        participant_id: participantId,
+        question_id: questionId,
+        answer: answer,
+        submitted_at: new Date().toISOString(),
+      });
 
       if (error) {
-        console.error('Failed to submit response:', error);
+        console.error("Failed to submit response:", error);
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error('Submit response error:', error);
+      console.error("Submit response error:", error);
       return false;
     }
   }
@@ -263,22 +289,22 @@ export class SessionService {
   // Update session status
   static async updateSessionStatus(
     sessionId: string,
-    status: 'WAITING' | 'ACTIVE' | 'PAUSED' | 'ENDED'
+    status: "WAITING" | "ACTIVE" | "PAUSED" | "ENDED",
   ): Promise<boolean> {
     try {
       const { error } = await supabase
-        .from('sessions')
+        .from("sessions")
         .update({ status })
-        .eq('id', sessionId);
+        .eq("id", sessionId);
 
       if (error) {
-        console.error('Failed to update session status:', error);
+        console.error("Failed to update session status:", error);
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error('Update status error:', error);
+      console.error("Update status error:", error);
       return false;
     }
   }
@@ -287,11 +313,11 @@ export class SessionService {
   static async setCurrentQuestion(
     sessionId: string,
     questionIndex: number,
-    questionId?: string
+    questionId?: string,
   ): Promise<boolean> {
     try {
       const { error } = await supabase
-        .from('sessions')
+        .from("sessions")
         .update({
           current_question_index: questionIndex,
           current_question_id: questionId,
@@ -301,16 +327,16 @@ export class SessionService {
           timer_paused_remaining: null,
           timer_resumed_at: null,
         })
-        .eq('id', sessionId);
+        .eq("id", sessionId);
 
       if (error) {
-        console.error('Failed to update current question:', error);
+        console.error("Failed to update current question:", error);
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error('Set current question error:', error);
+      console.error("Set current question error:", error);
       return false;
     }
   }
@@ -330,7 +356,7 @@ export class SessionService {
   static async togglePause(
     sessionId: string,
     isPaused: boolean,
-    remainingAtPause?: number
+    remainingAtPause?: number,
   ): Promise<boolean> {
     try {
       const update: Record<string, any> = {
@@ -348,18 +374,18 @@ export class SessionService {
       }
 
       const { error } = await supabase
-        .from('sessions')
+        .from("sessions")
         .update(update)
-        .eq('id', sessionId);
+        .eq("id", sessionId);
 
       if (error) {
-        console.error('Failed to toggle pause:', error);
+        console.error("Failed to toggle pause:", error);
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error('Toggle pause error:', error);
+      console.error("Toggle pause error:", error);
       return false;
     }
   }
@@ -368,13 +394,13 @@ export class SessionService {
   static async getParticipants(sessionId: string): Promise<Participant[]> {
     try {
       const { data, error } = await supabase
-        .from('participants')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('joined_at', { ascending: true });
+        .from("participants")
+        .select("*")
+        .eq("session_id", sessionId)
+        .order("joined_at", { ascending: true });
 
       if (error) {
-        console.error('Failed to get participants:', error);
+        console.error("Failed to get participants:", error);
         return [];
       }
 
@@ -387,22 +413,33 @@ export class SessionService {
         joinedAt: new Date(p.joined_at),
       }));
     } catch (error) {
-      console.error('Get participants error:', error);
+      console.error("Get participants error:", error);
       return [];
     }
   }
 
   // Get question responses
-  static async getQuestionResponses(sessionId: string, questionId: string): Promise<QuestionResponses> {
+  static async getQuestionResponses(
+    sessionId: string,
+    questionId: string,
+    hideParticipantNames: boolean = false,
+  ): Promise<QuestionResponses> {
     try {
-      const { data, error } = await supabase
-        .from('responses')
-        .select('answer')
-        .eq('session_id', sessionId)
-        .eq('question_id', questionId);
+      const query = supabase
+        .from("responses")
+        .select(
+          `
+          answer,
+          participants!inner(name)
+        `,
+        )
+        .eq("session_id", sessionId)
+        .eq("question_id", questionId);
+
+      const { data, error } = await query;
 
       if (error) {
-        console.error('Failed to get responses:', error);
+        console.error("Failed to get responses:", error);
         return {};
       }
 
@@ -410,19 +447,46 @@ export class SessionService {
 
       (data || []).forEach((response: any) => {
         const answer = response.answer;
+        const participantName = response.participants?.name;
 
-        if (typeof answer === 'object') {
+        if (typeof answer === "object") {
           if (answer.optionId) {
-            aggregated[answer.optionId] = (aggregated[answer.optionId] || 0) + 1;
+            aggregated[answer.optionId] =
+              (aggregated[answer.optionId] || 0) + 1;
+
+            // Add individual response
+            aggregated.individualResponses =
+              aggregated.individualResponses || [];
+            aggregated.individualResponses.push({
+              optionId: answer.optionId,
+              participantName: hideParticipantNames
+                ? undefined
+                : participantName,
+              timestamp: new Date(),
+            });
           } else if (answer.rating !== undefined) {
             const rating = answer.rating;
             aggregated[rating] = (aggregated[rating] || 0) + 1;
             aggregated.total = (aggregated.total || 0) + 1;
 
+            // Add individual rating
+            aggregated.individualRatings = aggregated.individualRatings || [];
+            aggregated.individualRatings.push({
+              rating: answer.rating,
+              participantName: hideParticipantNames
+                ? undefined
+                : participantName,
+              timestamp: new Date(),
+            });
+
             let sum = 0;
             let count = 0;
             Object.entries(aggregated).forEach(([key, val]) => {
-              if (key !== 'total' && key !== 'average') {
+              if (
+                key !== "total" &&
+                key !== "average" &&
+                key !== "individualRatings"
+              ) {
                 const numKey = parseInt(key);
                 if (!isNaN(numKey)) {
                   sum += numKey * (val as number);
@@ -439,39 +503,53 @@ export class SessionService {
             aggregated.recent.unshift({
               text: answer.text,
               timestamp: new Date(),
+              participantName: hideParticipantNames
+                ? undefined
+                : participantName,
             });
             aggregated.recent = aggregated.recent.slice(0, 10);
           } else if (answer.words && Array.isArray(answer.words)) {
             aggregated.words = aggregated.words || {};
             answer.words.forEach((word: string) => {
               const lowerWord = word.toLowerCase();
-              aggregated.words[lowerWord] = (aggregated.words[lowerWord] || 0) + 1;
+              aggregated.words[lowerWord] =
+                (aggregated.words[lowerWord] || 0) + 1;
             });
             aggregated.uniqueWords = Object.keys(aggregated.words).length;
             aggregated.words = Object.entries(aggregated.words)
               .map(([text, count]) => ({ text, count: count as number }))
               .sort((a, b) => b.count - a.count);
+
+            // Add individual word submissions
+            aggregated.individualWords = aggregated.individualWords || [];
+            aggregated.individualWords.push({
+              words: answer.words,
+              participantName: hideParticipantNames
+                ? undefined
+                : participantName,
+              timestamp: new Date(),
+            });
           }
         }
       });
 
       return aggregated;
     } catch (error) {
-      console.error('Get responses error:', error);
+      console.error("Get responses error:", error);
       return {};
     }
   }
 
-  private static mapQuestionType(dbType: string): Question['type'] {
-    const mapping: Record<string, Question['type']> = {
-      'MULTIPLE_CHOICE': 'multiple-choice',
-      'SINGLE_CHOICE': 'multiple-choice',
-      'TRUE_FALSE': 'multiple-choice',
-      'POLL': 'multiple-choice',
-      'RATING': 'rating',
-      'OPEN_TEXT': 'open-text',
-      'WORD_CLOUD': 'word-cloud',
+  private static mapQuestionType(dbType: string): Question["type"] {
+    const mapping: Record<string, Question["type"]> = {
+      MULTIPLE_CHOICE: "multiple-choice",
+      SINGLE_CHOICE: "multiple-choice",
+      TRUE_FALSE: "multiple-choice",
+      POLL: "multiple-choice",
+      RATING: "rating",
+      OPEN_TEXT: "open-text",
+      WORD_CLOUD: "word-cloud",
     };
-    return mapping[dbType] || 'multiple-choice';
+    return mapping[dbType] || "multiple-choice";
   }
 }

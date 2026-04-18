@@ -1,27 +1,32 @@
 // src/pages/HostSession/index.tsx
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
-import { SessionService } from '../../service/session.service';
-import { useSessionSocket } from '../../lib/useSessionSocket';
-import AppIcon from '../../components/AppIcon';
-import { Button } from '../../components/ui/button';
-import { Card } from '../../components/ui/card';
-import { Badge } from '../../components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '../../components/ui/avatar';
-import { useToast } from '../../hooks/use-toast';
-import QuestionDisplay from './components/QuestionDisplay';
-import ControlPanel from './components/ControlPanel';
-import PauseOverlay from './components/PauseOverlay';
-import EndSessionModal from './components/EndSessionModal';
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "../../contexts/AuthContext";
+import { supabase } from "../../lib/supabase";
+import { SessionService } from "../../service/session.service";
+import { useSessionSocket } from "../../lib/useSessionSocket";
+import AppIcon from "../../components/AppIcon";
+import { Button } from "../../components/ui/button";
+import { Card } from "../../components/ui/card";
+import { Badge } from "../../components/ui/badge";
+import { Switch } from "../../components/ui/switch";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "../../components/ui/avatar";
+import { useToast } from "../../hooks/use-toast";
+import QuestionDisplay from "./components/QuestionDisplay";
+import ControlPanel from "./components/ControlPanel";
+import PauseOverlay from "./components/PauseOverlay";
+import EndSessionModal from "./components/EndSessionModal";
 import type {
   Session,
   Question,
   QuestionResponses,
   Participant,
-} from '../../lib/presentation.types';
+} from "../../lib/presentation.types";
 
 const HostSession: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -37,10 +42,14 @@ const HostSession: React.FC = () => {
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isEndModalOpen, setIsEndModalOpen] = useState<boolean>(false);
   const [timer, setTimer] = useState<number>(0);
-  const [responses, setResponses] = useState<Record<string, QuestionResponses>>({});
+  const [responses, setResponses] = useState<Record<string, QuestionResponses>>(
+    {},
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [timerActive, setTimerActive] = useState<boolean>(false);
+  const [hideParticipantNames, setHideParticipantNames] =
+    useState<boolean>(false);
 
   // ── Stable refs ──────────────────────────────────────────────────────────
   const timerRef = useRef<number>(0);
@@ -50,18 +59,19 @@ const HostSession: React.FC = () => {
   const sessionRef = useRef<Session | null>(null);
   const currentQuestionRef = useRef<Question | undefined>(undefined);
   const hasLoadedRef = useRef<boolean>(false);
+  const hideParticipantNamesRef = useRef<boolean>(false);
 
-  const mapQuestionType = (dbType: string): Question['type'] => {
-    const mapping: Record<string, Question['type']> = {
-      MULTIPLE_CHOICE: 'multiple-choice',
-      SINGLE_CHOICE: 'multiple-choice',
-      TRUE_FALSE: 'multiple-choice',
-      POLL: 'multiple-choice',
-      RATING: 'rating',
-      OPEN_TEXT: 'open-text',
-      WORD_CLOUD: 'word-cloud',
+  const mapQuestionType = (dbType: string): Question["type"] => {
+    const mapping: Record<string, Question["type"]> = {
+      MULTIPLE_CHOICE: "multiple-choice",
+      SINGLE_CHOICE: "multiple-choice",
+      TRUE_FALSE: "multiple-choice",
+      POLL: "multiple-choice",
+      RATING: "rating",
+      OPEN_TEXT: "open-text",
+      WORD_CLOUD: "word-cloud",
     };
-    return mapping[dbType] || 'multiple-choice';
+    return mapping[dbType] || "multiple-choice";
   };
 
   const currentQuestion: Question | undefined =
@@ -73,10 +83,11 @@ const HostSession: React.FC = () => {
     ? responses[currentQuestion.id] || {}
     : {};
 
-  const isCurrentMultipleChoice = currentQuestion?.type === 'multiple-choice';
+  const isCurrentMultipleChoice = currentQuestion?.type === "multiple-choice";
 
   const getQuestionTimeLimit = (question?: Question | null): number | null => {
-    if (!question || question.timeLimit == null || question.timeLimit <= 0) return null;
+    if (!question || question.timeLimit == null || question.timeLimit <= 0)
+      return null;
     return question.timeLimit;
   };
 
@@ -90,32 +101,49 @@ const HostSession: React.FC = () => {
   };
 
   // Keep refs in sync
-  useEffect(() => { sessionRef.current = session; }, [session]);
-  useEffect(() => { currentQuestionRef.current = currentQuestion; }, [currentQuestion]);
-  useEffect(() => { timerRef.current = timer; }, [timer]);
-  useEffect(() => { timerActiveRef.current = timerActive; }, [timerActive]);
-  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+  useEffect(() => {
+    currentQuestionRef.current = currentQuestion;
+  }, [currentQuestion]);
+  useEffect(() => {
+    timerRef.current = timer;
+  }, [timer]);
+  useEffect(() => {
+    timerActiveRef.current = timerActive;
+  }, [timerActive]);
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+  useEffect(() => {
+    hideParticipantNamesRef.current = hideParticipantNames;
+  }, [hideParticipantNames]);
 
   // ── Real-time: receive RESPONSE_SUBMITTED from audience ─────────────────
   const handleWsMessage = useCallback(
     (msg: { type: string; payload?: Record<string, unknown> }) => {
-      if (msg.type === 'RESPONSE_SUBMITTED') {
+      if (msg.type === "RESPONSE_SUBMITTED") {
         const q = currentQuestionRef.current;
         const sess = sessionRef.current;
         if (q && sess) {
-          SessionService.getQuestionResponses(sess.id, q.id).then((updated) => {
+          SessionService.getQuestionResponses(
+            sess.id,
+            q.id,
+            hideParticipantNamesRef.current,
+          ).then((updated) => {
             setResponses((prev) => ({ ...prev, [q.id]: updated }));
           });
         }
       }
     },
-    []
+    [],
   );
 
   // Single hook call — used for both sending (sendMessage) and receiving
   const { sendMessage, connected: wsConnected } = useSessionSocket({
     sessionId: session?.id ?? null,
-    role: 'host',
+    role: "host",
     onMessage: handleWsMessage,
     enabled: !!session,
   });
@@ -133,7 +161,11 @@ const HostSession: React.FC = () => {
       timerRef.current > 0
     ) {
       timerIntervalRef.current = window.setInterval(() => {
-        if (!isPausedRef.current && timerActiveRef.current && timerRef.current > 0) {
+        if (
+          !isPausedRef.current &&
+          timerActiveRef.current &&
+          timerRef.current > 0
+        ) {
           timerRef.current -= 1;
           setTimer(timerRef.current);
 
@@ -143,7 +175,7 @@ const HostSession: React.FC = () => {
             timerActiveRef.current = false;
             setTimerActive(false);
             setShowResults(true);
-            toast({ title: "Time's Up!", description: 'Showing results...' });
+            toast({ title: "Time's Up!", description: "Showing results..." });
           }
         }
       }, 1000);
@@ -156,9 +188,34 @@ const HostSession: React.FC = () => {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[currentQuestionIndex, timerActive, timerRef.current, isPaused]);
+  }, [currentQuestionIndex, timerActive, timerRef.current, isPaused]);
 
-  useEffect(() => () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); }, []);
+  useEffect(
+    () => () => {
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    },
+    [],
+  );
+
+  // ── Update hideParticipantNames when currentQuestion changes ──────────
+  useEffect(() => {
+    if (currentQuestion) {
+      setHideParticipantNames(currentQuestion.hideParticipantNames ?? false);
+    }
+  }, [currentQuestion?.id]);
+
+  // ── Reload responses when hideParticipantNames or showResults changes ────
+  useEffect(() => {
+    if (currentQuestion && session) {
+      SessionService.getQuestionResponses(
+        session.id,
+        currentQuestion.id,
+        hideParticipantNames,
+      ).then((updated) => {
+        setResponses((prev) => ({ ...prev, [currentQuestion.id]: updated }));
+      });
+    }
+  }, [hideParticipantNames, currentQuestion?.id, session?.id, showResults]);
 
   // ── Load session ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -169,24 +226,27 @@ const HostSession: React.FC = () => {
       setError(null);
 
       try {
-        const { data: existingSession, error: sessionFetchError } = await supabase
-          .from('sessions')
-          .select('*')
-          .eq('id', id)
-          .maybeSingle();
+        const { data: existingSession, error: sessionFetchError } =
+          await supabase
+            .from("sessions")
+            .select("*")
+            .eq("id", id)
+            .maybeSingle();
 
         if (!sessionFetchError && existingSession) {
           const { data: contextData } = await supabase
-            .from('contexts')
-            .select(`
+            .from("contexts")
+            .select(
+              `
               id, title,
               questions (
                 id, title, description, type, points, time_limit,
                 options, scale, labels, display_style, image_url, question_order,
-                show_results_instantly
+                show_results_instantly, hide_participant_names
               )
-            `)
-            .eq('id', existingSession.context_id)
+            `,
+            )
+            .eq("id", existingSession.context_id)
             .maybeSingle();
 
           const questionsArray = contextData?.questions || [];
@@ -206,6 +266,7 @@ const HostSession: React.FC = () => {
               image: q.image_url,
               displayStyle: q.display_style,
               showResultsInstantly: q.show_results_instantly ?? false,
+              hideParticipantNames: q.hide_participant_names ?? false,
             }));
 
           const sessionData: Session = {
@@ -215,10 +276,14 @@ const HostSession: React.FC = () => {
             startTime: new Date(existingSession.created_at),
             presentation: {
               id: existingSession.context_id,
-              title: contextData?.title || 'Untitled Session',
+              title: contextData?.title || "Untitled Session",
               questions,
             },
-            status: existingSession.status as 'WAITING' | 'ACTIVE' | 'PAUSED' | 'ENDED',
+            status: existingSession.status as
+              | "WAITING"
+              | "ACTIVE"
+              | "PAUSED"
+              | "ENDED",
             currentQuestionIndex: existingSession.current_question_index,
           };
 
@@ -230,7 +295,7 @@ const HostSession: React.FC = () => {
           // Restore timer if rejoining mid-session
           if (
             existingSession.current_question_index >= 0 &&
-            existingSession.status === 'ACTIVE'
+            existingSession.status === "ACTIVE"
           ) {
             const currentQ = questions[existingSession.current_question_index];
             if (currentQ) {
@@ -242,7 +307,10 @@ const HostSession: React.FC = () => {
               let remaining = limit ?? 0;
               if (limit === null) {
                 remaining = 0;
-              } else if (existingSession.is_paused && existingSession.timer_paused_remaining != null) {
+              } else if (
+                existingSession.is_paused &&
+                existingSession.timer_paused_remaining != null
+              ) {
                 remaining = existingSession.timer_paused_remaining;
               } else if (
                 !existingSession.is_paused &&
@@ -250,12 +318,21 @@ const HostSession: React.FC = () => {
                 existingSession.timer_paused_remaining != null
               ) {
                 const elapsedSinceResume = Math.floor(
-                  (Date.now() - new Date(existingSession.timer_resumed_at).getTime()) / 1000
+                  (Date.now() -
+                    new Date(existingSession.timer_resumed_at).getTime()) /
+                    1000,
                 );
-                remaining = Math.max(0, existingSession.timer_paused_remaining - elapsedSinceResume);
+                remaining = Math.max(
+                  0,
+                  existingSession.timer_paused_remaining - elapsedSinceResume,
+                );
               } else if (existingSession.current_question_started_at) {
                 const elapsed = Math.floor(
-                  (Date.now() - new Date(existingSession.current_question_started_at).getTime()) / 1000
+                  (Date.now() -
+                    new Date(
+                      existingSession.current_question_started_at,
+                    ).getTime()) /
+                    1000,
                 );
                 remaining = Math.max(0, limit - elapsed);
               } else {
@@ -264,13 +341,16 @@ const HostSession: React.FC = () => {
 
               setTimer(remaining);
               timerRef.current = remaining;
-              const shouldBeActive = limit !== null && !existingSession.is_paused && remaining > 0;
+              const shouldBeActive =
+                limit !== null && !existingSession.is_paused && remaining > 0;
               setTimerActive(shouldBeActive);
               timerActiveRef.current = shouldBeActive;
             }
           }
 
-          const participantsData = await SessionService.getParticipants(existingSession.id);
+          const participantsData = await SessionService.getParticipants(
+            existingSession.id,
+          );
           setParticipants(participantsData);
 
           if (existingSession.current_question_index >= 0) {
@@ -278,9 +358,13 @@ const HostSession: React.FC = () => {
             if (currentQ) {
               const responsesData = await SessionService.getQuestionResponses(
                 existingSession.id,
-                currentQ.id
+                currentQ.id,
+                currentQ.hideParticipantNames ?? false,
               );
-              setResponses((prev) => ({ ...prev, [currentQ.id]: responsesData }));
+              setResponses((prev) => ({
+                ...prev,
+                [currentQ.id]: responsesData,
+              }));
             }
           }
 
@@ -288,29 +372,32 @@ const HostSession: React.FC = () => {
         } else {
           // id is a context ID — create a new session
           const { data: contextData, error: contextError } = await supabase
-            .from('contexts')
-            .select('id, title')
-            .eq('id', id)
+            .from("contexts")
+            .select("id, title")
+            .eq("id", id)
             .maybeSingle();
 
           if (contextError || !contextData) {
             throw new Error(`Context "${id}" not found.`);
           }
 
-          const newSession = await SessionService.createSession({ contextId: id, hostId: user.id });
-          if (!newSession) throw new Error('Failed to create session');
+          const newSession = await SessionService.createSession({
+            contextId: id,
+            hostId: user.id,
+          });
+          if (!newSession) throw new Error("Failed to create session");
 
           hasLoadedRef.current = true;
           navigate(`/session/${newSession.id}/host`, { replace: true });
           return;
         }
       } catch (err: any) {
-        console.error('Failed to load session:', err);
-        setError(err.message || 'Failed to load session');
+        console.error("Failed to load session:", err);
+        setError(err.message || "Failed to load session");
         toast({
-          title: 'Error',
-          description: err.message || 'Failed to load session',
-          variant: 'destructive',
+          title: "Error",
+          description: err.message || "Failed to load session",
+          variant: "destructive",
         });
       } finally {
         setIsLoading(false);
@@ -328,8 +415,13 @@ const HostSession: React.FC = () => {
     const participantsChannel = supabase
       .channel(`host-participants-${session.id}`)
       .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'participants', filter: `session_id=eq.${session.id}` },
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "participants",
+          filter: `session_id=eq.${session.id}`,
+        },
         (payload) => {
           const p = payload.new as any;
           setParticipants((prev) => {
@@ -346,8 +438,11 @@ const HostSession: React.FC = () => {
               },
             ];
           });
-          toast({ title: 'New Participant', description: `${p.name} joined the session` });
-        }
+          toast({
+            title: "New Participant",
+            description: `${p.name} joined the session`,
+          });
+        },
       )
       .subscribe();
 
@@ -355,16 +450,25 @@ const HostSession: React.FC = () => {
     const responsesChannel = supabase
       .channel(`host-responses-${session.id}`)
       .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'responses', filter: `session_id=eq.${session.id}` },
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "responses",
+          filter: `session_id=eq.${session.id}`,
+        },
         async () => {
           const q = currentQuestionRef.current;
           const sess = sessionRef.current;
           if (q && sess) {
-            const updated = await SessionService.getQuestionResponses(sess.id, q.id);
+            const updated = await SessionService.getQuestionResponses(
+              sess.id,
+              q.id,
+              hideParticipantNamesRef.current,
+            );
             setResponses((prev) => ({ ...prev, [q.id]: updated }));
           }
-        }
+        },
       )
       .subscribe();
 
@@ -387,12 +491,16 @@ const HostSession: React.FC = () => {
     if (!session) return;
     const firstQuestion = session.presentation.questions[0];
     if (!firstQuestion) {
-      toast({ title: 'Error', description: 'No questions found', variant: 'destructive' });
+      toast({
+        title: "Error",
+        description: "No questions found",
+        variant: "destructive",
+      });
       return;
     }
 
     const startedAt = new Date().toISOString();
-    await SessionService.updateSessionStatus(session.id, 'ACTIVE');
+    await SessionService.updateSessionStatus(session.id, "ACTIVE");
     await SessionService.setCurrentQuestion(session.id, 0, firstQuestion.id);
 
     setCurrentQuestionIndex(0);
@@ -402,7 +510,7 @@ const HostSession: React.FC = () => {
     isPausedRef.current = false;
 
     sendMessage({
-      type: 'SESSION_START',
+      type: "SESSION_START",
       payload: {
         sessionId: session.id,
         questionId: firstQuestion.id,
@@ -412,7 +520,10 @@ const HostSession: React.FC = () => {
       },
     });
 
-    toast({ title: 'Session Started', description: 'Participants can now join and answer' });
+    toast({
+      title: "Session Started",
+      description: "Participants can now join and answer",
+    });
   };
 
   const handlePrevious = async (): Promise<void> => {
@@ -422,7 +533,11 @@ const HostSession: React.FC = () => {
     const prevQuestion = session.presentation.questions[newIndex];
     const startedAt = new Date().toISOString();
 
-    await SessionService.setCurrentQuestion(session.id, newIndex, prevQuestion?.id);
+    await SessionService.setCurrentQuestion(
+      session.id,
+      newIndex,
+      prevQuestion?.id,
+    );
 
     setCurrentQuestionIndex(newIndex);
     const timeLimit = applyQuestionTimer(prevQuestion);
@@ -431,7 +546,7 @@ const HostSession: React.FC = () => {
     isPausedRef.current = false;
 
     sendMessage({
-      type: 'QUESTION_CHANGE',
+      type: "QUESTION_CHANGE",
       payload: {
         questionId: prevQuestion?.id,
         questionIndex: newIndex,
@@ -449,7 +564,11 @@ const HostSession: React.FC = () => {
       const nextQuestion = session.presentation.questions[newIndex];
       const startedAt = new Date().toISOString();
 
-      await SessionService.setCurrentQuestion(session.id, newIndex, nextQuestion?.id);
+      await SessionService.setCurrentQuestion(
+        session.id,
+        newIndex,
+        nextQuestion?.id,
+      );
 
       setCurrentQuestionIndex(newIndex);
       const timeLimit = applyQuestionTimer(nextQuestion);
@@ -458,7 +577,7 @@ const HostSession: React.FC = () => {
       isPausedRef.current = false;
 
       sendMessage({
-        type: 'QUESTION_CHANGE',
+        type: "QUESTION_CHANGE",
         payload: {
           questionId: nextQuestion?.id,
           questionIndex: newIndex,
@@ -467,8 +586,8 @@ const HostSession: React.FC = () => {
         },
       });
     } else {
-      sendMessage({ type: 'SESSION_END', payload: {} });
-      await SessionService.updateSessionStatus(session.id, 'ENDED');
+      sendMessage({ type: "SESSION_END", payload: {} });
+      await SessionService.updateSessionStatus(session.id, "ENDED");
       navigate(`/results/${session.id}`);
     }
   };
@@ -483,24 +602,38 @@ const HostSession: React.FC = () => {
     if (newPausedState) {
       setTimerActive(false);
       timerActiveRef.current = false;
-      sendMessage({ type: 'PAUSE', payload: { remainingSeconds: timerRef.current } });
+      sendMessage({
+        type: "PAUSE",
+        payload: { remainingSeconds: timerRef.current },
+      });
     } else {
       setTimerActive(true);
       timerActiveRef.current = true;
       sendMessage({
-        type: 'RESUME',
-        payload: { remainingSeconds: timerRef.current, resumedAt: new Date().toISOString() },
+        type: "RESUME",
+        payload: {
+          remainingSeconds: timerRef.current,
+          resumedAt: new Date().toISOString(),
+        },
       });
     }
 
-    const success = await SessionService.togglePause(session.id, newPausedState, timerRef.current);
+    const success = await SessionService.togglePause(
+      session.id,
+      newPausedState,
+      timerRef.current,
+    );
     if (!success) {
       // Roll back
       setIsPaused(!newPausedState);
       isPausedRef.current = !newPausedState;
       setTimerActive(newPausedState);
       timerActiveRef.current = newPausedState;
-      toast({ title: 'Error', description: 'Failed to pause/resume session', variant: 'destructive' });
+      toast({
+        title: "Error",
+        description: "Failed to pause/resume session",
+        variant: "destructive",
+      });
     }
   };
 
@@ -518,7 +651,7 @@ const HostSession: React.FC = () => {
     isPausedRef.current = false;
 
     sendMessage({
-      type: 'QUESTION_CHANGE',
+      type: "QUESTION_CHANGE",
       payload: {
         questionId: firstQuestion?.id,
         questionIndex: 0,
@@ -527,15 +660,18 @@ const HostSession: React.FC = () => {
       },
     });
 
-    toast({ title: 'Session Restarted', description: 'Reset to the first question' });
+    toast({
+      title: "Session Restarted",
+      description: "Reset to the first question",
+    });
   };
 
   const handleEnd = (): void => setIsEndModalOpen(true);
 
   const handleConfirmEnd = async (): Promise<void> => {
     if (!session) return;
-    sendMessage({ type: 'SESSION_END', payload: {} });
-    await SessionService.updateSessionStatus(session.id, 'ENDED');
+    sendMessage({ type: "SESSION_END", payload: {} });
+    await SessionService.updateSessionStatus(session.id, "ENDED");
     navigate(`/results/${session.id}`);
   };
 
@@ -554,7 +690,10 @@ const HostSession: React.FC = () => {
   const handleCopyLink = (): void => {
     const joinUrl = `${window.location.origin}/audience-participation?code=${session?.code}`;
     navigator.clipboard.writeText(joinUrl);
-    toast({ title: 'Link Copied!', description: 'Share this link with participants to join' });
+    toast({
+      title: "Link Copied!",
+      description: "Share this link with participants to join",
+    });
   };
 
   const responseProgress =
@@ -562,8 +701,10 @@ const HostSession: React.FC = () => {
       ? Math.min(
           100,
           Math.round(
-            (Object.keys(currentResponses).length / (session.participantCount || 1)) * 100
-          )
+            (Object.keys(currentResponses).length /
+              (session.participantCount || 1)) *
+              100,
+          ),
         )
       : 0;
 
@@ -574,7 +715,11 @@ const HostSession: React.FC = () => {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
-            <AppIcon name="Loader2" size={32} className="text-primary animate-spin" />
+            <AppIcon
+              name="Loader2"
+              size={32}
+              className="text-primary animate-spin"
+            />
           </div>
           <p className="text-muted-foreground">Setting up your session...</p>
         </div>
@@ -587,15 +732,25 @@ const HostSession: React.FC = () => {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="text-center max-w-md">
           <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-destructive/10 flex items-center justify-center">
-            <AppIcon name="AlertCircle" size={40} className="text-destructive" />
+            <AppIcon
+              name="AlertCircle"
+              size={40}
+              className="text-destructive"
+            />
           </div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">Session Error</h2>
-          <p className="text-muted-foreground mb-6">{error || 'Session not found.'}</p>
+          <h2 className="text-2xl font-bold text-foreground mb-2">
+            Session Error
+          </h2>
+          <p className="text-muted-foreground mb-6">
+            {error || "Session not found."}
+          </p>
           <div className="flex gap-3 justify-center">
-            <Button variant="outline" onClick={() => navigate('/dashboard')}>
+            <Button variant="outline" onClick={() => navigate("/dashboard")}>
               Return to Dashboard
             </Button>
-            <Button onClick={() => navigate('/create')}>Create New Context</Button>
+            <Button onClick={() => navigate("/create")}>
+              Create New Context
+            </Button>
           </div>
         </div>
       </div>
@@ -609,7 +764,10 @@ const HostSession: React.FC = () => {
         <div className="max-w-6xl w-full grid md:grid-cols-2 gap-8 items-center">
           <div className="space-y-8">
             <div>
-              <Badge variant="outline" className="text-white border-white mb-4 bg-white/20">
+              <Badge
+                variant="outline"
+                className="text-white border-white mb-4 bg-white/20"
+              >
                 Join at {window.location.host}
               </Badge>
               <h1 className="text-5xl md:text-6xl font-black tracking-tight mb-2">
@@ -630,7 +788,9 @@ const HostSession: React.FC = () => {
                   <AppIcon name="QrCode" size={80} />
                 </div>
                 <div className="space-y-3">
-                  <div className="text-sm uppercase tracking-wider opacity-75">Scan to join</div>
+                  <div className="text-sm uppercase tracking-wider opacity-75">
+                    Scan to join
+                  </div>
                   <Button
                     variant="secondary"
                     size="sm"
@@ -639,14 +799,18 @@ const HostSession: React.FC = () => {
                   >
                     <AppIcon name="Copy" className="mr-2 h-4 w-4" /> Copy Link
                   </Button>
-                  <p className="text-xs opacity-75">or enter code: {session.code}</p>
+                  <p className="text-xs opacity-75">
+                    or enter code: {session.code}
+                  </p>
                 </div>
               </div>
             </Card>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                <div className="text-3xl font-bold">{session.presentation.questions.length}</div>
+                <div className="text-3xl font-bold">
+                  {session.presentation.questions.length}
+                </div>
                 <div className="text-sm opacity-75">Questions</div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
@@ -692,7 +856,10 @@ const HostSession: React.FC = () => {
                     </Avatar>
                     <span className="font-medium flex-1">{p.name}</span>
                     {p.score > 0 && (
-                      <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-300">
+                      <Badge
+                        variant="secondary"
+                        className="bg-yellow-500/20 text-yellow-300"
+                      >
                         {p.score} pts
                       </Badge>
                     )}
@@ -706,7 +873,8 @@ const HostSession: React.FC = () => {
               className="w-full mt-4 bg-white text-primary hover:bg-white/90 font-bold text-lg shadow-xl"
               onClick={handleStart}
             >
-              Start Presentation <AppIcon name="Play" className="ml-2 h-5 w-5" />
+              Start Presentation{" "}
+              <AppIcon name="Play" className="ml-2 h-5 w-5" />
             </Button>
           </div>
         </div>
@@ -720,11 +888,19 @@ const HostSession: React.FC = () => {
       <header className="h-16 border-b border-border flex items-center justify-between px-4 md:px-6 bg-card sticky top-0 z-30">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <AppIcon name="Radio" size={16} className="text-primary-foreground" />
+            <AppIcon
+              name="Radio"
+              size={16}
+              className="text-primary-foreground"
+            />
           </div>
           <div>
-            <span className="font-bold text-foreground">{session.presentation.title}</span>
-            <span className="text-xs text-muted-foreground ml-2">• {session.code}</span>
+            <span className="font-bold text-foreground">
+              {session.presentation.title}
+            </span>
+            <span className="text-xs text-muted-foreground ml-2">
+              • {session.code}
+            </span>
             {isPaused && (
               <span className="ml-2 text-xs bg-yellow-500/20 text-yellow-600 px-2 py-0.5 rounded">
                 Paused
@@ -740,26 +916,42 @@ const HostSession: React.FC = () => {
               Real-time
             </div>
           )}
-          {currentQuestion && getQuestionTimeLimit(currentQuestion) === null && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted">
-              <AppIcon name="Infinity" size={16} className="text-primary" />
-              <span className="font-semibold text-primary">No timer</span>
-            </div>
-          )}
-          {currentQuestion && getQuestionTimeLimit(currentQuestion) !== null && (
-            <div
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
-                isPaused ? 'bg-yellow-500/20' : 'bg-muted'
-              }`}
-            >
-              <AppIcon name="Clock" size={16} className="text-primary" />
-              <span className="font-mono font-bold text-primary">{timer}s</span>
-            </div>
-          )}
+          {currentQuestion &&
+            getQuestionTimeLimit(currentQuestion) === null && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted">
+                <AppIcon name="Infinity" size={16} className="text-primary" />
+                <span className="font-semibold text-primary">No timer</span>
+              </div>
+            )}
+          {currentQuestion &&
+            getQuestionTimeLimit(currentQuestion) !== null && (
+              <div
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
+                  isPaused ? "bg-yellow-500/20" : "bg-muted"
+                }`}
+              >
+                <AppIcon name="Clock" size={16} className="text-primary" />
+                <span className="font-mono font-bold text-primary">
+                  {timer}s
+                </span>
+              </div>
+            )}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted">
+            <AppIcon name="EyeOff" size={16} className="text-primary" />
+            <span className="text-xs text-muted-foreground">Hide Names</span>
+            <Switch
+              checked={hideParticipantNames}
+              onCheckedChange={(checked) => setHideParticipantNames(checked)}
+            />
+          </div>
           <Badge variant="secondary" className="text-sm px-3 py-1">
             {currentQuestionIndex + 1} / {session.presentation.questions.length}
           </Badge>
-          <Button variant="destructive" size="sm" onClick={() => navigate('/dashboard')}>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => navigate("/dashboard")}
+          >
             Exit
           </Button>
         </div>
@@ -770,15 +962,19 @@ const HostSession: React.FC = () => {
           {isPaused ? (
             <div
               className="h-full bg-yellow-500"
-              style={{ width: `${Math.max(0, (timer / (getQuestionTimeLimit(currentQuestion) || 1)) * 100)}%` }}
+              style={{
+                width: `${Math.max(0, (timer / (getQuestionTimeLimit(currentQuestion) || 1)) * 100)}%`,
+              }}
             />
           ) : timerActive ? (
             <motion.div
               className="h-full bg-primary origin-left"
               initial={false}
-              animate={{ scaleX: timer / (getQuestionTimeLimit(currentQuestion) || 1) }}
-              transition={{ duration: 1, ease: 'linear' }}
-              style={{ transformOrigin: 'left' }}
+              animate={{
+                scaleX: timer / (getQuestionTimeLimit(currentQuestion) || 1),
+              }}
+              transition={{ duration: 1, ease: "linear" }}
+              style={{ transformOrigin: "left" }}
             />
           ) : null}
         </div>
@@ -792,6 +988,7 @@ const HostSession: React.FC = () => {
               responses={currentResponses}
               showResults={showResults}
               showCorrectAnswer={showCorrectAnswer}
+              hideParticipantNames={hideParticipantNames}
             />
           )}
 
@@ -804,23 +1001,36 @@ const HostSession: React.FC = () => {
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center">
-                    <AppIcon name="Trophy" size={24} className="text-yellow-600" />
+                    <AppIcon
+                      name="Trophy"
+                      size={24}
+                      className="text-yellow-600"
+                    />
                   </div>
                   <div>
-                    <div className="font-bold text-lg">Ready for next question?</div>
+                    <div className="font-bold text-lg">
+                      Ready for next question?
+                    </div>
                     <div className="text-sm text-muted-foreground">
-                      {participants.slice(0, 3).map((p) => p.name).join(', ')} and others are waiting
+                      {participants
+                        .slice(0, 3)
+                        .map((p) => p.name)
+                        .join(", ")}{" "}
+                      and others are waiting
                     </div>
                   </div>
                 </div>
                 <Button size="lg" onClick={handleNext} className="min-w-37.5">
-                  {currentQuestionIndex === session.presentation.questions.length - 1 ? (
+                  {currentQuestionIndex ===
+                  session.presentation.questions.length - 1 ? (
                     <>
-                      View Results <AppIcon name="BarChart3" className="ml-2 h-4 w-4" />
+                      View Results{" "}
+                      <AppIcon name="BarChart3" className="ml-2 h-4 w-4" />
                     </>
                   ) : (
                     <>
-                      Next Question <AppIcon name="ChevronRight" className="ml-2 h-4 w-4" />
+                      Next Question{" "}
+                      <AppIcon name="ChevronRight" className="ml-2 h-4 w-4" />
                     </>
                   )}
                 </Button>

@@ -39,13 +39,14 @@ export interface Question {
   imageUrl?: string | null;
   scale?: Scale;
   labels?: Labels;
-  displayStyle?: 'numbers' | 'stars' | 'hearts' | 'smileys';
+  displayStyle?: "numbers" | "stars" | "hearts" | "smileys";
   questionSettings?: QuestionSettings;
   theme?: string;
   font?: string;
   background?: string;
   animation?: string;
   showResultsInstantly?: boolean;
+  hideParticipantNames?: boolean;
 }
 
 export interface ContextData {
@@ -60,16 +61,18 @@ export interface ContextData {
 }
 
 export type HistoryAction =
-    | { type: 'SET_QUESTIONS'; payload: Question[] }
-    | { type: 'SET_TITLE'; payload: string }
-    | { type: 'SET_DESCRIPTION'; payload: string }
-    | { type: 'SET_THEME'; payload: string }
-    | { type: 'SET_SETTINGS'; payload: any }
-    | { type: 'SET_CATEGORY'; payload: string }
-    | { type: 'SET_TAGS'; payload: string[] }
-    | { type: 'SET_COVER_IMAGE'; payload: string | null }
-    | { type: 'UPDATE_QUESTION'; payload: { id: string; updates: Partial<Question> } }
-    | { type: 'ADD_QUESTION'; payload: Question }
-    | { type: 'DELETE_QUESTION'; payload: string }
-    | { type: 'REORDER_QUESTIONS'; payload: Question[] };
-  
+  | { type: "SET_QUESTIONS"; payload: Question[] }
+  | { type: "SET_TITLE"; payload: string }
+  | { type: "SET_DESCRIPTION"; payload: string }
+  | { type: "SET_THEME"; payload: string }
+  | { type: "SET_SETTINGS"; payload: any }
+  | { type: "SET_CATEGORY"; payload: string }
+  | { type: "SET_TAGS"; payload: string[] }
+  | { type: "SET_COVER_IMAGE"; payload: string | null }
+  | {
+      type: "UPDATE_QUESTION";
+      payload: { id: string; updates: Partial<Question> };
+    }
+  | { type: "ADD_QUESTION"; payload: Question }
+  | { type: "DELETE_QUESTION"; payload: string }
+  | { type: "REORDER_QUESTIONS"; payload: Question[] };

@@ -1,10 +1,10 @@
-export type QuestionType = 
-  | 'multiple-choice'
-  | 'rating'
-  | 'open-text'
-  | 'word-cloud';
+export type QuestionType =
+  | "multiple-choice"
+  | "rating"
+  | "open-text"
+  | "word-cloud";
 
-export type DisplayStyle = 'numbers' | 'stars' | 'hearts' | 'smileys';
+export type DisplayStyle = "numbers" | "stars" | "hearts" | "smileys";
 
 export interface QuestionOption {
   id: string;
@@ -36,6 +36,7 @@ export interface Question {
   image?: string;
   displayStyle?: DisplayStyle;
   showResultsInstantly?: boolean;
+  hideParticipantNames?: boolean;
 }
 
 export interface Presentation {
@@ -50,7 +51,7 @@ export interface Session {
   participantCount: number;
   startTime: Date;
   presentation: Presentation;
-  status: 'WAITING' | 'ACTIVE' | 'PAUSED' | 'ENDED';
+  status: "WAITING" | "ACTIVE" | "PAUSED" | "ENDED";
   currentQuestionIndex: number;
   currentQuestionId?: string;
   currentQuestionStartedAt?: Date;
@@ -65,24 +66,22 @@ export interface Participant {
   joinedAt: Date;
 }
 
-export interface MultipleChoiceResponses {
-  [optionId: string]: number;
-}
-
-export interface RatingResponses {
-  [rating: number]: number;
-  average?: string;
-  total?: number;
-}
-
-export interface OpenTextResponse {
-  text: string;
+export interface IndividualChoiceResponse {
+  optionId: string;
+  participantName?: string;
   timestamp: Date;
 }
 
-export interface OpenTextResponses {
-  count: number;
-  recent: OpenTextResponse[];
+export interface IndividualRatingResponse {
+  rating: number;
+  participantName?: string;
+  timestamp: Date;
+}
+
+export interface IndividualWordResponse {
+  words: string[];
+  participantName?: string;
+  timestamp: Date;
 }
 
 export interface WordCloudWord {
@@ -91,12 +90,34 @@ export interface WordCloudWord {
   color?: string;
 }
 
+export interface MultipleChoiceResponses {
+  [optionId: string]: number;
+  individualResponses?: IndividualChoiceResponse[];
+}
+
+export interface RatingResponses {
+  [rating: number]: number;
+  average?: string;
+  total?: number;
+  individualRatings?: IndividualRatingResponse[];
+}
+
+export interface OpenTextResponses {
+  count: number;
+  recent?: Array<{
+    text: string;
+    timestamp: Date;
+    participantName?: string;
+  }>;
+}
+
 export interface WordCloudResponses {
   uniqueWords: number;
   words: WordCloudWord[];
+  individualWords?: IndividualWordResponse[];
 }
 
-export type QuestionResponses = 
+export type QuestionResponses =
   | MultipleChoiceResponses
   | RatingResponses
   | OpenTextResponses
