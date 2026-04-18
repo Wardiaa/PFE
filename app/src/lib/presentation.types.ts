@@ -91,8 +91,8 @@ export interface WordCloudWord {
 }
 
 export interface MultipleChoiceResponses {
-  [optionId: string]: number;
   individualResponses?: IndividualChoiceResponse[];
+  [optionId: string]: number | IndividualChoiceResponse[] | undefined;
 }
 
 export interface RatingResponses {

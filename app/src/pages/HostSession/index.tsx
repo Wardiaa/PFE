@@ -10,7 +10,6 @@ import AppIcon from "../../components/AppIcon";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
-import { Switch } from "../../components/ui/switch";
 import {
   Avatar,
   AvatarFallback,
@@ -50,6 +49,7 @@ const HostSession: React.FC = () => {
   const [timerActive, setTimerActive] = useState<boolean>(false);
   const [hideParticipantNames, setHideParticipantNames] =
     useState<boolean>(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   // ── Stable refs ──────────────────────────────────────────────────────────
   const timerRef = useRef<number>(0);
@@ -100,6 +100,25 @@ const HostSession: React.FC = () => {
     return limit;
   };
 
+  // ── Fullscreen toggle ────────────────────────────────────────────────────
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen().catch(() => {});
+      setIsFullscreen(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const onFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
   // Keep refs in sync
   useEffect(() => {
     sessionRef.current = session;
@@ -140,7 +159,6 @@ const HostSession: React.FC = () => {
     [],
   );
 
-  // Single hook call — used for both sending (sendMessage) and receiving
   const { sendMessage, connected: wsConnected } = useSessionSocket({
     sessionId: session?.id ?? null,
     role: "host",
@@ -370,7 +388,6 @@ const HostSession: React.FC = () => {
 
           hasLoadedRef.current = true;
         } else {
-          // id is a context ID — create a new session
           const { data: contextData, error: contextError } = await supabase
             .from("contexts")
             .select("id, title")
@@ -446,7 +463,6 @@ const HostSession: React.FC = () => {
       )
       .subscribe();
 
-    // Supabase fallback — catches responses when the broadcast channel is reconnecting
     const responsesChannel = supabase
       .channel(`host-responses-${session.id}`)
       .on(
@@ -624,7 +640,6 @@ const HostSession: React.FC = () => {
       timerRef.current,
     );
     if (!success) {
-      // Roll back
       setIsPaused(!newPausedState);
       isPausedRef.current = !newPausedState;
       setTimerActive(newPausedState);
@@ -885,6 +900,7 @@ const HostSession: React.FC = () => {
   // ACTIVE QUESTION VIEW
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="h-16 border-b border-border flex items-center justify-between px-4 md:px-6 bg-card sticky top-0 z-30">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
@@ -936,17 +952,23 @@ const HostSession: React.FC = () => {
                 </span>
               </div>
             )}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted">
-            <AppIcon name="EyeOff" size={16} className="text-primary" />
-            <span className="text-xs text-muted-foreground">Hide Names</span>
-            <Switch
-              checked={hideParticipantNames}
-              onCheckedChange={(checked) => setHideParticipantNames(checked)}
-            />
-          </div>
           <Badge variant="secondary" className="text-sm px-3 py-1">
             {currentQuestionIndex + 1} / {session.presentation.questions.length}
           </Badge>
+
+          {/* Fullscreen button */}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          >
+            <AppIcon
+              name={isFullscreen ? "Minimize" : "Maximize"}
+              size={16}
+            />
+          </Button>
+
           <Button
             variant="destructive"
             size="sm"
@@ -957,6 +979,7 @@ const HostSession: React.FC = () => {
         </div>
       </header>
 
+      {/* Timer progress bar */}
       {currentQuestion && getQuestionTimeLimit(currentQuestion) !== null && (
         <div className="h-1 w-full bg-muted/40">
           {isPaused ? (
@@ -1057,6 +1080,8 @@ const HostSession: React.FC = () => {
         showCorrectAnswer={showCorrectAnswer}
         onToggleCorrectAnswer={handleToggleCorrectAnswer}
         isMultipleChoice={isCurrentMultipleChoice}
+        hideParticipantNames={hideParticipantNames}
+        onToggleHideParticipantNames={setHideParticipantNames}
       />
 
       {isPaused && <PauseOverlay onResume={handlePause} />}

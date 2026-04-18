@@ -17,12 +17,13 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import Navbar from "../../pages/landing/components/Navbar";
 
 const navItems = [
-  { path: "/dashboard", label: "Dashboard", icon: BarChart3  },
-  { path: "/explore",   label: "Explore",   icon: Compass    },
-  { path: "/create",    label: "Create",     icon: PlusCircle },
-  { path: "/profile",   label: "Profile",    icon: User       },
+  { path: "/dashboard", label: "Dashboard", icon: BarChart3, requiresAuth: true },
+  { path: "/explore",   label: "Explore",   icon: Compass,    requiresAuth: true },
+  { path: "/create",    label: "Create",     icon: PlusCircle, requiresAuth: false },
+  { path: "/profile",   label: "Profile",    icon: User,       requiresAuth: true },
 ];
 
 export function MainLayout() {
@@ -32,6 +33,14 @@ export function MainLayout() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen]       = useState(false);
   const [scrolled, setScrolled]                   = useState(false);
+  const [isFullscreen, setIsFullscreen]           = useState(false);
+
+  // ── Fullscreen detection ──────────────────────────────────────────────────
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
 
   // ── Leave-session guard ───────────────────────────────────────────────────
   const [showLeaveWarning, setShowLeaveWarning] = useState(false);
@@ -99,7 +108,6 @@ export function MainLayout() {
   }, []);
 
   // ── Watch for any navigation away from host page (back/forward/navbar) ────
-  // Detects the isHosting true → false transition regardless of how it happened
   useEffect(() => {
     if (prevIsHostingRef.current === true && !isHosting && prevSessionIdRef.current) {
       const sessionId = prevSessionIdRef.current;
@@ -174,21 +182,44 @@ export function MainLayout() {
     window.location.href = "/auth";
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── Get visible navigation items based on authentication ─────────────────
+  const getVisibleNavItems = () => {
+    if (user) {
+      // Show all nav items for authenticated users
+      return navItems;
+    } else {
+      // Show only items that don't require authentication
+      return navItems.filter(item => !item.requiresAuth);
+    }
+  };
+
+  const visibleNavItems = getVisibleNavItems();
+
+  // ── Check if we're on audience participation page ────────────────────────
+  const isAudienceParticipation = location.pathname === "/audience-participation";
+  
+  // For audience participation, always show layout with filtered nav
+  // For other routes, check authentication as before
+  const shouldRedirectToAuth = !isLoading && !user && !isAudienceParticipation;
+
+  useEffect(() => {
+    if (shouldRedirectToAuth) {
+      navigate("/auth", { replace: true });
+    }
+  }, [shouldRedirectToAuth, navigate]);
+
+  // Scroll handling for authenticated navbar
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  useEffect(() => {
-    if (!isLoading && !user) navigate("/auth", { replace: true });
-  }, [user, isLoading, navigate]);
-
   const unreadNotifications = 3;
   const isCreatePage    = location.pathname === "/create";
   const isCreateProcess = location.pathname.startsWith("/create");
 
+  // Don't render anything if we're loading or should redirect
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background">
@@ -200,11 +231,180 @@ export function MainLayout() {
     );
   }
 
-  if (!user) return null;
+  // For audience participation, we render even without user
+  // For other routes, we need user
+  if (!user && !isAudienceParticipation) return null;
 
-  const displayName   = profile?.name       || user.user_metadata?.name       || user.email?.split("@")[0] || "User";
+  const displayName   = profile?.name       || user?.user_metadata?.name       || user?.email?.split("@")[0] || "User";
   const displayRole   = profile?.role       || "USER";
-  const displayAvatar = profile?.avatar_url || user.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=6366f1&color=fff`;
+  const displayAvatar = profile?.avatar_url || user?.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=6366f1&color=fff`;
+
+  // Render authenticated navbar (existing design with Syncra logo)
+  const renderAuthNavbar = () => (
+    <nav className="sticky top-0 z-40 w-full transition-all duration-700">
+      <div
+        className={cn(
+          "w-full transition-all duration-700",
+          scrolled
+            ? "bg-background/95 backdrop-blur-xl border-b shadow-sm"
+            : "bg-background"
+        )}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+
+            {/* Logo - Syncra */}
+            <button
+              onClick={() => requestNavigate("/dashboard")}
+              className="flex items-center gap-3 group cursor-pointer"
+            >
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500">
+                <svg
+                  viewBox="16 6 70 89"
+                  width="100%"
+                  height="100%"
+                  preserveAspectRatio="xMidYMid meet"
+                  className="fill-primary"
+                >
+                  <path d="M52.0032727,91.1841818 L45.484,84.6649091 L85.3654545,84.6649091 L85.3654545,17.5625455 L80.836,17.5625455 L80.836,80.1354545 L45.484,80.1354545 L52.0032727,73.6161818 L48.8009091,70.4138182 L36.8161818,82.4001818 L48.8009091,94.3865455 L52.0032727,91.1841818 L52.0032727,91.1841818 Z M55.7456364,19.8272727 L48.8009091,26.7703636 L52.0032727,29.9727273 L63.9912727,17.988 L52.0032727,6 L48.8009091,9.20236364 L54.8963636,15.2994545 L16,15.2994545 L16,82.4001818 L20.5278182,82.4001818 L20.5278182,19.8272727 L55.7456364,19.8272727 L55.7456364,19.8272727 Z" />
+                </svg>
+              </div>
+              <span className="font-heading font-bold text-xl text-foreground">Syncra</span>
+            </button>
+
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center gap-6">
+              {visibleNavItems.map((item) => {
+                const Icon     = item.icon;
+                const isActive = location.pathname === item.path;
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => requestNavigate(item.path)}
+                    className={cn(
+                      "text-sm font-medium transition-colors hover:text-primary flex items-center gap-2 px-3 py-2 rounded-full",
+                      isActive
+                        ? "text-primary bg-primary/10"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Right Side - Desktop */}
+            <div className="hidden md:flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative rounded-full"
+                onClick={() => setShowNotifications(!showNotifications)}
+              >
+                <Bell className="h-5 w-5" />
+                {unreadNotifications > 0 && (
+                  <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">
+                    {unreadNotifications}
+                  </span>
+                )}
+              </Button>
+
+              <div className="flex items-center gap-3">
+                <img
+                  src={displayAvatar}
+                  alt={displayName}
+                  className="h-8 w-8 rounded-full ring-2 ring-primary/10 object-cover"
+                />
+                <div className="text-sm hidden lg:block">
+                  <div className="font-medium">{displayName}</div>
+                  <div className="text-xs text-muted-foreground capitalize">
+                    {displayRole.toLowerCase()}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleLogout}
+                  className="rounded-full text-muted-foreground hover:text-foreground"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Mobile Menu Button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden rounded-full"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-t bg-background">
+          <div className="max-w-7xl mx-auto px-4 py-3 space-y-1">
+            {visibleNavItems.map((item) => {
+              const Icon     = item.icon;
+              const isActive = location.pathname === item.path;
+              return (
+                <button
+                  key={item.path}
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    requestNavigate(item.path);
+                  }}
+                  className="w-full"
+                >
+                  <Button
+                    variant={isActive ? "secondary" : "ghost"}
+                    className={cn(
+                      "w-full justify-start gap-3",
+                      isActive && "bg-primary/10 text-primary"
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </Button>
+                </button>
+              );
+            })}
+            
+            <div className="pt-4 border-t mt-4">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <img
+                  src={displayAvatar}
+                  alt={displayName}
+                  className="h-8 w-8 rounded-full object-cover"
+                />
+                <div className="text-sm">
+                  <div className="font-medium">{displayName}</div>
+                  <div className="text-xs text-muted-foreground capitalize">
+                    {displayRole.toLowerCase()}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3 text-red-500 hover:text-red-600 hover:bg-red-50"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </Button>
+          </div>
+        </div>
+      )}
+    </nav>
+  );
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -256,164 +456,9 @@ export function MainLayout() {
         </div>
       )}
 
-      {/* ── Navigation ───────────────────────────────────────────────────── */}
-      {!isCreateProcess && (
-        <nav className="sticky top-0 z-40 w-full transition-all duration-700">
-          <div
-            className={cn(
-              "w-full transition-all duration-700",
-              scrolled
-                ? "bg-background/95 backdrop-blur-xl border-b shadow-sm"
-                : "bg-background"
-            )}
-          >
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex items-center justify-between h-16">
-
-                {/* Logo */}
-                <button
-                  onClick={() => requestNavigate("/dashboard")}
-                  className="flex items-center gap-3 group cursor-pointer"
-                >
-                  <div className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500",
-                    scrolled ? "bg-primary" : "bg-primary/90"
-                  )}>
-                    <span className="font-black text-white text-sm">E</span>
-                  </div>
-                  <span className="font-heading font-bold text-xl">Engage</span>
-                </button>
-
-                {/* Desktop Navigation */}
-                <div className="hidden md:flex items-center gap-6">
-                  {navItems.map((item) => {
-                    const Icon     = item.icon;
-                    const isActive = location.pathname === item.path;
-                    return (
-                      <button
-                        key={item.path}
-                        onClick={() => requestNavigate(item.path)}
-                        className={cn(
-                          "text-sm font-medium transition-colors hover:text-primary flex items-center gap-2 px-3 py-2 rounded-full",
-                          isActive
-                            ? "text-primary bg-primary/10"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                        {item.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Right Side */}
-                <div className="flex items-center gap-3">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="relative rounded-full"
-                    onClick={() => setShowNotifications(!showNotifications)}
-                  >
-                    <Bell className="h-5 w-5" />
-                    {unreadNotifications > 0 && (
-                      <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">
-                        {unreadNotifications}
-                      </span>
-                    )}
-                  </Button>
-
-                  <div className="hidden md:flex items-center gap-3">
-                    <img
-                      src={displayAvatar}
-                      alt={displayName}
-                      className="h-8 w-8 rounded-full ring-2 ring-primary/10 object-cover"
-                    />
-                    <div className="text-sm hidden lg:block">
-                      <div className="font-medium">{displayName}</div>
-                      <div className="text-xs text-muted-foreground capitalize">
-                        {displayRole.toLowerCase()}
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={handleLogout}
-                      className="rounded-full text-muted-foreground hover:text-foreground"
-                    >
-                      <LogOut className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="md:hidden rounded-full"
-                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                  >
-                    {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Mobile Menu */}
-          {mobileMenuOpen && (
-            <div className="md:hidden border-t bg-background">
-              <div className="max-w-7xl mx-auto px-4 py-3 space-y-1">
-                {navItems.map((item) => {
-                  const Icon     = item.icon;
-                  const isActive = location.pathname === item.path;
-                  return (
-                    <button
-                      key={item.path}
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        requestNavigate(item.path);
-                      }}
-                      className="w-full"
-                    >
-                      <Button
-                        variant={isActive ? "secondary" : "ghost"}
-                        className={cn(
-                          "w-full justify-start gap-3",
-                          isActive && "bg-primary/10 text-primary"
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                        {item.label}
-                      </Button>
-                    </button>
-                  );
-                })}
-                <div className="pt-4 border-t mt-4">
-                  <div className="flex items-center gap-3 px-4 py-3">
-                    <img
-                      src={displayAvatar}
-                      alt={displayName}
-                      className="h-8 w-8 rounded-full object-cover"
-                    />
-                    <div className="text-sm">
-                      <div className="font-medium">{displayName}</div>
-                      <div className="text-xs text-muted-foreground capitalize">
-                        {displayRole.toLowerCase()}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start gap-3 text-red-500 hover:text-red-600 hover:bg-red-50"
-                  onClick={handleLogout}
-                >
-                  <LogOut className="h-4 w-4" />
-                  Logout
-                </Button>
-              </div>
-            </div>
-          )}
-        </nav>
+      {/* ── Navigation — hidden when in fullscreen ────────────────────────── */}
+      {!isCreateProcess && !isFullscreen && (
+        user ? renderAuthNavbar() : <Navbar variant="audience" />
       )}
 
       <NotificationsPanel
@@ -421,14 +466,16 @@ export function MainLayout() {
         onClose={() => setShowNotifications(false)}
       />
 
+      {/* Main content */}
       <main className="flex-1">
         <Outlet />
       </main>
 
-      {!isCreatePage && (
+      {/* Footer — only show for authenticated users or non-fullscreen */}
+      {!isCreatePage && !isFullscreen && user && (
         <footer className="border-t py-8 mt-auto">
           <div className="max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground">
-            <p>© 2024 Engage Interactive. All rights reserved.</p>
+            <p>© 2024 Syncra. All rights reserved.</p>
             <div className="mt-4 flex items-center justify-center gap-6">
               <Link to="/terms"    className="hover:text-foreground transition-colors">Terms</Link>
               <Link to="/privacy"  className="hover:text-foreground transition-colors">Privacy</Link>

@@ -19,6 +19,48 @@ interface QuestionDisplayProps {
   hideParticipantNames?: boolean;
 }
 
+// ── Compact participant names chip list ──────────────────────────────────────
+// Shows up to MAX_VISIBLE avatar-style chips in a wrap layout.
+// Any extras are collapsed into a "+N more" chip.
+const MAX_VISIBLE = 8;
+
+interface ParticipantChipsProps {
+  names: string[];
+}
+
+const ParticipantChips: React.FC<ParticipantChipsProps> = ({ names }) => {
+  if (names.length === 0) return null;
+
+  const visible = names.slice(0, MAX_VISIBLE);
+  const overflow = names.length - MAX_VISIBLE;
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-1">
+      {visible.map((name, idx) => (
+        <span
+          key={idx}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium"
+          title={name}
+        >
+          <span
+            className="w-4 h-4 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[9px] font-bold flex-shrink-0"
+          >
+            {name.charAt(0).toUpperCase()}
+          </span>
+          <span className="max-w-[6rem] truncate">{name}</span>
+        </span>
+      ))}
+      {overflow > 0 && (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-xs font-medium">
+          +{overflow} more
+        </span>
+      )}
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
   question,
   responses,
@@ -47,133 +89,115 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
   };
 
   const renderMultipleChoice = (
-  question: Question,
-  responses: MultipleChoiceResponses,
-) => {
-  if (!("options" in question) || !question.options) return null;
+    question: Question,
+    responses: MultipleChoiceResponses,
+  ) => {
+    if (!("options" in question) || !question.options) return null;
 
-  // Only count the numeric response values, exclude individualResponses array
-  const totalResponses = Object.entries(responses).reduce((sum, [key, value]) => {
-    // Skip the individualResponses key and only count numeric values
-    if (key !== 'individualResponses' && typeof value === 'number') {
-      return sum + value;
-    }
-    return sum;
-  }, 0);
+    const totalResponses = Object.entries(responses).reduce((sum, [key, value]) => {
+      if (key !== "individualResponses" && typeof value === "number") {
+        return sum + value;
+      }
+      return sum;
+    }, 0);
 
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {question.options.map((option, index) => {
-        const optionImage = (option as any).imageUrl || (option as any).image;
-        const responseCount = responses[option.id] as number || 0;
-        const percentage = totalResponses > 0
-          ? Math.round((responseCount / totalResponses) * 100)
-          : 0;
-        const isCorrect = showCorrectAnswer && option.isCorrect;
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {question.options.map((option, index) => {
+          const optionImage = (option as any).imageUrl || (option as any).image;
+          const responseCount = (responses[option.id] as number) || 0;
+          const percentage =
+            totalResponses > 0
+              ? Math.round((responseCount / totalResponses) * 100)
+              : 0;
+          const isCorrect = showCorrectAnswer && option.isCorrect;
 
-        return (
-          <motion.div
-            key={option.id}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: index * 0.1 }}
-            className={`
-              relative bg-card border-2 rounded-xl p-4 md:p-6 transition-all duration-300
-              ${
-                isCorrect
-                  ? "border-green-500 bg-green-50 dark:bg-green-950/20"
-                  : "border-border hover:border-primary/50"
-              }
-            `}
-          >
-            <div className="flex items-center gap-3 md:gap-4 mb-2">
-              <div className="flex-shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                <span className="text-lg md:text-xl font-semibold text-primary">
-                  {String.fromCharCode(65 + index)}
-                </span>
-              </div>
-              <p className="text-base md:text-lg lg:text-xl font-medium text-foreground flex-1">
-                {option.text}
-              </p>
-              {isCorrect && (
-                <AppIcon
-                  name="CheckCircle"
-                  size={24}
-                  className="text-green-600 flex-shrink-0"
-                />
-              )}
-            </div>
+          // Names that chose this option
+          const respondentNames: string[] =
+            !hideParticipantNames && responses.individualResponses
+              ? responses.individualResponses
+                  .filter((r) => r.optionId === option.id && r.participantName)
+                  .map((r) => r.participantName as string)
+              : [];
 
-            {optionImage && (
-              <div className="mt-4 ml-13 md:ml-16 overflow-hidden rounded-lg border border-border bg-muted">
-                <img
-                  src={optionImage}
-                  alt=""
-                  className="w-full max-h-56 object-cover"
-                />
-              </div>
-            )}
-
-            {showResults && (
-              <div className="ml-13 md:ml-16 mt-2">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs md:text-sm text-muted-foreground">
-                    {responseCount}{" "}
-                    {responseCount === 1 ? "response" : "responses"}
-                  </span>
-                  <span className="text-sm md:text-base font-semibold text-primary">
-                    {percentage}%
+          return (
+            <motion.div
+              key={option.id}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: index * 0.1 }}
+              className={`
+                relative bg-card border-2 rounded-xl p-4 md:p-6 transition-all duration-300
+                ${
+                  isCorrect
+                    ? "border-green-500 bg-green-50 dark:bg-green-950/20"
+                    : "border-border hover:border-primary/50"
+                }
+              `}
+            >
+              {/* Option header row */}
+              <div className="flex items-center gap-3 md:gap-4 mb-2">
+                <div className="flex-shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <span className="text-lg md:text-xl font-semibold text-primary">
+                    {String.fromCharCode(65 + index)}
                   </span>
                 </div>
-                <div className="h-2 md:h-3 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all duration-500 rounded-full ${isCorrect ? "bg-green-500" : "bg-primary"}`}
-                    style={{ width: `${percentage}%` }}
+                <p className="text-base md:text-lg lg:text-xl font-medium text-foreground flex-1">
+                  {option.text}
+                </p>
+                {isCorrect && (
+                  <AppIcon
+                    name="CheckCircle"
+                    size={24}
+                    className="text-green-600 flex-shrink-0"
                   />
-                </div>
-
-                {/* Individual responses with participant names - fixed version */}
-                {responses.individualResponses && !hideParticipantNames && (
-                  <div className="mt-3 space-y-1">
-                    {responses.individualResponses
-                      .filter((r) => r.optionId === option.id)
-                      .slice(0, 5)
-                      .map((resp, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between text-xs"
-                        >
-                          <span className="text-muted-foreground">
-                            {new Date(resp.timestamp).toLocaleTimeString()}
-                          </span>
-                          {resp.participantName && (
-                            <span className="font-medium text-primary">
-                              {resp.participantName}
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    {responses.individualResponses.filter(
-                      (r) => r.optionId === option.id,
-                    ).length > 5 && (
-                      <div className="text-xs text-muted-foreground">
-                        +
-                        {responses.individualResponses.filter(
-                          (r) => r.optionId === option.id,
-                        ).length - 5}{" "}
-                        more
-                      </div>
-                    )}
-                  </div>
                 )}
               </div>
-            )}
-          </motion.div>
-        );
-      })}
-    </div>
-  );
-};
+
+              {/* Option image — reduced height so options with images stay compact */}
+              {optionImage && (
+                <div className="mt-4 ml-13 md:ml-16 overflow-hidden rounded-lg border border-border bg-muted">
+                  <img
+                    src={optionImage}
+                    alt=""
+                    className="w-full max-h-28 md:max-h-32 object-cover"
+                  />
+                </div>
+              )}
+
+              {/* Results bar + participant name chips */}
+              {showResults && (
+                <div className="ml-13 md:ml-16 mt-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs md:text-sm text-muted-foreground">
+                      {responseCount}{" "}
+                      {responseCount === 1 ? "response" : "responses"}
+                    </span>
+                    <span className="text-sm md:text-base font-semibold text-primary">
+                      {percentage}%
+                    </span>
+                  </div>
+                  <div className="h-2 md:h-3 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-500 rounded-full ${
+                        isCorrect ? "bg-green-500" : "bg-primary"
+                      }`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+
+                  {/* Compact participant name chips */}
+                  {!hideParticipantNames && respondentNames.length > 0 && (
+                    <ParticipantChips names={respondentNames} />
+                  )}
+                </div>
+              )}
+            </motion.div>
+          );
+        })}
+      </div>
+    );
+  };
 
   const renderRating = (responses: RatingResponses) => {
     const ratings = [1, 2, 3, 4, 5];
@@ -236,36 +260,32 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
           responses.individualRatings.length > 0 &&
           !hideParticipantNames && (
             <div className="bg-card border-2 border-border rounded-xl p-4 md:p-6">
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 mb-3">
                 <AppIcon name="List" size={20} />
                 <span className="text-sm md:text-base font-medium text-foreground">
                   Individual Ratings
                 </span>
               </div>
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {responses.individualRatings
-                  .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-                  .slice(0, 10)
-                  .map((rating, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="w-8 h-8 rounded-lg bg-yellow-100 dark:bg-yellow-900/20 flex items-center justify-center text-sm font-bold text-yellow-700 dark:text-yellow-300">
-                          {rating.rating}
-                        </span>
-                        <span className="text-muted-foreground text-xs">
-                          {new Date(rating.timestamp).toLocaleTimeString()}
-                        </span>
-                      </div>
-                      {rating.participantName && (
-                        <span className="font-medium text-primary">
-                          {rating.participantName}
-                        </span>
-                      )}
-                    </div>
-                  ))}
+              <div className="max-h-36 overflow-y-auto">
+                {/* Compact chip grid for rating respondents */}
+                <div className="flex flex-wrap gap-1.5">
+                  {responses.individualRatings
+                    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+                    .map((rating, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 text-xs font-medium"
+                        title={rating.participantName || undefined}
+                      >
+                        <span className="font-bold">{rating.rating}★</span>
+                        {rating.participantName && (
+                          <span className="max-w-[5rem] truncate">
+                            {rating.participantName}
+                          </span>
+                        )}
+                      </span>
+                    ))}
+                </div>
               </div>
             </div>
           )}
@@ -306,13 +326,16 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                   <p className="text-sm md:text-base text-foreground">
                     {response.text}
                   </p>
-                  <div className="flex items-center justify-between mt-2">
+                  <div className="flex items-center justify-between mt-2 flex-wrap gap-1">
                     <span className="text-xs text-muted-foreground">
                       {new Date(response.timestamp).toLocaleTimeString()}
                     </span>
                     {response.participantName && !hideParticipantNames && (
-                      <span className="text-xs font-medium text-primary">
-                        {response.participantName}
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                        <span className="w-3.5 h-3.5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[8px] font-bold flex-shrink-0">
+                          {(response.participantName as string).charAt(0).toUpperCase()}
+                        </span>
+                        <span className="max-w-[8rem] truncate">{response.participantName}</span>
                       </span>
                     )}
                   </div>
@@ -387,7 +410,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
           responses.individualWords &&
           responses.individualWords.length > 0 && (
             <div className="mt-6">
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 mb-3">
                 <AppIcon name="List" size={20} />
                 <span className="text-sm md:text-base font-medium text-foreground">
                   Individual Submissions
@@ -400,24 +423,27 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                   .map((submission, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center justify-between text-sm bg-muted/50 rounded-lg p-3"
+                      className="flex items-center justify-between text-sm bg-muted/50 rounded-lg p-3 gap-2"
                     >
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
                         {submission.words.map((word, wordIdx) => (
                           <span
                             key={wordIdx}
-                            className="px-2 py-1 bg-primary/10 text-primary rounded text-xs font-medium"
+                            className="px-2 py-0.5 bg-primary/10 text-primary rounded text-xs font-medium"
                           >
                             {word}
                           </span>
                         ))}
-                        <span className="text-muted-foreground text-xs ml-2">
+                        <span className="text-muted-foreground text-xs ml-1">
                           {new Date(submission.timestamp).toLocaleTimeString()}
                         </span>
                       </div>
                       {submission.participantName && !hideParticipantNames && (
-                        <span className="font-medium text-primary text-xs">
-                          {submission.participantName}
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium flex-shrink-0">
+                          <span className="w-3.5 h-3.5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[8px] font-bold">
+                            {submission.participantName.charAt(0).toUpperCase()}
+                          </span>
+                          <span className="max-w-[6rem] truncate">{submission.participantName}</span>
                         </span>
                       )}
                     </div>
