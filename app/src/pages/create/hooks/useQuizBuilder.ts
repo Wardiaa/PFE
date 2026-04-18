@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useReducer } from "react";
+import { useState, useEffect, useCallback, useReducer, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "../../../hooks/use-toast";
 import { useAuth } from "../../../contexts/AuthContext";
@@ -222,6 +222,16 @@ export function useQuizBuilder() {
   const [history, setHistory] = useState<ContextData[]>([INITIAL_STATE]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
+  // ── Delete confirmation state ─────────────────────────────────────────────
+  // pendingDeleteQuestion: the question the user clicked delete on, awaiting
+  // confirmation. null means no delete is pending.
+  const [pendingDeleteQuestion, setPendingDeleteQuestion] =
+    useState<Question | null>(null);
+
+  // forceDeleteIds: DB question UUIDs the user confirmed deleting. On save,
+  // their responses are deleted first so the FK constraint is satisfied.
+  const [forceDeleteIds, setForceDeleteIds] = useState<string[]>([]);
+
   const showEditingControls = step >= 2;
 
   // Custom setStep that also persists to sessionStorage
@@ -402,10 +412,13 @@ export function useQuizBuilder() {
     });
   };
 
+  // FIX: Accept an optional explicit snapshot so callers that already know the
+  // next state (e.g. after dispatch) can pass it in, avoiding a stale-closure
+  // capture of `context` before the reducer has flushed the update.
   const addToHistory = useCallback(
-    (_actionType: string) => {
+    (_actionType: string, snapshot?: ContextData) => {
       const newHistory = history.slice(0, historyIndex + 1);
-      newHistory.push({ ...context });
+      newHistory.push(snapshot ? { ...snapshot } : { ...context });
       setHistory(newHistory);
       setHistoryIndex(newHistory.length - 1);
       markUnsaved();
@@ -449,26 +462,33 @@ export function useQuizBuilder() {
     }
   };
 
+  // FIX: Use refs so the keyboard event listener always calls the current
+  // version of each handler — prevents stale closures over `context` when
+  // Ctrl+S, Ctrl+Z, or Ctrl+Y is pressed after a mutation (e.g. delete).
+  const handleBackgroundSaveRef = useRef<(() => Promise<void>) | undefined>(undefined);
+  const handleUndoRef = useRef<(() => void) | undefined>(undefined);
+  const handleRedoRef = useRef<(() => void) | undefined>(undefined);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (showEditingControls) {
         if ((e.ctrlKey || e.metaKey) && e.key === "z") {
           e.preventDefault();
-          handleUndo();
+          handleUndoRef.current?.();
         }
         if ((e.ctrlKey || e.metaKey) && e.key === "y") {
           e.preventDefault();
-          handleRedo();
+          handleRedoRef.current?.();
         }
         if ((e.ctrlKey || e.metaKey) && e.key === "s") {
           e.preventDefault();
-          handleBackgroundSave();
+          handleBackgroundSaveRef.current?.();
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [showEditingControls, handleUndo, handleRedo]);
+  }, [showEditingControls]);
 
   // ── Question helpers ───────────────────────────────────────────────────────
   const addQuestion = (type: string) => {
@@ -485,23 +505,88 @@ export function useQuizBuilder() {
     dispatch({ type: "ADD_QUESTION", payload: newQuestion });
     setCurrentQuestionIndex(context.questions.length);
     setSelectedQuestions([]);
-    addToHistory(`Add ${type.replace("-", " ")} question`);
+    // Pass the post-add snapshot so history records the correct state
+    addToHistory(`Add ${type.replace("-", " ")} question`, {
+      ...context,
+      questions: [...context.questions, newQuestion],
+    });
   };
 
   const updateQuestion = (id: string, updates: Partial<Question>) => {
     dispatch({ type: "UPDATE_QUESTION", payload: { id, updates } });
-    addToHistory("Update question");
+    // Pass the post-update snapshot
+    addToHistory("Update question", {
+      ...context,
+      questions: context.questions.map((q) =>
+        q.id === id ? { ...q, ...updates } : q,
+      ),
+    });
   };
 
+  // ── Delete with confirmation ───────────────────────────────────────────────
+  // Both deleteQuestion and handleDeleteCurrentQuestion now open a confirmation
+  // dialog instead of immediately removing the question.  The actual removal
+  // happens only when the user clicks "Delete" in the dialog (confirmDeleteQuestion).
+
   const deleteQuestion = (id: string) => {
-    dispatch({ type: "DELETE_QUESTION", payload: id });
-    addToHistory("Delete question");
+    const question = context.questions.find((q) => q.id === id);
+    if (question) setPendingDeleteQuestion(question);
+  };
+
+  const handleDeleteCurrentQuestion = () => {
+    if (
+      currentQuestionIndex >= 0 &&
+      context.questions[currentQuestionIndex]
+    ) {
+      setPendingDeleteQuestion(context.questions[currentQuestionIndex]);
+    }
+  };
+
+  // Called when the user clicks "Delete" in the confirmation dialog
+  const confirmDeleteQuestion = useCallback(() => {
+    if (!pendingDeleteQuestion) return;
+    const q = pendingDeleteQuestion;
+    const newQ = context.questions.filter((qi) => qi.id !== q.id);
+
+    dispatch({ type: "SET_QUESTIONS", payload: newQ });
+
+    // If the question already exists in the DB, we need to delete its responses
+    // first on save so the FK constraint is satisfied.
+    if (isDbUUID(q.id)) {
+      setForceDeleteIds((prev) =>
+        prev.includes(q.id) ? prev : [...prev, q.id],
+      );
+    }
+
+    // Keep currentQuestionIndex in bounds
+    if (context.questions[currentQuestionIndex]?.id === q.id) {
+      setCurrentQuestionIndex(Math.max(0, newQ.length - 1));
+    }
+    setSelectedQuestions((prev) =>
+      prev.filter((i) => context.questions[i]?.id !== q.id),
+    );
+
+    // Record in history with the correct post-delete snapshot
+    addToHistory("Delete question", { ...context, questions: newQ });
+
+    setPendingDeleteQuestion(null);
     toast({
       title: "Question deleted",
       description: "Question has been removed",
       duration: 1500,
     });
-  };
+  }, [
+    pendingDeleteQuestion,
+    context,
+    currentQuestionIndex,
+    addToHistory,
+    toast,
+  ]);
+
+  // Called when the user clicks "Cancel" in the confirmation dialog
+  const cancelDeleteQuestion = useCallback(() => {
+    setPendingDeleteQuestion(null);
+  }, []);
 
   // ── Field change handlers ──────────────────────────────────────────────────
   const handleTitleChange = (value: string) => {
@@ -586,8 +671,8 @@ export function useQuizBuilder() {
   //  2. INSERT questions with temp local IDs (newly created this session).
   //     After insert, patch local state with the real DB UUIDs so subsequent
   //     saves in the same session correctly UPDATE instead of re-inserting.
-  //  3. DELETE only removed questions that have NO associated responses.
-  //     Questions with existing responses are left in the DB (orphaned but safe).
+  //  3. For any removed questions (including forceDeleteIds):
+  //     delete their responses first, then delete the questions.
   //
   async function saveToSupabase(status: "ACTIVE" | "DRAFT"): Promise<string> {
     if (!user) throw new Error("You must be signed in to save.");
@@ -686,29 +771,28 @@ export function useQuizBuilder() {
       const allDbIds = (dbRows ?? []).map((r: any) => r.id as string);
       const removedIds = allDbIds.filter((id) => !currentDbIds.has(id));
 
-      if (removedIds.length > 0) {
-        // Only delete questions that have NO responses (avoid FK violation)
-        const { data: responsesCheck, error: respErr } = await supabase
+      // Combine with forceDeleteIds (questions user explicitly confirmed deleting)
+      const allIdsToDelete = [...new Set([...removedIds, ...forceDeleteIds])];
+
+      if (allIdsToDelete.length > 0) {
+        // FIRST: Delete all responses for these questions
+        const { error: respDelErr } = await supabase
           .from("responses")
-          .select("question_id")
-          .in("question_id", removedIds);
-
-        if (respErr) throw new Error(respErr.message);
-
-        const idsWithResponses = new Set(
-          (responsesCheck ?? []).map((r: any) => r.question_id as string),
-        );
-        const safeToDelete = removedIds.filter(
-          (id) => !idsWithResponses.has(id),
-        );
-
-        if (safeToDelete.length > 0) {
-          const { error: delErr } = await supabase
-            .from("questions")
-            .delete()
-            .in("id", safeToDelete);
-          if (delErr) throw new Error(delErr.message);
-        }
+          .delete()
+          .in("question_id", allIdsToDelete);
+        
+        if (respDelErr) throw new Error(respDelErr.message);
+        
+        // SECOND: Delete the questions
+        const { error: delErr } = await supabase
+          .from("questions")
+          .delete()
+          .in("id", allIdsToDelete);
+        
+        if (delErr) throw new Error(delErr.message);
+        
+        // Clear forceDeleteIds after successful deletion
+        setForceDeleteIds([]);
       }
 
       return draftContextId;
@@ -793,6 +877,11 @@ export function useQuizBuilder() {
       });
     }
   };
+
+  // Keep the refs current so the keyboard shortcut always calls the latest version
+  handleBackgroundSaveRef.current = handleBackgroundSave;
+  handleUndoRef.current = handleUndo;
+  handleRedoRef.current = handleRedo;
 
   // ── Publish (status = ACTIVE) — Step 5 ───────────────────────────────────
   const handleCreate = async () => {
@@ -882,7 +971,10 @@ export function useQuizBuilder() {
   const handleBulkUpdate = (updatedQuestions: Question[]) => {
     dispatch({ type: "SET_QUESTIONS", payload: updatedQuestions });
     setSelectedQuestions([]);
-    addToHistory("Bulk update questions");
+    addToHistory("Bulk update questions", {
+      ...context,
+      questions: updatedQuestions,
+    });
   };
 
   const handleDuplicateCurrentQuestion = () => {
@@ -897,23 +989,9 @@ export function useQuizBuilder() {
       newQuestions.splice(currentQuestionIndex + 1, 0, duplicate);
       dispatch({ type: "SET_QUESTIONS", payload: newQuestions });
       setCurrentQuestionIndex(currentQuestionIndex + 1);
-    }
-  };
-
-  const handleDeleteCurrentQuestion = () => {
-    if (currentQuestionIndex >= 0) {
-      const newQ = context.questions.filter(
-        (_, i) => i !== currentQuestionIndex,
-      );
-      dispatch({ type: "SET_QUESTIONS", payload: newQ });
-      setCurrentQuestionIndex(Math.max(0, newQ.length - 1));
-      setSelectedQuestions(
-        selectedQuestions.filter((i) => i !== currentQuestionIndex),
-      );
-      toast({
-        title: "Question deleted",
-        description: "Question has been removed",
-        duration: 1500,
+      addToHistory("Duplicate question", {
+        ...context,
+        questions: newQuestions,
       });
     }
   };
@@ -963,7 +1041,10 @@ export function useQuizBuilder() {
     }
 
     dispatch({ type: "SET_QUESTIONS", payload: updatedQuestions });
-    addToHistory("Reorder questions");
+    addToHistory("Reorder questions", {
+      ...context,
+      questions: updatedQuestions,
+    });
   };
 
   const handleQuickAction = (action: string) => {
@@ -1007,6 +1088,11 @@ export function useQuizBuilder() {
     isSavingDraft,
     isLoadingEdit,
     isEditMode: !!editId,
+
+    // Delete confirmation
+    pendingDeleteQuestion,
+    confirmDeleteQuestion,
+    cancelDeleteQuestion,
 
     // Actions
     addQuestion,

@@ -2,13 +2,11 @@
 import { useState } from "react";
 import { useQuizBuilder } from "./hooks/useQuizBuilder";
 import { renderStep } from "./components/steps";
-import { useNavigate } from "react-router-dom";
 import { Header } from "./components/Header";
 import { PreviewModal } from "./components/PreviewModal";
-import { Loader2 } from "lucide-react";
+import DeleteQuestionConfirmModal from "./components/DeleteQuestionConfirmModal";
 
 export default function EnhancedCreate() {
-  const navigate = useNavigate();
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const {
@@ -34,8 +32,9 @@ export default function EnhancedCreate() {
     historyIndex,
     isPublishing,
     isSavingDraft,
-    isLoadingEdit,
-    isEditMode,
+    pendingDeleteQuestion,
+    confirmDeleteQuestion,
+    cancelDeleteQuestion,
     addQuestion,
     updateQuestion,
     deleteQuestion,
@@ -146,6 +145,14 @@ export default function EnhancedCreate() {
         presentationSettings={context.settings}
         questions={context.questions}
         currentQuestionIndex={currentQuestionIndex}
+      />
+
+      {/* Delete confirmation modal */}
+      <DeleteQuestionConfirmModal
+        isOpen={!!pendingDeleteQuestion}
+        questionTitle={pendingDeleteQuestion?.title || ""}
+        onCancel={cancelDeleteQuestion}
+        onConfirm={confirmDeleteQuestion}
       />
     </div>
   );
