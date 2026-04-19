@@ -347,33 +347,29 @@ export function MainLayout() {
         </div>
       </div>
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu - Removed nested button elements */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t bg-background">
           <div className="max-w-7xl mx-auto px-4 py-3 space-y-1">
             {visibleNavItems.map((item) => {
-              const Icon     = item.icon;
+              const Icon = item.icon;
               const isActive = location.pathname === item.path;
               return (
-                <button
+                <Button
                   key={item.path}
+                  variant={isActive ? "secondary" : "ghost"}
+                  className={cn(
+                    "w-full justify-start gap-3",
+                    isActive && "bg-primary/10 text-primary"
+                  )}
                   onClick={() => {
                     setMobileMenuOpen(false);
                     requestNavigate(item.path);
                   }}
-                  className="w-full"
                 >
-                  <Button
-                    variant={isActive ? "secondary" : "ghost"}
-                    className={cn(
-                      "w-full justify-start gap-3",
-                      isActive && "bg-primary/10 text-primary"
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                  </Button>
-                </button>
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </Button>
               );
             })}
             
