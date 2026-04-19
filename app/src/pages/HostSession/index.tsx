@@ -50,6 +50,8 @@ const HostSession: React.FC = () => {
   const [hideParticipantNames, setHideParticipantNames] =
     useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  // Mobile lobby: show participant list panel
+  const [showMobileParticipants, setShowMobileParticipants] = useState<boolean>(false);
 
   // ── Stable refs ──────────────────────────────────────────────────────────
   const timerRef = useRef<number>(0);
@@ -120,24 +122,12 @@ const HostSession: React.FC = () => {
   }, []);
 
   // Keep refs in sync
-  useEffect(() => {
-    sessionRef.current = session;
-  }, [session]);
-  useEffect(() => {
-    currentQuestionRef.current = currentQuestion;
-  }, [currentQuestion]);
-  useEffect(() => {
-    timerRef.current = timer;
-  }, [timer]);
-  useEffect(() => {
-    timerActiveRef.current = timerActive;
-  }, [timerActive]);
-  useEffect(() => {
-    isPausedRef.current = isPaused;
-  }, [isPaused]);
-  useEffect(() => {
-    hideParticipantNamesRef.current = hideParticipantNames;
-  }, [hideParticipantNames]);
+  useEffect(() => { sessionRef.current = session; }, [session]);
+  useEffect(() => { currentQuestionRef.current = currentQuestion; }, [currentQuestion]);
+  useEffect(() => { timerRef.current = timer; }, [timer]);
+  useEffect(() => { timerActiveRef.current = timerActive; }, [timerActive]);
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
+  useEffect(() => { hideParticipantNamesRef.current = hideParticipantNames; }, [hideParticipantNames]);
 
   // ── Real-time: receive RESPONSE_SUBMITTED from audience ─────────────────
   const handleWsMessage = useCallback(
@@ -729,14 +719,14 @@ const HostSession: React.FC = () => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
+          <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
             <AppIcon
               name="Loader2"
-              size={32}
+              size={28}
               className="text-primary animate-spin"
             />
           </div>
-          <p className="text-muted-foreground">Setting up your session...</p>
+          <p className="text-muted-foreground text-sm">Setting up your session...</p>
         </div>
       </div>
     );
@@ -745,25 +735,25 @@ const HostSession: React.FC = () => {
   if (error || !session) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="text-center max-w-md">
-          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-destructive/10 flex items-center justify-center">
+        <div className="text-center max-w-sm w-full">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-destructive/10 flex items-center justify-center">
             <AppIcon
               name="AlertCircle"
-              size={40}
+              size={32}
               className="text-destructive"
             />
           </div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">
+          <h2 className="text-xl md:text-2xl font-bold text-foreground mb-2">
             Session Error
           </h2>
-          <p className="text-muted-foreground mb-6">
+          <p className="text-sm md:text-base text-muted-foreground mb-6">
             {error || "Session not found."}
           </p>
-          <div className="flex gap-3 justify-center">
-            <Button variant="outline" onClick={() => navigate("/dashboard")}>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button variant="outline" onClick={() => navigate("/dashboard")} className="w-full sm:w-auto">
               Return to Dashboard
             </Button>
-            <Button onClick={() => navigate("/create")}>
+            <Button onClick={() => navigate("/create")} className="w-full sm:w-auto">
               Create New Context
             </Button>
           </div>
@@ -772,200 +762,319 @@ const HostSession: React.FC = () => {
     );
   }
 
-  // LOBBY VIEW
+  // ── LOBBY VIEW ────────────────────────────────────────────────────────────
   if (currentQuestionIndex === -1) {
     return (
-      <div className="min-h-screen bg-primary flex flex-col items-center justify-center text-white p-4">
-        <div className="max-w-6xl w-full grid md:grid-cols-2 gap-8 items-center">
-          <div className="space-y-8">
-            <div>
-              <Badge
-                variant="outline"
-                className="text-white border-white mb-4 bg-white/20"
+      <div className="min-h-screen bg-primary flex flex-col text-white">
+        {/* ── Mobile participant panel overlay ── */}
+        <AnimatePresence>
+          {showMobileParticipants && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 z-40 md:hidden"
+              onClick={() => setShowMobileParticipants(false)}
+            >
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                className="absolute bottom-0 left-0 right-0 bg-primary rounded-t-2xl p-5 max-h-[75vh] flex flex-col"
+                onClick={(e) => e.stopPropagation()}
               >
-                Join at {window.location.host}
-              </Badge>
-              <h1 className="text-5xl md:text-6xl font-black tracking-tight mb-2">
-                Code: {session.code}
-              </h1>
-              <p className="text-xl opacity-90 flex items-center gap-2">
-                <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500" />
-                </span>
-                Waiting for participants...
-              </p>
-            </div>
-
-            <Card className="p-6 bg-white/10 border-white/20 backdrop-blur-md text-white">
-              <div className="flex items-center gap-6">
-                <div className="h-32 w-32 bg-white rounded-lg flex items-center justify-center text-black">
-                  <AppIcon name="QrCode" size={80} />
+                <div className="flex justify-center mb-3">
+                  <div className="w-10 h-1 rounded-full bg-white/30" />
                 </div>
-                <div className="space-y-3">
-                  <div className="text-sm uppercase tracking-wider opacity-75">
-                    Scan to join
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2 font-bold text-base">
+                    <AppIcon name="Users" size={18} />
+                    <span>{participants.length} Joined</span>
                   </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="w-full bg-white text-primary hover:bg-white/90"
-                    onClick={handleCopyLink}
+                  <button
+                    onClick={() => setShowMobileParticipants(false)}
+                    className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"
                   >
-                    <AppIcon name="Copy" className="mr-2 h-4 w-4" /> Copy Link
-                  </Button>
-                  <p className="text-xs opacity-75">
-                    or enter code: {session.code}
+                    <AppIcon name="X" size={16} />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
+                  <AnimatePresence>
+                    {participants.length === 0 ? (
+                      <p className="text-center opacity-60 py-8 text-sm">
+                        Waiting for participants to join...
+                      </p>
+                    ) : (
+                      participants.map((p, i) => (
+                        <motion.div
+                          key={p.id}
+                          initial={{ opacity: 0, y: 16 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, x: -16 }}
+                          transition={{ delay: i * 0.04 }}
+                          className="flex items-center gap-3 p-3 bg-white/5 rounded-lg"
+                        >
+                          <Avatar className="h-8 w-8 border-2 border-white/20">
+                            <AvatarImage src={p.avatar} />
+                            <AvatarFallback>{p.name[0]}</AvatarFallback>
+                          </Avatar>
+                          <span className="font-medium flex-1 text-sm">{p.name}</span>
+                          {p.score > 0 && (
+                            <Badge
+                              variant="secondary"
+                              className="bg-yellow-500/20 text-yellow-300 text-xs"
+                            >
+                              {p.score} pts
+                            </Badge>
+                          )}
+                        </motion.div>
+                      ))
+                    )}
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Lobby body ── */}
+        <div className="flex-1 flex flex-col p-4 sm:p-6 md:p-8">
+          <div className="max-w-6xl w-full mx-auto flex-1 flex flex-col">
+
+            {/* Desktop: two-column grid | Mobile: stacked */}
+            <div className="flex-1 flex flex-col md:grid md:grid-cols-2 md:gap-8 md:items-center gap-6">
+
+              {/* ── Left / top: session info ── */}
+              <div className="space-y-5 sm:space-y-6 md:space-y-8">
+                <div>
+                  <Badge
+                    variant="outline"
+                    className="text-white border-white mb-3 bg-white/20 text-xs sm:text-sm"
+                  >
+                    Join at {window.location.host}
+                  </Badge>
+                  <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight mb-2">
+                    Code: {session.code}
+                  </h1>
+                  <p className="text-base sm:text-xl opacity-90 flex items-center gap-2">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500" />
+                    </span>
+                    Waiting for participants...
                   </p>
                 </div>
-              </div>
-            </Card>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                <div className="text-3xl font-bold">
-                  {session.presentation.questions.length}
-                </div>
-                <div className="text-sm opacity-75">Questions</div>
-              </div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                <div className="text-3xl font-bold">{participants.length}</div>
-                <div className="text-sm opacity-75">Participants</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 h-125 flex flex-col">
-            <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
-              <div className="flex items-center gap-2 font-bold text-lg">
-                <AppIcon name="Users" className="h-5 w-5" />
-                <span>{participants.length} Joined</span>
-              </div>
-              <div className="flex items-center gap-2">
-                {wsConnected && (
-                  <div className="flex items-center gap-1.5 px-2 py-1 bg-white/10 rounded text-xs">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                    Live
-                  </div>
-                )}
-                <Badge variant="outline" className="text-white border-white">
-                  {session.code}
-                </Badge>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
-              <AnimatePresence>
-                {participants.map((p, i) => (
-                  <motion.div
-                    key={p.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="flex items-center gap-3 p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
-                  >
-                    <Avatar className="h-8 w-8 border-2 border-white/20">
-                      <AvatarImage src={p.avatar} />
-                      <AvatarFallback>{p.name[0]}</AvatarFallback>
-                    </Avatar>
-                    <span className="font-medium flex-1">{p.name}</span>
-                    {p.score > 0 && (
-                      <Badge
+                {/* Share card */}
+                <Card className="p-4 sm:p-6 bg-white/10 border-white/20 backdrop-blur-md text-white">
+                  <div className="flex items-center gap-4 sm:gap-6">
+                    <div className="h-24 w-24 sm:h-32 sm:w-32 bg-white rounded-lg flex items-center justify-center text-black flex-shrink-0">
+                      <AppIcon name="QrCode" size={64} className="sm:hidden" />
+                      <AppIcon name="QrCode" size={80} className="hidden sm:block" />
+                    </div>
+                    <div className="space-y-2 sm:space-y-3 flex-1 min-w-0">
+                      <div className="text-xs sm:text-sm uppercase tracking-wider opacity-75">
+                        Scan to join
+                      </div>
+                      <Button
                         variant="secondary"
-                        className="bg-yellow-500/20 text-yellow-300"
+                        size="sm"
+                        className="w-full bg-white text-primary hover:bg-white/90"
+                        onClick={handleCopyLink}
                       >
-                        {p.score} pts
-                      </Badge>
+                        <AppIcon name="Copy" className="mr-2 h-4 w-4" /> Copy Link
+                      </Button>
+                      <p className="text-xs opacity-75 truncate">
+                        or enter code: {session.code}
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Stats grid */}
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 sm:p-4">
+                    <div className="text-2xl sm:text-3xl font-bold">
+                      {session.presentation.questions.length}
+                    </div>
+                    <div className="text-xs sm:text-sm opacity-75">Questions</div>
+                  </div>
+                  <button
+                    className="bg-white/10 backdrop-blur-sm rounded-lg p-3 sm:p-4 text-left hover:bg-white/20 transition-colors md:cursor-default"
+                    onClick={() => setShowMobileParticipants(true)}
+                  >
+                    <div className="text-2xl sm:text-3xl font-bold">{participants.length}</div>
+                    <div className="text-xs sm:text-sm opacity-75 flex items-center gap-1">
+                      Participants
+                      <AppIcon name="ChevronUp" size={12} className="md:hidden opacity-60" />
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* ── Right / bottom: participant list (desktop only) ── */}
+              <div className="hidden md:flex bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 flex-col" style={{ minHeight: "380px", maxHeight: "500px" }}>
+                <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
+                  <div className="flex items-center gap-2 font-bold text-lg">
+                    <AppIcon name="Users" className="h-5 w-5" />
+                    <span>{participants.length} Joined</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {wsConnected && (
+                      <div className="flex items-center gap-1.5 px-2 py-1 bg-white/10 rounded text-xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                        Live
+                      </div>
                     )}
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+                    <Badge variant="outline" className="text-white border-white">
+                      {session.code}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
+                  <AnimatePresence>
+                    {participants.length === 0 ? (
+                      <p className="text-center opacity-60 py-8 text-sm">
+                        Waiting for participants to join...
+                      </p>
+                    ) : (
+                      participants.map((p, i) => (
+                        <motion.div
+                          key={p.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          transition={{ delay: i * 0.05 }}
+                          className="flex items-center gap-3 p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
+                        >
+                          <Avatar className="h-8 w-8 border-2 border-white/20">
+                            <AvatarImage src={p.avatar} />
+                            <AvatarFallback>{p.name[0]}</AvatarFallback>
+                          </Avatar>
+                          <span className="font-medium flex-1">{p.name}</span>
+                          {p.score > 0 && (
+                            <Badge
+                              variant="secondary"
+                              className="bg-yellow-500/20 text-yellow-300"
+                            >
+                              {p.score} pts
+                            </Badge>
+                          )}
+                        </motion.div>
+                      ))
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <Button
+                  size="lg"
+                  className="w-full mt-4 bg-white text-primary hover:bg-white/90 font-bold text-lg shadow-xl"
+                  onClick={handleStart}
+                >
+                  Start Presentation{" "}
+                  <AppIcon name="Play" className="ml-2 h-5 w-5" />
+                </Button>
+              </div>
             </div>
 
-            <Button
-              size="lg"
-              className="w-full mt-4 bg-white text-primary hover:bg-white/90 font-bold text-lg shadow-xl"
-              onClick={handleStart}
-            >
-              Start Presentation{" "}
-              <AppIcon name="Play" className="ml-2 h-5 w-5" />
-            </Button>
+            {/* ── Mobile Start button (sticky at bottom) ── */}
+            <div className="md:hidden mt-4 pb-safe">
+              <Button
+                size="lg"
+                className="w-full bg-white text-primary hover:bg-white/90 font-bold text-base shadow-xl"
+                onClick={handleStart}
+              >
+                Start Presentation{" "}
+                <AppIcon name="Play" className="ml-2 h-5 w-5" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  // ACTIVE QUESTION VIEW
+  // ── ACTIVE QUESTION VIEW ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className="h-16 border-b border-border flex items-center justify-between px-4 md:px-6 bg-card sticky top-0 z-30">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+      <header className="h-14 md:h-16 border-b border-border flex items-center justify-between px-3 md:px-6 bg-card sticky top-0 z-30 gap-2">
+        {/* Left: title */}
+        <div className="flex items-center gap-2 md:gap-3 min-w-0">
+          <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
             <AppIcon
               name="Radio"
-              size={16}
+              size={14}
               className="text-primary-foreground"
             />
           </div>
-          <div>
-            <span className="font-bold text-foreground">
+          <div className="min-w-0">
+            <span className="font-bold text-foreground text-sm md:text-base truncate block max-w-[120px] sm:max-w-[200px] md:max-w-none">
               {session.presentation.title}
             </span>
-            <span className="text-xs text-muted-foreground ml-2">
-              • {session.code}
-            </span>
-            {isPaused && (
-              <span className="ml-2 text-xs bg-yellow-500/20 text-yellow-600 px-2 py-0.5 rounded">
-                Paused
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground hidden sm:inline">
+                • {session.code}
               </span>
-            )}
+              {isPaused && (
+                <span className="text-xs bg-yellow-500/20 text-yellow-600 px-1.5 py-0.5 rounded">
+                  Paused
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* Right: controls */}
+        <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
+          {/* Real-time dot – hidden on very small screens */}
           {wsConnected && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              Real-time
+              <span className="hidden md:inline">Real-time</span>
             </div>
           )}
+
+          {/* Timer display */}
           {currentQuestion &&
             getQuestionTimeLimit(currentQuestion) === null && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted">
-                <AppIcon name="Infinity" size={16} className="text-primary" />
-                <span className="font-semibold text-primary">No timer</span>
+              <div className="flex items-center gap-1 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg bg-muted">
+                <AppIcon name="Infinity" size={14} className="text-primary" />
+                <span className="font-semibold text-primary text-xs sm:text-sm hidden sm:inline">No timer</span>
               </div>
             )}
           {currentQuestion &&
             getQuestionTimeLimit(currentQuestion) !== null && (
               <div
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
+                className={`flex items-center gap-1 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg ${
                   isPaused ? "bg-yellow-500/20" : "bg-muted"
                 }`}
               >
-                <AppIcon name="Clock" size={16} className="text-primary" />
-                <span className="font-mono font-bold text-primary">
+                <AppIcon name="Clock" size={14} className="text-primary" />
+                <span className="font-mono font-bold text-primary text-xs sm:text-sm">
                   {timer}s
                 </span>
               </div>
             )}
-          <Badge variant="secondary" className="text-sm px-3 py-1">
-            {currentQuestionIndex + 1} / {session.presentation.questions.length}
+
+          {/* Q counter */}
+          <Badge variant="secondary" className="text-xs sm:text-sm px-2 sm:px-3 py-0.5 sm:py-1">
+            {currentQuestionIndex + 1}/{session.presentation.questions.length}
           </Badge>
 
-          {/* Fullscreen button */}
+          {/* Fullscreen – desktop only */}
           <Button
             variant="outline"
             size="icon"
             onClick={toggleFullscreen}
             title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            className="hidden md:flex h-8 w-8 md:h-9 md:w-9"
           >
             <AppIcon
               name={isFullscreen ? "Minimize" : "Maximize"}
-              size={16}
+              size={15}
             />
           </Button>
 
@@ -973,6 +1082,7 @@ const HostSession: React.FC = () => {
             variant="destructive"
             size="sm"
             onClick={() => navigate("/dashboard")}
+            className="text-xs px-2 sm:px-3"
           >
             Exit
           </Button>
@@ -1003,7 +1113,13 @@ const HostSession: React.FC = () => {
         </div>
       )}
 
-      <main className="flex-1 flex flex-col items-center p-4 md:p-6 lg:p-8 relative overflow-hidden">
+      {/*
+        Main content area.
+        On mobile, we need bottom padding for the ControlPanel (which is fixed
+        at the bottom of the screen). The panel is ~260px collapsed and ~420px
+        expanded — we use a generous pb so content is never hidden behind it.
+      */}
+      <main className="flex-1 flex flex-col items-center p-3 sm:p-4 md:p-6 lg:p-8 pb-72 sm:pb-64 lg:pb-8 relative overflow-hidden">
         <div className="max-w-5xl w-full">
           {currentQuestion && (
             <QuestionDisplay
@@ -1017,33 +1133,33 @@ const HostSession: React.FC = () => {
 
           {showResults && (
             <motion.div
-              initial={{ opacity: 0, y: 50 }}
+              initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-card p-6 rounded-xl border border-border shadow-xl mt-8"
+              className="bg-card p-4 sm:p-6 rounded-xl border border-border shadow-xl mt-6 sm:mt-8"
             >
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
                     <AppIcon
                       name="Trophy"
-                      size={24}
+                      size={22}
                       className="text-yellow-600"
                     />
                   </div>
                   <div>
-                    <div className="font-bold text-lg">
+                    <div className="font-bold text-base sm:text-lg">
                       Ready for next question?
                     </div>
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-xs sm:text-sm text-muted-foreground">
                       {participants
                         .slice(0, 3)
                         .map((p) => p.name)
                         .join(", ")}{" "}
-                      and others are waiting
+                      {participants.length > 3 ? "and others are waiting" : ""}
                     </div>
                   </div>
                 </div>
-                <Button size="lg" onClick={handleNext} className="min-w-37.5">
+                <Button size="lg" onClick={handleNext} className="w-full sm:w-auto sm:min-w-40">
                   {currentQuestionIndex ===
                   session.presentation.questions.length - 1 ? (
                     <>

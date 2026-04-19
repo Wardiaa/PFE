@@ -18,16 +18,21 @@ const EndSessionModal: React.FC<EndSessionModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-card border-2 border-border rounded-xl shadow-2xl max-w-md w-full p-6 md:p-8">
+    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-card border-2 border-border rounded-t-2xl sm:rounded-xl shadow-2xl w-full sm:max-w-md p-6 md:p-8">
+        {/* Drag handle for mobile sheet feel */}
+        <div className="flex justify-center mb-4 sm:hidden">
+          <div className="w-10 h-1 rounded-full bg-border" />
+        </div>
+
         <div className="text-center mb-6">
-          <div className="w-16 h-16 md:w-20 md:h-20 mx-auto mb-4 rounded-full bg-destructive/10 flex items-center justify-center">
-            <AppIcon name="AlertCircle" size={40} />
+          <div className="w-14 h-14 md:w-16 md:h-16 mx-auto mb-4 rounded-full bg-destructive/10 flex items-center justify-center">
+            <AppIcon name="AlertCircle" size={32} />
           </div>
-          <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
+          <h2 className="text-xl md:text-2xl font-bold text-foreground mb-2">
             End Presentation?
           </h2>
-          <p className="text-base text-muted-foreground">
+          <p className="text-sm md:text-base text-muted-foreground">
             This will close the session for all participants. You can view the results afterwards.
           </p>
         </div>
