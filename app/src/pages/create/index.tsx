@@ -130,6 +130,7 @@ export default function EnhancedCreate() {
         onRedo={handleRedo}
         canUndo={historyIndex > 0}
         canRedo={historyIndex < history.length - 1}
+        contextTitle={context.title || "Untitled Session"}
       />
 
       <main className="flex-1 overflow-hidden w-full">

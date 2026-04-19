@@ -58,6 +58,8 @@ interface QuestionSidePanelProps {
   onDeleteQuestion?: () => void;
   isOpen: boolean;
   onToggle: () => void;
+  /** When true, renders as a flat inline panel (no absolute positioning — for mobile bottom sheets) */
+  inline?: boolean;
 }
 
 const menuItems = [
@@ -254,6 +256,7 @@ export function QuestionSidePanel({
   onDeleteQuestion,
   onToggle,
   isOpen,
+  inline = false,
 }: QuestionSidePanelProps) {
   const [activeMenu, setActiveMenu] = useState<string>("edit");
   const [comments, setComments] = useState<Comment[]>([]);
@@ -1075,6 +1078,42 @@ export function QuestionSidePanel({
   const panelTitle =
     menuItems.find((m) => m.id === activeMenu)?.label ?? "Edit";
 
+  // ── INLINE mode (mobile bottom sheet) ────────────────────────────────────
+  if (inline) {
+    return (
+      <div className="flex flex-col">
+        {/* Horizontal tab bar */}
+        <div className="flex border-b border-slate-100 bg-white sticky top-0 z-10">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeMenu === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveMenu(item.id)}
+                className={cn(
+                  "flex-1 flex flex-col items-center gap-1 py-3 text-[10px] font-bold border-b-2 transition-all",
+                  isActive
+                    ? "border-[#6366F1] text-[#6366F1]"
+                    : "border-transparent text-slate-400",
+                )}
+              >
+                <Icon className="w-4 h-4" />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Panel content — scrolls naturally inside the bottom sheet */}
+        <div className="px-4 py-4 pb-8">
+          {renderPanelContent()}
+        </div>
+      </div>
+    );
+  }
+
+  // ── DESKTOP mode (absolute side panel) ───────────────────────────────────
   return (
     <div className="absolute right-0 top-0 h-full flex z-30 bg-white">
       <AnimatePresence>

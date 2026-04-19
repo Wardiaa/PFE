@@ -10,10 +10,7 @@ import {
   Save,
   Eye,
   Undo2,
-  Redo2,
-  Menu,
-  X
-} from "lucide-react";
+  Redo2} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
@@ -30,6 +27,8 @@ interface CreateHeaderProps {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  // Add context title prop
+  contextTitle?: string;
 }
 
 const tabs = [
@@ -50,7 +49,8 @@ export function Header({
   onUndo,
   onRedo,
   canUndo = false,
-  canRedo = false
+  canRedo = false,
+  contextTitle = "Untitled Session" // Default value
 }: CreateHeaderProps) {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -91,12 +91,12 @@ export function Header({
 
         <div className="hidden sm:flex flex-col">
           <h1 className="text-[10px] sm:text-[13px] font-black tracking-[0.15em] text-[#0F172A] leading-none mb-1.5">
-            GLOBAL ENGINEERING NNBE
+            {contextTitle.toUpperCase().slice(0, 40)}
           </h1>
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
             <span className="text-[8px] sm:text-[10px] font-bold font-mono text-slate-400 tracking-wider">
-              SESSION: X9-A42
+              DRAFT IN PROGRESS
             </span>
           </div>
         </div>
