@@ -9,7 +9,7 @@ const CTASection: React.FC = () => {
           Ready to make your sessions <br className="hidden md:block" /> truly interactive?
         </h2>
         <p className="text-xl text-zinc-600 mb-10 max-w-2xl mx-auto leading-relaxed">
-          Join thousands of presenters who use EngageLive to bridge the gap between speaker and audience.
+          Join thousands of presenters who use Syncra to bridge the gap between speaker and audience.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <button className="px-12 py-5 bg-black text-white rounded-full font-bold text-lg hover:scale-105 transition-transform active:scale-95 shadow-xl">

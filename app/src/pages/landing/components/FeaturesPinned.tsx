@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { BarChart3, HelpCircle, Users, BrainCircuit, ArrowRight } from 'lucide-react';
+import { BarChart3, HelpCircle, Users, Zap, ArrowRight } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { motion } from 'framer-motion';
@@ -21,43 +21,43 @@ interface Feature {
 const FEATURES: Feature[] = [
   {
     id: 1,
-    title: "AI that thinks with you.",
-    description: "Our engine analyzes response patterns in real-time, suggesting follow-up questions that probe deeper into user intent.",
-    icon: <BrainCircuit className="w-5 h-5" />,
+    title: "Live polls & word clouds, instantly.",
+    description: "Create multiple‑choice polls or word clouds in seconds. Watch responses transform into beautiful visualisations as your audience participates.",
+    icon: <BarChart3 className="w-5 h-5" />,
     color: "bg-[#111111]",
     accent: "text-blue-500",
-    image: "https://images.unsplash.com/photo-1639322537228-f710d846310a?auto=format&fit=crop&q=80&w=1200",
-    tag: "Intelligence"
+    image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=1200",
+    tag: "Real‑time"
   },
   {
     id: 2,
-    title: "Polls at the speed of light.",
-    description: "Zero-latency data visualization. Transform thousands of concurrent votes into beautiful, high-fidelity heatmaps instantly.",
-    icon: <BarChart3 className="w-5 h-5" />,
+    title: "Gamified quizzes & leaderboards.",
+    description: "Timed questions, point scoring, and live leaderboards. Boost engagement and turn passive viewers into active competitors.",
+    icon: <HelpCircle className="w-5 h-5" />,
     color: "bg-[#161617]",
     accent: "text-purple-500",
-    image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=1200",
-    tag: "Real-time"
-  },
-  {
-    id: 3,
-    title: "Retention through play.",
-    description: "Move beyond static forms. Our gamified quiz logic increases completion rates by an average of 62% across all industries.",
-    icon: <HelpCircle className="w-5 h-5" />,
-    color: "bg-[#1c1c1e]",
-    accent: "text-emerald-500",
     image: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=1200",
     tag: "Gamification"
   },
   {
-    id: 4,
-    title: "Unified Team Sync.",
-    description: "Collaborative interaction tools built for the modern remote workspace. Sync up, speak out, and move forward together.",
+    id: 3,
+    title: "Open‑text responses & Q&A.",
+    description: "Let your audience submit free‑form answers or ask live questions. Moderate, highlight, and share the best contributions with everyone.",
     icon: <Users className="w-5 h-5" />,
+    color: "bg-[#1c1c1e]",
+    accent: "text-emerald-500",
+    image: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&q=80&w=1200",
+    tag: "Interaction"
+  },
+  {
+    id: 4,
+    title: "Complete host control.",
+    description: "Pause sessions, skip questions, hide participant names, and control results visibility. Everything you need to run a smooth, professional event.",
+    icon: <Zap className="w-5 h-5" />,
     color: "bg-[#252529]",
     accent: "text-orange-500",
-    image: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&q=80&w=1200",
-    tag: "Collaboration"
+    image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&q=80&w=1200",
+    tag: "Moderation"
   }
 ];
 
@@ -157,7 +157,7 @@ const FeaturesPinned: React.FC = () => {
             whileInView={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            The world's most sophisticated toolkit for quizzes, polls, and live engagement.
+            The complete toolkit for quizzes, polls, and live engagement.
           </motion.p>
         </motion.div>
       </section>
