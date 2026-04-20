@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Smartphone, Monitor, Eye, Heart, Smile, Star } from "lucide-react";
+import { X, Smartphone, Monitor, Eye } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Question } from "../types";
 
@@ -12,493 +12,617 @@ interface PreviewModalProps {
   currentQuestionIndex: number;
 }
 
-// ─── Theme definitions (keep in sync with QuestionSidePanel) ───────────────
-const QUESTION_THEMES = {
-  default: {
-    bg: "#ffffff",
-    surface: "#f8fafc",
-    text: "#0f172a",
-    subtext: "#64748b",
-    accent: "#6366f1",
-    accentFg: "#ffffff",
-    border: "#e2e8f0",
-    optionBg: "#ffffff",
-    optionHover: "#eef2ff",
-    optionBorder: "#e2e8f0",
-    progressBg: "#e2e8f0",
-    inputBg: "#f8fafc",
-    frameChrome: "#f1f5f9",
-  },
-  ocean: {
-    bg: "#0c1445",
-    surface: "#0f1a52",
-    text: "#e0f2fe",
-    subtext: "#7dd3fc",
-    accent: "#22d3ee",
-    accentFg: "#0c1445",
-    border: "#1e3a8a",
-    optionBg: "rgba(255,255,255,0.07)",
-    optionHover: "rgba(34,211,238,0.15)",
-    optionBorder: "#1e3a8a",
-    progressBg: "rgba(255,255,255,0.15)",
-    inputBg: "rgba(255,255,255,0.07)",
-    frameChrome: "#0a1130",
-  },
-  sunset: {
-    bg: "#431407",
-    surface: "#4c1a0a",
-    text: "#fef3c7",
-    subtext: "#fca5a5",
-    accent: "#fb7185",
-    accentFg: "#ffffff",
-    border: "#7c2d12",
-    optionBg: "rgba(255,255,255,0.07)",
-    optionHover: "rgba(251,113,133,0.18)",
-    optionBorder: "#7c2d12",
-    progressBg: "rgba(255,255,255,0.15)",
-    inputBg: "rgba(255,255,255,0.07)",
-    frameChrome: "#3b0d04",
-  },
-  forest: {
-    bg: "#052e16",
-    surface: "#064e1e",
-    text: "#d1fae5",
-    subtext: "#6ee7b7",
-    accent: "#34d399",
-    accentFg: "#052e16",
-    border: "#065f46",
-    optionBg: "rgba(255,255,255,0.07)",
-    optionHover: "rgba(52,211,153,0.15)",
-    optionBorder: "#065f46",
-    progressBg: "rgba(255,255,255,0.15)",
-    inputBg: "rgba(255,255,255,0.07)",
-    frameChrome: "#03180c",
-  },
-  midnight: {
-    bg: "#020617",
-    surface: "#0f172a",
-    text: "#e2e8f0",
-    subtext: "#94a3b8",
-    accent: "#8b5cf6",
-    accentFg: "#ffffff",
-    border: "#1e293b",
-    optionBg: "rgba(255,255,255,0.05)",
-    optionHover: "rgba(139,92,246,0.15)",
-    optionBorder: "#1e293b",
-    progressBg: "rgba(255,255,255,0.1)",
-    inputBg: "rgba(255,255,255,0.05)",
-    frameChrome: "#01030f",
-  },
-  candy: {
-    bg: "#fff0f6",
-    surface: "#fce7f3",
-    text: "#500724",
-    subtext: "#9d174d",
-    accent: "#ec4899",
-    accentFg: "#ffffff",
-    border: "#fbcfe8",
-    optionBg: "#ffffff",
-    optionHover: "#fdf2f8",
-    optionBorder: "#fbcfe8",
-    progressBg: "#fbcfe8",
-    inputBg: "#ffffff",
-    frameChrome: "#fce7f3",
-  },
-  golden: {
-    bg: "#292800",
-    surface: "#322f00",
-    text: "#fef9c3",
-    subtext: "#fcd34d",
-    accent: "#fbbf24",
-    accentFg: "#292800",
-    border: "#713f12",
-    optionBg: "rgba(255,255,255,0.07)",
-    optionHover: "rgba(251,191,36,0.15)",
-    optionBorder: "#713f12",
-    progressBg: "rgba(255,255,255,0.15)",
-    inputBg: "rgba(255,255,255,0.07)",
-    frameChrome: "#1a1800",
-  },
-  arctic: {
-    bg: "#082f49",
-    surface: "#0c3d5e",
-    text: "#e0f2fe",
-    subtext: "#bae6fd",
-    accent: "#7dd3fc",
-    accentFg: "#082f49",
-    border: "#0c4a6e",
-    optionBg: "rgba(255,255,255,0.07)",
-    optionHover: "rgba(125,211,252,0.15)",
-    optionBorder: "#0c4a6e",
-    progressBg: "rgba(255,255,255,0.15)",
-    inputBg: "rgba(255,255,255,0.07)",
-    frameChrome: "#041c30",
-  },
-} as const;
-
-type ThemeKey = keyof typeof QUESTION_THEMES;
-type Theme = typeof QUESTION_THEMES[ThemeKey];
-
-function getTheme(question: Question | null | undefined): Theme {
-  const id = ((question as any)?.theme ?? "default") as string;
-  return (QUESTION_THEMES as Record<string, Theme>)[id] ?? QUESTION_THEMES.default;
-}
-
-// ─── Question type renderers ───────────────────────────────────────────────
-const MultipleChoiceRenderer = ({ options, theme }: { options: any[]; theme: Theme }) => (
-    <div className="space-y-2.5">
-      {options.map((opt) => (
-        <button
-          key={opt.id}
-          style={{
-            background: theme.optionBg,
-            borderColor: theme.optionBorder,
-            color: theme.text,
-          }}
-          className="w-full p-3 rounded-xl border-2 text-left transition-all"
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className="w-5 h-5 rounded-full border-2 flex-shrink-0"
-              style={{ borderColor: theme.optionBorder }}
-            />
-            {opt.imageUrl && (
-              <img
-                src={opt.imageUrl}
-                alt=""
-                className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
-              />
-            )}
-            <span className="text-xs">{opt.text}</span>
-          </div>
-        </button>
-      ))}
-    </div>
-  );
-
-  const OpenTextRenderer = ({ theme }: { theme: Theme }) => (
-  <div className="space-y-3">
-    <textarea
-      placeholder="Type your answer here..."
-      style={{
-        background: theme.inputBg,
-        borderColor: theme.border,
-        color: theme.text,
-      }}
-      className="w-full min-h-[90px] p-3 rounded-xl border text-xs resize-none focus:outline-none placeholder:opacity-50"
-      disabled
-    />
-    <button
-      style={{ background: theme.accent, color: theme.accentFg }}
-      className="w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-md"
-    >
-      Submit Response
-    </button>
-  </div>
-);
-
-const RatingRenderer = ({ question, theme }: { question: Question; theme: Theme }) => {
-  const [hoveredRating, setHoveredRating] = useState<number | null>(null);
-
-  const scale = { min: 1, max: question.scale?.max || 5 };
-  const minLabel = question.labels?.min || "Low";
-  const maxLabel = question.labels?.max || "High";
-  const displayStyle = question.displayStyle || "numbers";
-  const ratings = Array.from(
-    { length: scale.max - scale.min + 1 },
-    (_, i) => scale.min + i
-  );
-
-  const getRatingColor = (rating: number): string => {
-    const pct = ((rating - scale.min) / (scale.max - scale.min)) * 100;
-    if (pct <= 33) return "#f87171";
-    if (pct <= 66) return "#fbbf24";
-    return "#34d399";
-  };
-
-  const renderButton = (rating: number) => {
-    const isHovered = hoveredRating === rating;
-    return (
-      <button
-        key={rating}
-        onMouseEnter={() => setHoveredRating(rating)}
-        onMouseLeave={() => setHoveredRating(null)}
-        disabled
-        style={{
-          background: isHovered ? theme.optionHover : theme.optionBg,
-          borderColor: isHovered ? theme.accent : theme.optionBorder,
-          transform: isHovered ? "scale(1.1)" : "scale(1)",
-        }}
-        className="w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all duration-200"
-      >
-        {displayStyle === "stars" && (
-          <Star
-            className="w-4 h-4 transition-all"
-            style={{ color: "#fbbf24", fill: "#fbbf24" }}
-          />
-        )}
-        {displayStyle === "hearts" && (
-          <Heart
-            className="w-4 h-4 transition-all"
-            style={{ color: "#fb7185", fill: "#fb7185" }}
-          />
-        )}
-        {displayStyle === "smileys" && (
-          <Smile className="w-4 h-4 transition-all" style={{ color: "#facc15" }} />
-        )}
-        {displayStyle === "numbers" && (
-          <span
-            className="text-base font-bold"
-            style={{ color: isHovered ? theme.accent : getRatingColor(rating) }}
-          >
-            {rating}
-          </span>
-        )}
-      </button>
-    );
-  };
-
-  return (
-    <div className="space-y-3">
-      <div
-        className="grid gap-2"
-        style={{ gridTemplateColumns: `repeat(${ratings.length}, minmax(0, 1fr))` }}
-      >
-        {ratings.map(renderButton)}
-      </div>
-      <div
-        className="flex items-center justify-between text-[9px] font-bold uppercase tracking-widest"
-        style={{ color: theme.subtext }}
-      >
-        <span>{minLabel}</span>
-        <span>{maxLabel}</span>
-      </div>
-    </div>
-  );
-};
-
-const WordCloudRenderer = ({ theme }: { theme: Theme }) => (
-  <div className="space-y-3">
-    <input
-      type="text"
-      placeholder="Enter a word or phrase..."
-      style={{
-        background: theme.inputBg,
-        borderColor: theme.border,
-        color: theme.text,
-      }}
-      className="w-full p-3 rounded-xl border text-xs focus:outline-none placeholder:opacity-50"
-      disabled
-    />
-    <button
-      style={{ background: theme.accent, color: theme.accentFg }}
-      className="w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-md"
-    >
-      Submit Word
-    </button>
-  </div>
-);
-
-const getDisplayType = (q: Question) => {
-  const t = q.type;
-  if (["SINGLE_CHOICE", "MULTIPLE_CHOICE", "TRUE_FALSE", "POLL", "multiple-choice"].includes(t))
-    return "multiple-choice";
-  if (["OPEN_TEXT", "open-text"].includes(t)) return "open-text";
-  if (["RATING", "rating-scale"].includes(t)) return "rating-scale";
-  if (["WORD_CLOUD", "word-cloud"].includes(t)) return "word-cloud";
+const normalizeType = (t: string) => {
+  if (["SINGLE_CHOICE","MULTIPLE_CHOICE","TRUE_FALSE","POLL","multiple-choice"].includes(t)) return "multiple-choice";
+  if (["OPEN_TEXT","open-text"].includes(t)) return "open-text";
+  if (["RATING","rating","rating-scale"].includes(t)) return "rating-scale";
+  if (["WORD_CLOUD","word-cloud"].includes(t)) return "word-cloud";
   return "multiple-choice";
 };
 
-const QuestionContent = ({ question, theme }: { question: Question; theme: Theme }) => {
-  const type = getDisplayType(question);
-  const options = question.options || [];
-
-  switch (type) {
-    case "multiple-choice":
-      return options.length > 0 ? (
-        <MultipleChoiceRenderer options={options} theme={theme} />
-      ) : (
-        <div className="text-center py-4 text-xs" style={{ color: theme.subtext }}>
-          No options added yet
-        </div>
-      );
-    case "open-text":
-      return <OpenTextRenderer theme={theme} />;
-    case "word-cloud":
-      return <WordCloudRenderer theme={theme} />;
-    case "rating-scale":
-      return <RatingRenderer question={question} theme={theme} />;
-    default:
-      return <MultipleChoiceRenderer options={options} theme={theme} />;
-  }
-};
-
-
-
-// ─── Phone frame ───────────────────────────────────────────────────────────
-const PhoneFrame = ({
-  question,
-  totalQuestions,
-  currentIndex,
-  theme,
-}: {
-  question: Question;
-  totalQuestions: number;
-  currentIndex: number;
-  theme: Theme;
-}) => (
-  <div className="w-full max-w-[320px] mx-auto">
-    <div
-      className="relative shadow-2xl overflow-hidden mx-auto rounded-[2rem] border-[10px] border-gray-800"
-    >
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-5 rounded-b-xl z-20 bg-gray-800" />
-
-      <div
-        className="w-full h-[600px] overflow-y-auto flex flex-col rounded-[1.5rem]"
-        style={{ background: theme.bg }}
-      >
-        {/* Header */}
-        <div
-          className="border-b p-4 pt-7"
-          style={{ borderColor: theme.border, background: theme.surface }}
-        >
-          <h3 className="text-sm font-semibold" style={{ color: theme.text }}>
-            Preview Mode
-          </h3>
-          <p className="text-xs" style={{ color: theme.subtext }}>
-            Question {currentIndex + 1} of {totalQuestions}
-          </p>
-          {/* Progress bar */}
-          <div
-            className="mt-2 h-1 rounded-full overflow-hidden"
-            style={{ background: theme.progressBg }}
-          >
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${((currentIndex + 1) / totalQuestions) * 100}%`,
-                background: theme.accent,
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-4" style={{ background: theme.bg }}>
-          <div className="relative space-y-4">
-            {question.imageUrl && (
-              <img
-                src={question.imageUrl}
-                alt=""
-                className="w-full h-32 object-cover rounded-xl mb-3"
-              />
-            )}
-            <h2 className="text-lg font-semibold" style={{ color: theme.text }}>
-              {question?.title || "Untitled question"}
-            </h2>
-            {question?.description && (
-              <p className="text-sm mb-3" style={{ color: theme.subtext }}>
-                {question.description}
-              </p>
-            )}
-            <QuestionContent question={question} theme={theme} />
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+// ─── Lucide-equivalent inline SVGs ───────────────────────────────────────────
+const IconCheckSquare = ({ size = 18, color = "currentColor" }: { size?: number; color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+  </svg>
+);
+const IconMessageSquare = ({ size = 18, color = "currentColor" }: { size?: number; color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+  </svg>
+);
+const IconStar = ({ size = 18, color = "currentColor" }: { size?: number; color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+  </svg>
+);
+const IconCloud = ({ size = 18, color = "currentColor" }: { size?: number; color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
+  </svg>
+);
+const IconCheck = ({ size = 12 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+);
+const IconSend = ({ size = 14 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+  </svg>
+);
+const IconUsers = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+  </svg>
 );
 
-// ─── Desktop frame ─────────────────────────────────────────────────────────
-const DesktopFrame = ({
-  question,
+// Type config matching the original component icon/label/bg exactly
+const typeConfig = {
+  "multiple-choice": {
+    icon: <IconCheckSquare size={18} color="#6366f1" />,
+    label: "Multiple Choice",
+    iconBg: "bg-indigo-100/60",
+  },
+  "open-text": {
+    icon: <IconMessageSquare size={18} color="#64748b" />,
+    label: "Open Response",
+    iconBg: "bg-slate-100",
+  },
+  "rating-scale": {
+    icon: <IconStar size={18} color="#f59e0b" />,
+    label: "Rating Scale",
+    iconBg: "bg-amber-100/60",
+  },
+  "word-cloud": {
+    icon: <IconCloud size={18} color="#22c55e" />,
+    label: "Word Cloud",
+    iconBg: "bg-green-100/60",
+  },
+};
+
+// ─── Multiple Choice ──────────────────────────────────────────────────────────
+function MultipleChoicePreview({ question, scale }: { question: Question; scale: number }) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const options = question.options || [];
+  const s = scale;
+
+  return (
+    <div className="space-y-3 mb-6">
+      {options.map((opt: any) => (
+        <button
+          key={opt.id}
+          onClick={() => setSelected(opt.id)}
+          className={`w-full text-left rounded-xl border-2 transition-all duration-150 ${
+            selected === opt.id
+              ? "border-indigo-600 bg-indigo-50 shadow-md"
+              : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-100"
+          }`}
+          style={{ minHeight: 56 * s, padding: `${12 * s}px ${16 * s}px` }}
+        >
+          <div className="flex items-center" style={{ gap: 12 * s }}>
+            {/* Radio circle — exact original: w-5 h-5 rounded-full border-2 */}
+            <div
+              className={`flex-shrink-0 rounded-full border-2 flex items-center justify-center transition-all duration-150 ${
+                selected === opt.id ? "border-indigo-600 bg-indigo-600" : "border-slate-300"
+              }`}
+              style={{ width: 20 * s, height: 20 * s }}
+            >
+              {selected === opt.id && <IconCheck size={Math.round(12 * s)} />}
+            </div>
+            <span
+              className={`font-medium flex-1 ${selected === opt.id ? "text-slate-900" : "text-slate-900"}`}
+              style={{ fontSize: 16 * s }}
+            >
+              {opt.text}
+            </span>
+          </div>
+        </button>
+      ))}
+      {options.length === 0 && (
+        <p className="text-center text-slate-400" style={{ fontSize: 14 * s, padding: `${12 * s}px 0` }}>
+          No options added yet
+        </p>
+      )}
+      {/* Submit button — mirrors Button variant=default size=lg fullWidth */}
+      <button
+        disabled={!selected}
+        className={`w-full flex items-center justify-center gap-2 rounded-xl font-semibold transition-all ${
+          selected ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "bg-slate-100 text-slate-400 cursor-not-allowed"
+        }`}
+        style={{ padding: `${10 * s}px`, fontSize: 14 * s, marginTop: 8 * s }}
+      >
+        Submit Answer <IconSend size={Math.round(14 * s)} />
+      </button>
+      {/* Footer — text-sm text-muted-foreground */}
+      <div className="flex items-center justify-center gap-2 text-slate-500" style={{ fontSize: 13 * s, marginTop: 8 * s }}>
+        <IconUsers size={Math.round(16 * s)} />
+        <span>0 participants have responded</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Open Text ────────────────────────────────────────────────────────────────
+function OpenTextPreview({ scale }: { scale: number }) {
+  const [text, setText] = useState("");
+  const maxLength = 500;
+  const remaining = maxLength - text.length;
+  const s = scale;
+
+  return (
+    <div className="mb-6">
+      <textarea
+        value={text}
+        onChange={(e) => e.target.value.length <= maxLength && setText(e.target.value)}
+        placeholder="Type your response here..."
+        className="w-full rounded-xl border-2 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 resize-none transition-all"
+        style={{ minHeight: 160 * s, padding: `${12 * s}px ${16 * s}px`, fontSize: 15 * s }}
+      />
+      <div className="flex items-center justify-between px-1" style={{ marginTop: 8 * s }}>
+        <span className="text-slate-400" style={{ fontSize: 12 * s }} />
+        <span className={`font-medium ${remaining < 50 ? "text-amber-500" : "text-slate-400"}`} style={{ fontSize: 12 * s }}>
+          {remaining} characters remaining
+        </span>
+      </div>
+      <button
+        disabled={!text.trim()}
+        className={`w-full flex items-center justify-center gap-2 rounded-xl font-semibold transition-all ${
+          text.trim() ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "bg-slate-100 text-slate-400 cursor-not-allowed"
+        }`}
+        style={{ padding: `${10 * s}px`, fontSize: 14 * s, marginTop: 8 * s }}
+      >
+        Submit Response <IconSend size={Math.round(14 * s)} />
+      </button>
+      <div className="flex items-center justify-center gap-2 text-slate-500" style={{ fontSize: 13 * s, marginTop: 8 * s }}>
+        <IconUsers size={Math.round(16 * s)} />
+        <span>0 participants have responded</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Rating Scale ─────────────────────────────────────────────────────────────
+function RatingPreview({ question, scale: s }: { question: Question; scale: number }) {
+  const [selected, setSelected] = useState<number | null>(null);
+  const [hovered, setHovered] = useState<number | null>(null);
+  const scaleMin = 1;
+  const scaleMax = (question as any).scale?.max || 5;
+  const ratings = Array.from({ length: scaleMax - scaleMin + 1 }, (_, i) => scaleMin + i);
+  const displayStyle = (question as any).displayStyle || "numbers";
+
+  const getRatingColor = (r: number) => {
+    const pct = ((r - scaleMin) / (scaleMax - scaleMin)) * 100;
+    if (pct <= 33) return "#ef4444";
+    if (pct <= 66) return "#f59e0b";
+    return "#22c55e";
+  };
+
+  return (
+    <div className="mb-8">
+      {/* Grid — exact original: grid gap-2, gridTemplateColumns repeat */}
+      <div
+        className="grid"
+        style={{
+          gridTemplateColumns: `repeat(${ratings.length}, minmax(0, 1fr))`,
+          gap: 8 * s,
+        }}
+      >
+        {ratings.map((r) => {
+          const isSelected = selected === r;
+          const isHovered = hovered === r;
+          return (
+            <button
+              key={r}
+              onClick={() => setSelected(r)}
+              onMouseEnter={() => setHovered(r)}
+              onMouseLeave={() => setHovered(null)}
+              className={`rounded-xl border-2 flex items-center justify-center transition-all duration-150 ${
+                isSelected
+                  ? "border-indigo-600 bg-indigo-600 shadow-lg scale-105"
+                  : isHovered
+                  ? "border-indigo-400 bg-indigo-50 scale-105 shadow-md"
+                  : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-100"
+              }`}
+              style={{ width: "100%", height: 40 * s }}
+            >
+              {displayStyle === "stars" && (
+                <svg width={16 * s} height={16 * s} viewBox="0 0 24 24" fill={isSelected ? "white" : "#fbbf24"} stroke="none">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+              )}
+              {displayStyle === "hearts" && (
+                <svg width={16 * s} height={16 * s} viewBox="0 0 24 24" fill={isSelected ? "white" : "#fb7185"} stroke="none">
+                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                </svg>
+              )}
+              {displayStyle === "smileys" && (
+                <svg width={16 * s} height={16 * s} viewBox="0 0 24 24" fill="none" stroke={isSelected ? "white" : "#eab308"} strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/><path strokeLinecap="round" d="M8 13s1.5 3 4 3 4-3 4-3"/>
+                  <circle cx="9" cy="10" r="1" fill={isSelected ? "white" : "#eab308"}/><circle cx="15" cy="10" r="1" fill={isSelected ? "white" : "#eab308"}/>
+                </svg>
+              )}
+              {displayStyle === "numbers" && (
+                <span
+                  className="font-bold"
+                  style={{
+                    fontSize: 15 * s,
+                    color: isSelected ? "#fff" : isHovered ? "#4f46e5" : getRatingColor(r),
+                  }}
+                >
+                  {r}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Labels — exact original: text-[9px] font-bold text-muted-foreground uppercase tracking-widest */}
+      <div
+        className="flex items-center justify-between font-bold text-slate-400 uppercase tracking-widest px-2"
+        style={{ marginTop: 12 * s, fontSize: 9 * s }}
+      >
+        <span>{(question as any).labels?.min || "Low"}</span>
+        <span>{(question as any).labels?.max || "High"}</span>
+      </div>
+
+      {/* "You selected" text */}
+      {selected !== null && (
+        <div className="text-center" style={{ marginTop: 16 * s }}>
+          <p className="text-slate-500" style={{ fontSize: 13 * s }}>
+            You selected: <span className="font-semibold text-slate-900">{selected}</span>
+          </p>
+        </div>
+      )}
+
+      {/* Submit */}
+      <button
+        disabled={selected === null}
+        className={`w-full flex items-center justify-center gap-2 rounded-xl font-semibold transition-all ${
+          selected !== null ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "bg-slate-100 text-slate-400 cursor-not-allowed"
+        }`}
+        style={{ padding: `${10 * s}px`, fontSize: 14 * s, marginTop: 8 * s }}
+      >
+        Submit Rating <IconSend size={Math.round(14 * s)} />
+      </button>
+      <div className="flex items-center justify-center gap-2 text-slate-500" style={{ fontSize: 13 * s, marginTop: 8 * s }}>
+        <IconUsers size={Math.round(16 * s)} />
+        <span>0 participants have responded</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Word Cloud ───────────────────────────────────────────────────────────────
+function WordCloudPreview({ question, scale: s }: { question: Question; scale: number }) {
+  const [words, setWords] = useState("");
+  const maxWords = (question as any).maxWords || 5;
+  const wordArray = words.trim().split(/\s+/).filter((w) => w.length > 0);
+  const remaining = maxWords - wordArray.length;
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const arr = e.target.value.trim().split(/\s+/).filter((w) => w.length > 0);
+    if (arr.length <= maxWords) setWords(e.target.value);
+  };
+
+  const removeWord = (i: number) => {
+    const arr = [...wordArray];
+    arr.splice(i, 1);
+    setWords(arr.join(" "));
+  };
+
+  return (
+    <div className="mb-6">
+      <input
+        type="text"
+        value={words}
+        onChange={handleChange}
+        placeholder="Type words separated by spaces..."
+        className="w-full rounded-xl border-2 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 transition-all"
+        style={{ padding: `${12 * s}px ${16 * s}px`, fontSize: 15 * s }}
+      />
+      <div className="flex items-center justify-between px-1" style={{ marginTop: 8 * s }}>
+        <span className="text-slate-400" style={{ fontSize: 12 * s }}>Press space to add multiple words</span>
+        <span className={`font-medium ${remaining <= 2 ? "text-amber-500" : "text-slate-400"}`} style={{ fontSize: 12 * s }}>
+          {remaining} words remaining
+        </span>
+      </div>
+
+      {/* Word chips — bg-primary/10 border border-primary/20 */}
+      {wordArray.length > 0 && (
+        <div
+          className="rounded-xl bg-slate-100/60 border border-slate-200 flex flex-wrap"
+          style={{ padding: 16 * s, gap: 8 * s, marginTop: 12 * s }}
+        >
+          {wordArray.map((w, i) => (
+            <div
+              key={i}
+              className="inline-flex items-center rounded-lg bg-indigo-50 border border-indigo-200"
+              style={{ padding: `${6 * s}px ${12 * s}px`, gap: 8 * s }}
+            >
+              <span className="font-medium text-slate-900" style={{ fontSize: 13 * s }}>{w}</span>
+              <button
+                onClick={() => removeWord(i)}
+                className="flex items-center justify-center rounded-full hover:bg-red-100 transition-colors"
+                style={{ width: 20 * s, height: 20 * s }}
+                aria-label="Remove word"
+              >
+                <svg width={14 * s} height={14 * s} viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        disabled={wordArray.length === 0}
+        className={`w-full flex items-center justify-center gap-2 rounded-xl font-semibold transition-all ${
+          wordArray.length > 0 ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "bg-slate-100 text-slate-400 cursor-not-allowed"
+        }`}
+        style={{ padding: `${10 * s}px`, fontSize: 14 * s, marginTop: 8 * s }}
+      >
+        Submit Words <IconSend size={Math.round(14 * s)} />
+      </button>
+      <div className="flex items-center justify-center gap-2 text-slate-500" style={{ fontSize: 13 * s, marginTop: 8 * s }}>
+        <IconUsers size={Math.round(16 * s)} />
+        <span>0 participants have responded</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Question card ────────────────────────────────────────────────────────────
+// Mirrors: bg-card rounded-xl p-6 shadow-lg border border-border
+function QuestionCard({ question, scale = 1 }: { question: Question; scale?: number }) {
+  const type = normalizeType(question.type || "");
+  const cfg = typeConfig[type as keyof typeof typeConfig] || typeConfig["multiple-choice"];
+  const s = scale;
+
+  return (
+    <div
+      className="bg-white rounded-xl shadow-lg border border-slate-200"
+      style={{ padding: `${24 * s}px` }}
+    >
+      {/* Type indicator — flex items-center gap-2 mb-3; icon in w-8 h-8 rounded-lg */}
+      <div className="flex items-center" style={{ gap: 8 * s, marginBottom: 12 * s }}>
+        <div
+          className={`flex items-center justify-center rounded-lg flex-shrink-0 ${cfg.iconBg}`}
+          style={{ width: 32 * s, height: 32 * s }}
+        >
+          <span style={{ transform: `scale(${s})`, display: "flex" }}>{cfg.icon}</span>
+        </div>
+        <span className="font-medium text-slate-500" style={{ fontSize: 14 * s }}>
+          {cfg.label}
+        </span>
+      </div>
+
+      {/* Question title — text-xl font-bold text-foreground leading-tight */}
+      <h2
+        className="font-bold text-slate-900 leading-tight"
+        style={{ fontSize: Math.min(22, 22 * s), marginBottom: 4 * s }}
+      >
+        {question.title || question.text || "Untitled question"}
+      </h2>
+
+      {/* Description */}
+      {question.description && (
+        <p className="text-slate-500" style={{ fontSize: 14 * s, marginTop: 8 * s, marginBottom: 8 * s }}>
+          {question.description}
+        </p>
+      )}
+
+      {/* Image */}
+      {((question as any).imageUrl || (question as any).image) && (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100" style={{ marginTop: 20 * s, marginBottom: 20 * s }}>
+          <img
+            src={(question as any).imageUrl || (question as any).image}
+            alt=""
+            className="w-full object-cover"
+            style={{ maxHeight: 360 * s }}
+          />
+        </div>
+      )}
+
+      {/* Answer area */}
+      {type === "multiple-choice" && <MultipleChoicePreview question={question} scale={s} />}
+      {type === "open-text"       && <OpenTextPreview scale={s} />}
+      {type === "rating-scale"    && <RatingPreview question={question} scale={s} />}
+      {type === "word-cloud"      && <WordCloudPreview question={question} scale={s} />}
+    </div>
+  );
+}
+
+// ─── Session title card ───────────────────────────────────────────────────────
+// Mirrors: bg-card rounded-xl p-4 shadow-sm border border-border (not shadow-lg)
+function SessionHeader({
   totalQuestions,
   currentIndex,
-  theme,
+  scale,
 }: {
-  question: Question;
   totalQuestions: number;
   currentIndex: number;
-  theme: Theme;
-}) => (
-  <div className="w-full max-w-2xl mx-auto">
-    <div className="rounded-2xl overflow-hidden shadow-xl" style={{ borderColor: theme.border }}>
-      {/* Browser chrome */}
-      <div
-        className="flex items-center gap-2 px-4 py-3 border-b"
-        style={{ background: theme.frameChrome, borderColor: theme.border }}
-      >
-        <div className="flex gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
-          <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+  scale: number;
+}) {
+  const s = scale;
+  return (
+    <div
+      className="bg-white rounded-xl shadow-sm border border-slate-200"
+      style={{ padding: `${16 * s}px ${24 * s}px`, marginBottom: 24 * s }}
+    >
+      <div className="flex items-center justify-between flex-wrap" style={{ gap: 12 * s }}>
+        <div className="flex-1 min-w-0">
+          {/* text-base font-semibold text-foreground */}
+          <h3 className="font-semibold text-slate-900 truncate" style={{ fontSize: 16 * s }}>
+            Session Preview
+          </h3>
+          {/* text-sm text-muted-foreground mt-1 */}
+          <p className="text-slate-500" style={{ fontSize: 14 * s, marginTop: 4 * s }}>
+            Code: ABC123 • Joined as Participant
+          </p>
         </div>
+        {/* bg-success/10 border border-success/20 px-3 py-1.5 rounded-lg */}
         <div
-          className="flex-1 mx-2 h-6 rounded-md border flex items-center px-2"
-          style={{ background: theme.bg, borderColor: theme.border }}
+          className="flex items-center rounded-lg border"
+          style={{
+            padding: `${6 * s}px ${12 * s}px`,
+            gap: 8 * s,
+            backgroundColor: "rgb(34 197 94 / 0.1)",
+            borderColor: "rgb(34 197 94 / 0.2)",
+          }}
         >
-          <span className="text-[8px]" style={{ color: theme.subtext }}>
-            preview.engage.app
+          {/* bg-success animate-pulse w-2 h-2 rounded-full */}
+          <div
+            className="rounded-full bg-green-500 animate-pulse"
+            style={{ width: 8 * s, height: 8 * s }}
+          />
+          <span className="font-medium text-green-600 whitespace-nowrap" style={{ fontSize: 14 * s }}>
+            Live
           </span>
         </div>
       </div>
 
-      {/* Page content */}
-      <div className="p-8" style={{ background: theme.bg }}>
-        {/* Progress */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-1.5">
-            <h3 className="text-sm font-semibold" style={{ color: theme.text }}>
-              Question {currentIndex + 1} of {totalQuestions}
-            </h3>
-          </div>
-          <div className="h-1 rounded-full overflow-hidden" style={{ background: theme.progressBg }}>
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${((currentIndex + 1) / totalQuestions) * 100}%`,
-                background: theme.accent,
-              }}
-            />
+      {/* Progress row — mt-4 pt-4 border-t border-border */}
+      {totalQuestions > 0 && (
+        <div
+          className="flex items-center justify-between border-t border-slate-200"
+          style={{ marginTop: 16 * s, paddingTop: 16 * s }}
+        >
+          <span className="text-slate-500" style={{ fontSize: 13 * s }}>
+            Question {currentIndex + 1} of {totalQuestions}
+          </span>
+          <div className="flex" style={{ gap: 4 * s }}>
+            {Array.from({ length: totalQuestions }).map((_, i) => (
+              <div
+                key={i}
+                className="rounded-full transition-colors duration-250"
+                style={{
+                  width: 8 * s,
+                  height: 8 * s,
+                  // bg-primary (current), bg-success (done), bg-muted (upcoming)
+                  backgroundColor:
+                    i === currentIndex
+                      ? "#4f46e5"   // indigo-600 (primary)
+                      : i < currentIndex
+                      ? "#22c55e"   // green-500 (success)
+                      : "#e2e8f0",  // slate-200 (muted)
+                }}
+              />
+            ))}
           </div>
         </div>
-
-        {/* Question image */}
-        {question.imageUrl && (
-          <img
-            src={question.imageUrl}
-            alt=""
-            className="w-full h-48 object-cover rounded-xl mb-5"
-          />
-        )}
-
-        <h2 className="text-xl font-bold mb-2" style={{ color: theme.text }}>
-          {question?.title || "Untitled question"}
-        </h2>
-        {question?.description && (
-          <p className="text-sm mb-4" style={{ color: theme.subtext }}>
-            {question.description}
-          </p>
-        )}
-
-        <QuestionContent question={question} theme={theme} />
-      </div>
+      )}
     </div>
-  </div>
-);
+  );
+}
 
-// ─── Main modal ────────────────────────────────────────────────────────────
+// ─── Timer bar stub ───────────────────────────────────────────────────────────
+// Mirrors: h-1.5 w-full bg-muted/60 → inner h-full bg-primary at 60%
+function TimerBarStub({ scale }: { scale: number }) {
+  return (
+    <div
+      className="w-full"
+      style={{ height: 6 * scale, backgroundColor: "rgb(241 245 249 / 0.6)" }}
+    >
+      <div
+        className="h-full bg-indigo-600"
+        style={{ width: "60%" }}
+      />
+    </div>
+  );
+}
+
+// ─── Phone frame ──────────────────────────────────────────────────────────────
+function PhoneFrame({ question, totalQuestions, currentIndex }: { question: Question; totalQuestions: number; currentIndex: number }) {
+  const SCALE = 0.55;
+
+  return (
+    <div className="flex flex-col items-center">
+      <div
+        className="relative overflow-hidden"
+        style={{
+          width: 320,
+          height: 620,
+          borderRadius: 44,
+          border: "10px solid #1e293b",
+          boxShadow: "0 25px 50px -12px rgb(0 0 0 / 0.6)",
+        }}
+      >
+        {/* Notch */}
+        <div
+          className="absolute left-1/2 -translate-x-1/2 bg-slate-800 z-20"
+          style={{ top: 0, width: 96, height: 24, borderBottomLeftRadius: 12, borderBottomRightRadius: 12 }}
+        />
+        {/* Screen — bg-background (white) */}
+        <div className="w-full h-full overflow-y-auto bg-white" style={{ paddingTop: 28 }}>
+          <TimerBarStub scale={SCALE} />
+          <div style={{ padding: `${8 * SCALE}px ${16 * SCALE}px ${32 * SCALE}px` }}>
+            <SessionHeader totalQuestions={totalQuestions} currentIndex={currentIndex} scale={SCALE} />
+            <QuestionCard question={question} scale={SCALE} />
+          </div>
+        </div>
+      </div>
+      <p className="text-center text-slate-400 mt-3" style={{ fontSize: 11 }}>
+        Question {currentIndex + 1} of {totalQuestions}
+      </p>
+    </div>
+  );
+}
+
+// ─── Desktop frame ────────────────────────────────────────────────────────────
+// Removed internal scrollbar – now uses outer modal scroll
+function DesktopFrame({ question, totalQuestions, currentIndex }: { question: Question; totalQuestions: number; currentIndex: number }) {
+  const SCALE = 0.75;
+
+  return (
+    <div className="w-full max-w-3xl flex flex-col items-center">
+      <div className="w-full rounded-2xl overflow-hidden border border-slate-200 shadow-xl">
+        {/* Browser chrome */}
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 border-b border-slate-200">
+          <div className="flex gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-red-400" />
+            <div className="w-3 h-3 rounded-full bg-amber-400" />
+            <div className="w-3 h-3 rounded-full bg-green-400" />
+          </div>
+          <div className="flex-1 mx-2 h-6 rounded-md bg-white border border-slate-200 flex items-center px-3">
+            <span className="text-xs text-slate-400">your-session.app/join</span>
+          </div>
+        </div>
+        {/* Page — no internal scrolling, expands naturally */}
+        <div className="bg-white">
+          <TimerBarStub scale={SCALE} />
+          {/* container mx-auto px-4 py-8 matching original */}
+          <div
+            className="mx-auto"
+            style={{
+              maxWidth: 672,
+              padding: `${32 * SCALE}px ${16 * SCALE}px`,
+            }}
+          >
+            <SessionHeader totalQuestions={totalQuestions} currentIndex={currentIndex} scale={SCALE} />
+            <QuestionCard question={question} scale={SCALE} />
+          </div>
+        </div>
+      </div>
+      <p className="text-center text-slate-400 mt-3 text-xs">
+        Question {currentIndex + 1} of {totalQuestions}
+      </p>
+    </div>
+  );
+}
+
+// ─── Main modal ───────────────────────────────────────────────────────────────
 export function PreviewModal({
   isOpen,
   onClose,
   question,
-  presentationSettings,
   questions,
   currentQuestionIndex,
 }: PreviewModalProps) {
   const [device, setDevice] = useState<"mobile" | "desktop">("mobile");
   const displayQuestion = question || questions[currentQuestionIndex];
-  const theme = getTheme(displayQuestion);
 
   if (!displayQuestion) return null;
 
@@ -514,26 +638,25 @@ export function PreviewModal({
             onClick={onClose}
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.96, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+            exit={{ opacity: 0, scale: 0.96, y: 16 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-4xl max-h-[92vh] overflow-y-auto px-4"
           >
             <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-              {/* Modal header */}
-              <div className="flex items-center justify-between p-5 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white sticky top-0 z-10">
                 <div className="flex items-center gap-3">
                   <Eye className="w-5 h-5 text-indigo-600" />
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900">Live Preview</h3>
+                    <h3 className="text-sm font-bold text-slate-900">Audience Preview</h3>
                     <p className="text-[10px] text-slate-500 mt-0.5">
                       See how your audience will experience this
                     </p>
                   </div>
                 </div>
-
                 <div className="flex items-center gap-2">
-                  {/* Device toggle */}
                   <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 border border-slate-200">
                     {(["mobile", "desktop"] as const).map((d) => (
                       <button
@@ -545,15 +668,10 @@ export function PreviewModal({
                             : "text-slate-400 hover:text-slate-600"
                         }`}
                       >
-                        {d === "mobile" ? (
-                          <Smartphone className="w-4 h-4" />
-                        ) : (
-                          <Monitor className="w-4 h-4" />
-                        )}
+                        {d === "mobile" ? <Smartphone className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}
                       </button>
                     ))}
                   </div>
-
                   <button
                     onClick={onClose}
                     className="p-2 rounded-lg hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600"
@@ -563,21 +681,19 @@ export function PreviewModal({
                 </div>
               </div>
 
-              {/* Modal content */}
-              <div className="p-8 bg-slate-50 flex items-center justify-center min-h-[500px]">
+              {/* Content */}
+              <div className="p-8 bg-slate-100 flex items-start justify-center min-h-[500px]">
                 {device === "mobile" ? (
                   <PhoneFrame
                     question={displayQuestion}
-                    totalQuestions={questions.length}
+                    totalQuestions={questions.length || 1}
                     currentIndex={currentQuestionIndex}
-                    theme={theme}
                   />
                 ) : (
                   <DesktopFrame
                     question={displayQuestion}
-                    totalQuestions={questions.length}
+                    totalQuestions={questions.length || 1}
                     currentIndex={currentQuestionIndex}
-                    theme={theme}
                   />
                 )}
               </div>

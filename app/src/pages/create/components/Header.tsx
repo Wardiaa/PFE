@@ -94,10 +94,7 @@ export function Header({
             {contextTitle.toUpperCase().slice(0, 40)}
           </h1>
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
-            <span className="text-[8px] sm:text-[10px] font-bold font-mono text-slate-400 tracking-wider">
-              DRAFT IN PROGRESS
-            </span>
+            
           </div>
         </div>
 

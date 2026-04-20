@@ -26,6 +26,7 @@ export interface QuestionSettings {
 }
 
 export interface Question {
+  text: string;
   id: string;
   type: string;
   title: string;
