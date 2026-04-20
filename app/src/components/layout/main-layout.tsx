@@ -492,7 +492,7 @@ export function MainLayout() {
       {!isCreatePage && !isFullscreen && user && (
         <footer className="border-t py-8 mt-auto">
           <div className="max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground">
-            <p>© 2024 Syncra. All rights reserved.</p>
+            <p>© 2026 Syncra. All rights reserved.</p>
             <div className="mt-4 flex items-center justify-center gap-6">
               <Link to="/terms"    className="hover:text-foreground transition-colors">Terms</Link>
               <Link to="/privacy"  className="hover:text-foreground transition-colors">Privacy</Link>
