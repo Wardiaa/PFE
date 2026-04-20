@@ -296,7 +296,40 @@ const AudienceParticipation: React.FC = () => {
     enabled: !!participantSession,
   });
 
-  // ── Supabase fallback — fires only when broadcast channel is reconnecting
+  // ── Dedicated ENDED watcher — stable, never torn down while in session ───
+  // This is a separate channel with NO wsConnected dependency so it is never
+  // recreated when the WebSocket drops. It is the definitive safety net for
+  // detecting session end caused by the host navigating away (Exit button,
+  // Leave-session modal) which only updates the DB without broadcasting.
+  useEffect(() => {
+    if (!participantSession) return;
+    const sessionId = participantSession.session.id;
+
+    const endedWatcher = supabase
+      .channel(`session-ended-watcher-${sessionId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` },
+        (payload) => {
+          const updated = payload.new as any;
+          if (updated.status === 'ENDED' && sessionStateRef.current !== 'ended') {
+            stopLocalCountdown();
+            setSessionState('ended');
+            sessionStateRef.current = 'ended';
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(endedWatcher); };
+    // Intentionally omitting stopLocalCountdown from deps — it is stable (useCallback with no deps).
+    // The only dep that should re-create this channel is the session ID changing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [participantSession?.session.id]);
+
+  // ── Supabase fallback for pause/resume/question changes ──────────────────
+  // Only fires when the WebSocket broadcast channel is disconnected.
+  // ENDED is intentionally handled by the dedicated watcher above.
   useEffect(() => {
     if (!participantSession) return;
     const sessionId = participantSession.session.id;
@@ -307,17 +340,13 @@ const AudienceParticipation: React.FC = () => {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` },
         (payload) => {
-          // Skip if broadcast is healthy — this is just a safety net
+          // Skip if broadcast is healthy — the dedicated watcher handles ENDED
           if (wsConnected) return;
 
           const updatedSession = payload.new as any;
 
-          if (updatedSession.status === 'ENDED') {
-            stopLocalCountdown();
-            setSessionState('ended');
-            sessionStateRef.current = 'ended';
-            return;
-          }
+          // ENDED is handled by the dedicated watcher — skip here to avoid duplication
+          if (updatedSession.status === 'ENDED') return;
 
           const newIsPaused: boolean = updatedSession.is_paused ?? false;
           const wasPaused = isPausedRef.current;

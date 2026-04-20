@@ -671,6 +671,24 @@ const HostSession: React.FC = () => {
     });
   };
 
+  // ── Listen for "End session & leave" from the main-layout warning modal ────
+  // When the host navigates away via a navbar link, the Leave-session modal
+  // fires a custom browser event instead of replicating the socket broadcast.
+  // We receive it here (HostSession is still mounted at that point) and call
+  // sendMessage exactly as we do for the EndSessionModal confirm flow.
+  useEffect(() => {
+    const handler = () => {
+      sendMessage({ type: "SESSION_END", payload: {} });
+    };
+    window.addEventListener("syncra:session-end-requested", handler);
+    return () => window.removeEventListener("syncra:session-end-requested", handler);
+  }, [sendMessage]);
+
+  // ── handleEnd opens the EndSessionModal ──────────────────────────────────
+  // Used by BOTH the "End" control panel button AND the "Exit" header button.
+  // This ensures a proper confirm flow that broadcasts SESSION_END and updates
+  // the DB before navigating — guaranteeing audience participants see the
+  // SessionEndedState screen.
   const handleEnd = (): void => setIsEndModalOpen(true);
 
   const handleConfirmEnd = async (): Promise<void> => {
@@ -1078,10 +1096,19 @@ const HostSession: React.FC = () => {
             />
           </Button>
 
+          {/*
+            FIX: Exit button now calls handleEnd() instead of navigate("/dashboard").
+            This opens the EndSessionModal which properly:
+              1. Broadcasts SESSION_END to all audience participants
+              2. Updates the session status to ENDED in the database
+              3. Navigates to the results page
+            Previously, navigate("/dashboard") directly bypassed all session-end
+            logic, leaving audience participants stuck on the current question.
+          */}
           <Button
             variant="destructive"
             size="sm"
-            onClick={() => navigate("/dashboard")}
+            onClick={handleEnd}
             className="text-xs px-2 sm:px-3"
           >
             Exit

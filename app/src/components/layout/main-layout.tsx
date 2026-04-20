@@ -76,6 +76,16 @@ export function MainLayout() {
     return () => subscription.unsubscribe();
   }, [isHosting]);
 
+  // ── Signal HostSession to broadcast SESSION_END via its own socket ─────────
+  // We dispatch a custom browser event instead of trying to replicate the
+  // broadcast from here. HostSession is still mounted when the modal fires,
+  // so it can receive the event and call sendMessage() through the exact same
+  // useSessionSocket channel that audience participants are subscribed to.
+  // This is identical to the code path triggered by the Exit button fix.
+  const signalSessionEnd = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("syncra:session-end-requested"));
+  }, []);
+
   // ── Async session ender (used when page is alive) ─────────────────────────
   const endSession = useCallback(async (sessionId: string) => {
     try {
@@ -159,7 +169,18 @@ export function MainLayout() {
 
   const handleLeaveAndEnd = async () => {
     setIsEndingSession(true);
-    if (hostSessionId) await endSession(hostSessionId);
+    if (hostSessionId) {
+      // 1. Signal HostSession (still mounted) to broadcast SESSION_END via its
+      //    own useSessionSocket channel — this reaches all WebSocket-connected
+      //    audience participants instantly.
+      signalSessionEnd();
+      // 2. Small delay to allow the broadcast to be sent before the component
+      //    unmounts due to navigation.
+      await new Promise<void>((resolve) => setTimeout(resolve, 150));
+      // 3. Update the DB status — this is picked up by the audience's dedicated
+      //    postgres_changes ENDED watcher as a reliable fallback.
+      await endSession(hostSessionId);
+    }
     setIsEndingSession(false);
     setShowLeaveWarning(false);
 
@@ -347,7 +368,7 @@ export function MainLayout() {
         </div>
       </div>
 
-      {/* Mobile Menu - Removed nested button elements */}
+      {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t bg-background">
           <div className="max-w-7xl mx-auto px-4 py-3 space-y-1">
