@@ -71,6 +71,63 @@ interface Step3Props {
   onUndo: () => void;
   onRedo: () => void;
 }
+
+// ─── MobileBottomSheet ────────────────────────────────────────────────────────
+// Defined at module level (outside Step3) so React always sees the same
+// component type across re-renders. If it were defined inside Step3 or inside
+// renderMobile(), React would treat it as a new component on every render,
+// causing it to unmount/remount and losing all child state (e.g. the active
+// tab inside QuestionSidePanel resetting to "edit").
+const MobileBottomSheet = ({
+  isOpen,
+  onClose,
+  title,
+  children,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}) => (
+  <>
+    {isOpen && (
+      <div
+        className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 md:hidden"
+        onClick={onClose}
+      />
+    )}
+    <div
+      className={cn(
+        "fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out",
+        isOpen ? "translate-y-0" : "translate-y-full"
+      )}
+      style={{ maxHeight: "88vh" }}
+    >
+      {/* Handle */}
+      <div className="flex justify-center pt-3 pb-1">
+        <div className="w-10 h-1 bg-slate-200 rounded-full" />
+      </div>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+        <h3 className="text-sm font-bold text-slate-800">{title}</h3>
+        <button
+          onClick={onClose}
+          className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 transition-colors"
+        >
+          <X className="w-4 h-4 text-slate-500" />
+        </button>
+      </div>
+      {/* Scrollable content */}
+      <div
+        className="overflow-y-auto"
+        style={{ maxHeight: "calc(88vh - 90px)" }}
+      >
+        {children}
+      </div>
+    </div>
+  </>
+);
+
 // ─── Main Step3 Component ─────────────────────────────────────────────────
 export function Step3({
   context,
@@ -138,57 +195,6 @@ export function Step3({
         (context.questions.length || 1)
     ),
   };
-
-  // ─── Mobile Bottom Sheet ────────────────────────────────────────────────
-  const MobileBottomSheet = ({
-    isOpen,
-    onClose,
-    title,
-    children,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    title: string;
-    children: React.ReactNode;
-  }) => (
-    <>
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 md:hidden"
-          onClick={onClose}
-        />
-      )}
-      <div
-        className={cn(
-          "fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out",
-          isOpen ? "translate-y-0" : "translate-y-full"
-        )}
-        style={{ maxHeight: "88vh" }}
-      >
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 bg-slate-200 rounded-full" />
-        </div>
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-          <h3 className="text-sm font-bold text-slate-800">{title}</h3>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 transition-colors"
-          >
-            <X className="w-4 h-4 text-slate-500" />
-          </button>
-        </div>
-        {/* Scrollable content */}
-        <div
-          className="overflow-y-auto"
-          style={{ maxHeight: "calc(88vh - 90px)" }}
-        >
-          {children}
-        </div>
-      </div>
-    </>
-  );
 
   // ─── MOBILE LAYOUT ──────────────────────────────────────────────────────
   const renderMobile = () => (
