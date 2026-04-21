@@ -26,6 +26,20 @@ interface ParticipantSession {
   participantName: string;
 }
 
+/**
+ * Compute remaining seconds from a DB row.
+ *
+ * NOTE: this is used ONLY for late-joiner / refresh / fallback paths where
+ * the participant did NOT receive the original broadcast and therefore has
+ * to estimate elapsed time from the host-written timestamp.  In that case
+ * we accept a small clock-skew error in exchange for showing *some* timer
+ * to the late joiner.
+ *
+ * The HOT PATH (host triggers SESSION_START / QUESTION_CHANGE while the
+ * participant is connected) deliberately does NOT compute elapsed time —
+ * it just starts from `timeLimit` so every device begins counting from
+ * exactly the same number, immune to phone clock skew.
+ */
 function computeRemainingFromDbRow(
   row: {
     is_paused: boolean;
@@ -148,12 +162,37 @@ const AudienceParticipation: React.FC = () => {
 
   useEffect(() => () => stopLocalCountdown(), [stopLocalCountdown]);
 
-  // ── Apply a question directly from cached session data (zero DB round-trip)
+  /**
+   * Start a question's countdown.
+   *
+   * The third parameter `useElapsed` controls whether to subtract elapsed
+   * time from the host's `startedAt`:
+   *
+   *   useElapsed === false  →  start from the full `timeLimit` (used for the
+   *                            real-time broadcast path: the message just
+   *                            arrived ~50 ms ago, so any elapsed math
+   *                            is just clock-skew noise that produces
+   *                            wrong numbers like "32 instead of 30").
+   *
+   *   useElapsed === true   →  subtract `(localNow - startedAt)` (used only
+   *                            for the late-join / refresh / fallback path,
+   *                            where there is no other way to estimate how
+   *                            far into the question we already are).
+   *
+   * This is the core fix for the timer-skew bug: by treating the broadcast
+   * as authoritative ("the question begins NOW"), every device starts from
+   * the configured time limit regardless of phone-clock skew.
+   */
   const applyQuestion = useCallback(
-    (question: Question, timeLimit: number | null, startedAt?: string) => {
+    (
+      question: Question,
+      timeLimit: number | null,
+      startedAt?: string,
+      useElapsed: boolean = false
+    ) => {
       const limit = timeLimit == null || timeLimit <= 0 ? null : timeLimit;
       let remaining = limit ?? 0;
-      if (limit !== null && startedAt) {
+      if (limit !== null && useElapsed && startedAt) {
         const elapsed = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
         remaining = Math.max(0, limit - elapsed);
       }
@@ -178,7 +217,13 @@ const AudienceParticipation: React.FC = () => {
 
   // ── Load question — tries cache first, falls back to DB ─────────────────
   const loadQuestion = useCallback(
-    async (questionId: string, questionIndex: number, timeLimit?: number | null, startedAt?: string) => {
+    async (
+      questionId: string,
+      questionIndex: number,
+      timeLimit?: number | null,
+      startedAt?: string,
+      useElapsed: boolean = false
+    ) => {
       if (!participantSessionRef.current) return;
 
       const cachedQ = participantSessionRef.current.session.presentation.questions.find(
@@ -186,7 +231,7 @@ const AudienceParticipation: React.FC = () => {
       );
 
       if (cachedQ) {
-        applyQuestion(cachedQ, cachedQ.timeLimit ?? timeLimit ?? null, startedAt);
+        applyQuestion(cachedQ, cachedQ.timeLimit ?? timeLimit ?? null, startedAt, useElapsed);
         return;
       }
 
@@ -219,7 +264,12 @@ const AudienceParticipation: React.FC = () => {
           displayStyle: questionData.display_style,
         };
 
-        applyQuestion(newQuestion, questionData.time_limit ?? timeLimit ?? null, startedAt);
+        applyQuestion(
+          newQuestion,
+          questionData.time_limit ?? timeLimit ?? null,
+          startedAt,
+          useElapsed
+        );
       } catch (err) {
         console.error('Load question error:', err);
         setSessionState('waiting');
@@ -240,10 +290,21 @@ const AudienceParticipation: React.FC = () => {
           const questionId = payload?.questionId as string | undefined;
           const questionIndex = (payload?.questionIndex as number) ?? 0;
           const timeLimit = payload?.timeLimit as number | null | undefined;
-          const startedAt = payload?.startedAt as string | undefined;
+          // ── FIX: Ignore the host-provided `startedAt` on the broadcast
+          // hot path.  The broadcast arrived ~50 ms ago, so the question
+          // truly begins NOW for this participant.  Starting fresh from
+          // `timeLimit` (instead of subtracting `localNow - startedAt`,
+          // which compares two devices' wall clocks) eliminates the
+          // 32-vs-30 phone-clock-skew bug.
           if (questionId) {
             stopLocalCountdown();
-            loadQuestion(questionId, questionIndex, timeLimit, startedAt);
+            loadQuestion(
+              questionId,
+              questionIndex,
+              timeLimit,
+              undefined,
+              /* useElapsed */ false
+            );
           }
           break;
         }
@@ -259,18 +320,18 @@ const AudienceParticipation: React.FC = () => {
         }
 
         case 'RESUME': {
+          // ── FIX: Just resume from the host-snapshotted `remainingSeconds`.
+          // We deliberately do NOT subtract `(localNow - resumedAt)` here:
+          // that subtraction was the second source of the same clock-skew
+          // bug (a phone with a clock 2 s behind the PC was effectively
+          // adding 2 seconds to the resumed timer).  Resume latency is
+          // ~50 ms anyway — negligible.
           const remaining = (payload?.remainingSeconds as number) ?? timerRemainingRef.current;
-          const resumedAt = payload?.resumedAt as string | undefined;
-          let actualRemaining = remaining;
-          if (resumedAt) {
-            const elapsed = Math.floor((Date.now() - new Date(resumedAt).getTime()) / 1000);
-            actualRemaining = Math.max(0, remaining - elapsed);
-          }
           setIsPaused(false);
           isPausedRef.current = false;
-          setTimerRemaining(actualRemaining);
-          timerRemainingRef.current = actualRemaining;
-          if (actualRemaining > 0 && questionActiveRef.current) startLocalCountdown();
+          setTimerRemaining(remaining);
+          timerRemainingRef.current = remaining;
+          if (remaining > 0 && questionActiveRef.current) startLocalCountdown();
           break;
         }
 
@@ -297,10 +358,6 @@ const AudienceParticipation: React.FC = () => {
   });
 
   // ── Dedicated ENDED watcher — stable, never torn down while in session ───
-  // This is a separate channel with NO wsConnected dependency so it is never
-  // recreated when the WebSocket drops. It is the definitive safety net for
-  // detecting session end caused by the host navigating away (Exit button,
-  // Leave-session modal) which only updates the DB without broadcasting.
   useEffect(() => {
     if (!participantSession) return;
     const sessionId = participantSession.session.id;
@@ -322,14 +379,13 @@ const AudienceParticipation: React.FC = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(endedWatcher); };
-    // Intentionally omitting stopLocalCountdown from deps — it is stable (useCallback with no deps).
-    // The only dep that should re-create this channel is the session ID changing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [participantSession?.session.id]);
 
   // ── Supabase fallback for pause/resume/question changes ──────────────────
-  // Only fires when the WebSocket broadcast channel is disconnected.
-  // ENDED is intentionally handled by the dedicated watcher above.
+  // Only fires when the WebSocket broadcast channel is disconnected — i.e.
+  // we missed the broadcast and have to recover from the DB row.  In that
+  // case we DO need elapsed-time math because we have no other reference.
   useEffect(() => {
     if (!participantSession) return;
     const sessionId = participantSession.session.id;
@@ -340,12 +396,9 @@ const AudienceParticipation: React.FC = () => {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` },
         (payload) => {
-          // Skip if broadcast is healthy — the dedicated watcher handles ENDED
           if (wsConnected) return;
 
           const updatedSession = payload.new as any;
-
-          // ENDED is handled by the dedicated watcher — skip here to avoid duplication
           if (updatedSession.status === 'ENDED') return;
 
           const newIsPaused: boolean = updatedSession.is_paused ?? false;
@@ -389,11 +442,14 @@ const AudienceParticipation: React.FC = () => {
           const newQuestionIndex: number = updatedSession.current_question_index;
           if (newQuestionId && newQuestionId !== currentQuestionRef.current?.id) {
             stopLocalCountdown();
+            // Fallback path = we missed the broadcast → we DO need elapsed
+            // math from the DB timestamp (best estimate available).
             loadQuestion(
               newQuestionId,
               newQuestionIndex,
               undefined,
-              updatedSession.current_question_started_at
+              updatedSession.current_question_started_at,
+              /* useElapsed */ true
             );
           }
         }
@@ -445,6 +501,9 @@ const AudienceParticipation: React.FC = () => {
         const currentQ = result.session.presentation.questions[result.session.currentQuestionIndex];
         if (currentQ?.id) {
           const timeLimit = currentQ.timeLimit ?? null;
+          // Late-join path: must compute elapsed from DB timestamp because
+          // we have no other reference for "how long has this question
+          // been running already?".
           const remaining = computeRemainingFromDbRow(
             {
               is_paused: paused,
