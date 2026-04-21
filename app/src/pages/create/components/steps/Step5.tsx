@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import {
   Eye, Users, Globe, Timer, Star, Copy, Calendar,
   Bell, TestTube, Download, Rocket, ArrowRight, CheckCircle2,
-  Loader2, Save,
+  Loader2, Save, Clock,
 } from "lucide-react";
 import type { ContextData } from "../../types";
 import { cn } from "../../../../lib/utils";
@@ -25,6 +25,30 @@ function QuickAction({ icon: Icon, label }: { icon: React.ElementType; label: st
       </span>
       <ArrowRight className="w-3 h-3 text-slate-200 group-hover:text-indigo-400 transition-all group-hover:translate-x-0.5 flex-shrink-0" />
     </button>
+  );
+}
+
+// ── ComingSoon wrapper ─────────────────────────────────────────────────────
+function ComingSoon({
+  children,
+  label = "Coming soon",
+}: {
+  children: React.ReactNode;
+  label?: string;
+}) {
+  return (
+    <div className="relative">
+      <div
+        aria-hidden="true"
+        className="opacity-40 pointer-events-none select-none filter grayscale"
+      >
+        {children}
+      </div>
+      <div className="absolute top-0 right-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 text-white text-[9px] font-black uppercase tracking-[0.15em] shadow-md">
+        <Clock className="w-3 h-3" />
+        {label}
+      </div>
+    </div>
   );
 }
 
@@ -144,20 +168,22 @@ export function Step5({ context, isPublishing, isSavingDraft, onHandleCreate, on
               </div>
             </motion.div>
 
-            {/* Quick actions */}
+            {/* ── Quick actions — disabled (Coming Soon) ─────────── */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.08 }}
             >
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">
-                Quick actions
-              </p>
-              <QuickAction icon={Copy}     label="Duplicate template" />
-              <QuickAction icon={Calendar} label="Schedule launch" />
-              <QuickAction icon={Bell}     label="Set reminders" />
-              <QuickAction icon={TestTube} label="Test participation" />
-              <QuickAction icon={Download} label="Export questions" />
+              <ComingSoon>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">
+                  Quick actions
+                </p>
+                <QuickAction icon={Copy}     label="Duplicate template" />
+                <QuickAction icon={Calendar} label="Schedule launch" />
+                <QuickAction icon={Bell}     label="Set reminders" />
+                <QuickAction icon={TestTube} label="Test participation" />
+                <QuickAction icon={Download} label="Export questions" />
+              </ComingSoon>
             </motion.div>
           </div>
 

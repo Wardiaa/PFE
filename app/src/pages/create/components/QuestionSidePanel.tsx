@@ -15,8 +15,6 @@ import {
   X,
   Trash2,
   Star,
-  Shuffle,
-  SkipForward,
   Check,
   BarChart2,
   HelpCircle,
@@ -31,14 +29,8 @@ import {
   ThumbsDown,
   Heart,
   PawPrint,
+  Clock,
 } from "lucide-react";
-
-interface Comment {
-  id: string;
-  text: string;
-  author: string;
-  timestamp: Date;
-}
 
 // Local interactivity settings state
 interface InteractivitySettings {
@@ -179,6 +171,32 @@ const MentiToggle = ({
   </button>
 );
 
+// ── ComingSoon wrapper ─────────────────────────────────────────────────────
+// Greys out + disables interaction on a section, but keeps it visible so
+// the demo still shows that the feature is planned.
+function ComingSoon({
+  children,
+  label = "Coming soon",
+}: {
+  children: React.ReactNode;
+  label?: string;
+}) {
+  return (
+    <div className="relative">
+      <div
+        aria-hidden="true"
+        className="opacity-40 pointer-events-none select-none filter grayscale"
+      >
+        {children}
+      </div>
+      <div className="absolute top-0 right-0 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-900 text-white text-[9px] font-black uppercase tracking-[0.15em] shadow-md">
+        <Clock className="w-2.5 h-2.5" />
+        {label}
+      </div>
+    </div>
+  );
+}
+
 function ThemePreviewCard({
   theme,
   isSelected,
@@ -259,8 +277,6 @@ export function QuestionSidePanel({
   inline = false,
 }: QuestionSidePanelProps) {
   const [activeMenu, setActiveMenu] = useState<string>("edit");
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [newComment, setNewComment] = useState("");
   const [uploadingOptionIndex, setUploadingOptionIndex] = useState<
     number | null
   >(null);
@@ -298,24 +314,6 @@ export function QuestionSidePanel({
       setActiveMenu(menuId);
       if (!isOpen) onToggle();
     }
-  };
-
-  const handleAddComment = () => {
-    if (!newComment.trim()) return;
-    setComments((prev) => [
-      ...prev,
-      {
-        id: Date.now().toString(),
-        text: newComment.trim(),
-        author: "You",
-        timestamp: new Date(),
-      },
-    ]);
-    setNewComment("");
-  };
-
-  const handleDeleteComment = (id: string) => {
-    setComments((prev) => prev.filter((c) => c.id !== id));
   };
 
   const handleThemeSelect = (themeId: string) => {
@@ -645,76 +643,30 @@ export function QuestionSidePanel({
     );
   };
 
-  // Comments Panel - New UI Style
+  // ── Comments Panel — Coming Soon stub ────────────────────────────────────
   const renderCommentsPanel = () => (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 space-y-4 overflow-y-auto mb-4 min-h-0">
-        {comments.length === 0 ? (
-          <div className="text-center py-16">
-            <MessageSquareText className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-            <p className="text-sm font-semibold text-slate-400">
-              No comments yet
-            </p>
-            <p className="text-xs text-slate-300 mt-1">
-              Leave notes for collaborators or yourself
-            </p>
-          </div>
-        ) : (
-          comments.map((comment) => (
-            <div key={comment.id} className="flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-[#E9ECEF] flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">
-                {comment.author.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-700">
-                    {comment.author}
-                  </span>
-                  <span className="text-[10px] text-slate-400">
-                    {comment.timestamp.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </div>
-                <p className="text-sm text-slate-600">{comment.text}</p>
-                <div className="flex items-center gap-3">
-                  <button className="text-[11px] font-bold text-slate-800 pt-1 hover:text-indigo-600">
-                    Reply
-                  </button>
-                  <button
-                    onClick={() => handleDeleteComment(comment.id)}
-                    className="text-[11px] font-bold text-rose-500 pt-1 hover:text-rose-600"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))
-        )}
+    <div className="flex flex-col items-center justify-center py-20 text-center px-6">
+      <div className="relative w-16 h-16 mb-5">
+        <div className="absolute inset-0 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-full blur-2xl opacity-70" />
+        <div className="relative w-16 h-16 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center">
+          <MessageSquareText className="w-7 h-7 text-slate-300" />
+        </div>
       </div>
-
-      <div className="relative pt-4 border-t border-slate-100">
-        <input
-          type="text"
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
-          placeholder="Enter your comment here..."
-          disabled={!currentQuestion}
-          className="w-full bg-[#F1F3F5] rounded-xl px-4 py-3 text-sm font-medium outline-none border-none placeholder:text-slate-400 disabled:opacity-40 disabled:cursor-not-allowed"
-        />
-        {!currentQuestion && (
-          <p className="text-[9px] text-slate-400 mt-2 text-center">
-            Select a question to add comments
-          </p>
-        )}
+      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 text-white text-[9px] font-black uppercase tracking-[0.15em] shadow-md mb-4">
+        <Clock className="w-2.5 h-2.5" />
+        Coming soon
       </div>
+      <h3 className="text-base font-bold text-slate-800 mb-1.5">
+        Collaborator comments
+      </h3>
+      <p className="text-xs text-slate-500 max-w-[240px] leading-relaxed">
+        Leave notes for your team or yourself on each question. This is still
+        being built and will be available in a future release.
+      </p>
     </div>
   );
 
-  // Interactivity Panel - All UI elements preserved, using local state
+  // Interactivity Panel
   const renderInteractivityPanel = () => {
     const q = currentQuestion;
     if (!q) {
@@ -731,16 +683,9 @@ export function QuestionSidePanel({
       );
     }
 
-    const hasOptions =
-      q.type === "multiple-choice" ||
-      q.type === "SINGLE_CHOICE" ||
-      q.type === "MULTIPLE_CHOICE" ||
-      q.type === "TRUE_FALSE" ||
-      q.type === "POLL";
-
     return (
       <div className="space-y-6">
-        {/* Timer Section */}
+        {/* Timer Section — works */}
         <section className="space-y-3">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-800">Time limit</h3>
@@ -781,7 +726,7 @@ export function QuestionSidePanel({
 
         <div className="h-px bg-slate-100" />
 
-        {/* Points Section */}
+        {/* Points Section — works */}
         <section className="space-y-3">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-800">Points</h3>
@@ -808,7 +753,7 @@ export function QuestionSidePanel({
 
         <div className="h-px bg-slate-100" />
 
-        {/* Participant Names Section - UI only */}
+        {/* Participant Names — works */}
         <section className="space-y-3">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-800">
@@ -837,136 +782,91 @@ export function QuestionSidePanel({
 
         <div className="h-px bg-slate-100" />
 
-        {/* Reactions Section - UI only */}
-        <section className="space-y-3">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-slate-800">Reactions</h3>
-            <HelpCircle className="w-3.5 h-3.5 text-slate-300" />
-          </div>
-          <div className="flex gap-1.5">
-            {[PawPrint, Heart, HelpCircle, ThumbsUp, ThumbsDown].map(
-              (Icon, i) => (
-                <button
-                  key={i}
-                  className={cn(
-                    "w-9 h-9 rounded-lg border flex items-center justify-center transition-all",
-                    i === 3
-                      ? "border-[#6366F1] bg-indigo-50/50"
-                      : "border-slate-200 bg-white hover:border-slate-300",
-                  )}
-                >
-                  <Icon
+        {/* ── Reactions — Coming Soon ──────────────────────────────── */}
+        <ComingSoon>
+          <section className="space-y-3">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-800">Reactions</h3>
+              <HelpCircle className="w-3.5 h-3.5 text-slate-300" />
+            </div>
+            <div className="flex gap-1.5">
+              {[PawPrint, Heart, HelpCircle, ThumbsUp, ThumbsDown].map(
+                (Icon, i) => (
+                  <button
+                    key={i}
                     className={cn(
-                      "w-4 h-4",
-                      i === 3 ? "text-slate-800" : "text-slate-800",
+                      "w-9 h-9 rounded-lg border flex items-center justify-center transition-all",
+                      i === 3
+                        ? "border-[#6366F1] bg-indigo-50/50"
+                        : "border-slate-200 bg-white hover:border-slate-300",
                     )}
-                    fill={i === 3 ? "currentColor" : "none"}
-                  />
-                </button>
-              ),
-            )}
-          </div>
-        </section>
+                  >
+                    <Icon
+                      className={cn(
+                        "w-4 h-4",
+                        i === 3 ? "text-slate-800" : "text-slate-800",
+                      )}
+                      fill={i === 3 ? "currentColor" : "none"}
+                    />
+                  </button>
+                ),
+              )}
+            </div>
+          </section>
+        </ComingSoon>
 
         <div className="h-px bg-slate-100" />
 
-        {/* Q&A Section - UI only */}
-        <section className="space-y-3">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-slate-800">Q&A</h3>
-            <HelpCircle className="w-3.5 h-3.5 text-slate-300" />
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-600">Enable Q&A</span>
-              <MentiToggle
-                checked={interactivitySettings.qaEnabled}
-                onChange={(val) =>
-                  setInteractivitySettings((prev) => ({
-                    ...prev,
-                    qaEnabled: val,
-                  }))
-                }
-              />
+        {/* ── Q&A — Coming Soon ────────────────────────────────────── */}
+        <ComingSoon>
+          <section className="space-y-3">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-800">Q&A</h3>
+              <HelpCircle className="w-3.5 h-3.5 text-slate-300" />
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-600 leading-tight">
-                Questions are visible to everyone
-              </span>
-              <MentiToggle
-                checked={interactivitySettings.qaVisibleToAll}
-                onChange={(val) =>
-                  setInteractivitySettings((prev) => ({
-                    ...prev,
-                    qaVisibleToAll: val,
-                  }))
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-600">Moderation</span>
-                <div className="w-4 h-4 bg-emerald-100 rounded-full flex items-center justify-center">
-                  <Star className="w-2.5 h-2.5 text-emerald-700 fill-current" />
-                </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-600">Enable Q&A</span>
+                <MentiToggle
+                  checked={interactivitySettings.qaEnabled}
+                  onChange={() => {}}
+                />
               </div>
-              <MentiToggle
-                checked={interactivitySettings.qaModeration}
-                onChange={(val) =>
-                  setInteractivitySettings((prev) => ({
-                    ...prev,
-                    qaModeration: val,
-                  }))
-                }
-              />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-600 leading-tight">
+                  Questions are visible to everyone
+                </span>
+                <MentiToggle
+                  checked={interactivitySettings.qaVisibleToAll}
+                  onChange={() => {}}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-600">Moderation</span>
+                  <div className="w-4 h-4 bg-emerald-100 rounded-full flex items-center justify-center">
+                    <Star className="w-2.5 h-2.5 text-emerald-700 fill-current" />
+                  </div>
+                </div>
+                <MentiToggle
+                  checked={interactivitySettings.qaModeration}
+                  onChange={() => {}}
+                />
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </ComingSoon>
 
         <div className="h-px bg-slate-100" />
 
-        {/* Advanced Settings - Mix of existing props and UI-only */}
+        {/* ── Settings ─────────────────────────────────────────────── */}
+        {/* "Show results instantly" and "Lock question" stay live; the
+            other two rows (Allow skip / Shuffle options) are wrapped in
+            ComingSoon since they're UI-only for now. */}
         <section className="space-y-3">
           <h3 className="text-sm font-bold text-slate-800">Settings</h3>
           <div className="space-y-2.5">
-            {/* Allow Skip - UI only */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <SkipForward className="w-3.5 h-3.5 text-slate-400" />
-                <span className="text-xs text-slate-600">Allow skip</span>
-              </div>
-              <MentiToggle
-                checked={interactivitySettings.allowSkip}
-                onChange={(val) =>
-                  setInteractivitySettings((prev) => ({
-                    ...prev,
-                    allowSkip: val,
-                  }))
-                }
-              />
-            </div>
-
-            {/* Shuffle Options - UI only for now */}
-            {hasOptions && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Shuffle className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-xs text-slate-600">
-                    Shuffle options
-                  </span>
-                </div>
-                <MentiToggle
-                  checked={interactivitySettings.shuffleOptions}
-                  onChange={(val) =>
-                    setInteractivitySettings((prev) => ({
-                      ...prev,
-                      shuffleOptions: val,
-                    }))
-                  }
-                />
-              </div>
-            )}
-
+            {/* Show results instantly — works */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <BarChart2 className="w-3.5 h-3.5 text-slate-400" />
@@ -986,7 +886,7 @@ export function QuestionSidePanel({
               />
             </div>
 
-            {/* Lock Question - uses existing property */}
+            {/* Lock question — works */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {q.locked ? (
@@ -1001,6 +901,29 @@ export function QuestionSidePanel({
                 onChange={(val) => onUpdateQuestion({ locked: val })}
               />
             </div>
+
+            {/* Coming-soon advanced rows */}
+            <ComingSoon label="Soon">
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BarChart2 className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-xs text-slate-600">Allow skip</span>
+                  </div>
+                  <MentiToggle checked={false} onChange={() => {}} />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BarChart2 className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-xs text-slate-600">
+                      Shuffle options
+                    </span>
+                  </div>
+                  <MentiToggle checked={false} onChange={() => {}} />
+                </div>
+              </div>
+            </ComingSoon>
           </div>
         </section>
       </div>
@@ -1024,39 +947,41 @@ export function QuestionSidePanel({
     }
 
     return (
-      <div className="space-y-5">
-        <div>
-          <p className="text-sm font-bold text-slate-800 mb-1">
-            Question Theme
-          </p>
-          <p className="text-xs text-slate-400">
-            Choose a visual style for this question. It will appear in the
-            participant preview.
-          </p>
-        </div>
+      <ComingSoon>
+        <div className="space-y-5">
+          <div>
+            <p className="text-sm font-bold text-slate-800 mb-1">
+              Question Theme
+            </p>
+            <p className="text-xs text-slate-400">
+              Choose a visual style for this question. It will appear in the
+              participant preview.
+            </p>
+          </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          {QUESTION_THEMES.map((theme) => (
-            <ThemePreviewCard
-              key={theme.id}
-              theme={theme}
-              question={currentQuestion}
-              isSelected={selectedThemeId === theme.id}
-              onClick={() => handleThemeSelect(theme.id)}
-            />
-          ))}
-        </div>
+          <div className="grid grid-cols-2 gap-3">
+            {QUESTION_THEMES.map((theme) => (
+              <ThemePreviewCard
+                key={theme.id}
+                theme={theme}
+                question={currentQuestion}
+                isSelected={selectedThemeId === theme.id}
+                onClick={() => handleThemeSelect(theme.id)}
+              />
+            ))}
+          </div>
 
-        {selectedThemeId !== "default" && (
-          <button
-            onClick={() => handleThemeSelect("default")}
-            className="w-full py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Reset to Default
-          </button>
-        )}
-      </div>
+          {selectedThemeId !== "default" && (
+            <button
+              onClick={() => handleThemeSelect("default")}
+              className="w-full py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Reset to Default
+            </button>
+          )}
+        </div>
+      </ComingSoon>
     );
   };
 

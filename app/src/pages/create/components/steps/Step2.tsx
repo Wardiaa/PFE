@@ -9,7 +9,7 @@ import {
 import { ThemeSelector } from "../../../../components/ui/theme-selector";
 import { DevicePreview } from "../../../../components/ui/device-preview";
 import { ImageUploadWidget } from "../../../../components/ui/image-upload-widget";
-import { Sparkles, Layout, Image as ImageIcon, Tag, Check } from "lucide-react";
+import { Sparkles, Layout, Image as ImageIcon, Tag, Check, Clock } from "lucide-react";
 import type { ContextData } from "../../types";
 import { motion } from "framer-motion";
 
@@ -30,6 +30,32 @@ const DEFAULT_COVER_IMAGES = [
   "https://images.unsplash.com/photo-1535223289827-42f1e9919769?auto=format&fit=crop&w=1200",
   "https://images.unsplash.com/photo-1515187029135-18ee286d815b?auto=format&fit=crop&w=1200",
 ];
+
+// ── ComingSoon wrapper ─────────────────────────────────────────────────────
+// Greys out + disables interaction on a section, but keeps it visible so
+// the demo still shows that the feature is planned.
+function ComingSoon({
+  children,
+  label = "Coming soon",
+}: {
+  children: React.ReactNode;
+  label?: string;
+}) {
+  return (
+    <div className="relative">
+      <div
+        aria-hidden="true"
+        className="opacity-40 pointer-events-none select-none filter grayscale"
+      >
+        {children}
+      </div>
+      <div className="absolute top-0 right-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 text-white text-[9px] font-black uppercase tracking-[0.15em] shadow-md">
+        <Clock className="w-3 h-3" />
+        {label}
+      </div>
+    </div>
+  );
+}
 
 export function Step2({
   context,
@@ -170,18 +196,21 @@ export function Step2({
               </div>
             </section>
 
-            <section className="space-y-4 sm:space-y-6">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600" />
-                <h3 className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-900">
-                  Visual Identity
-                </h3>
-              </div>
-              <ThemeSelector
-                selectedTheme={context.theme}
-                onSelect={onThemeChange}
-              />
-            </section>
+            {/* ── Visual Identity — disabled (Coming Soon) ───────────── */}
+            <ComingSoon>
+              <section className="space-y-4 sm:space-y-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600" />
+                  <h3 className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-900">
+                    Visual Identity
+                  </h3>
+                </div>
+                <ThemeSelector
+                  selectedTheme={context.theme}
+                  onSelect={onThemeChange}
+                />
+              </section>
+            </ComingSoon>
 
             <section className="space-y-4 sm:space-y-6">
               <div className="flex items-center gap-2 mb-2">

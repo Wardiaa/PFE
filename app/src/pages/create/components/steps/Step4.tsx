@@ -1,6 +1,8 @@
-// Step4.tsx — current typography/color style + previous 2-column grid layout
+// Step4.tsx — entire page disabled with a "Coming soon" overlay so the
+// professor can see the planned UI but can't interact with anything that
+// isn't actually wired up yet.
 import { Slider } from "../../../../components/ui/slider";
-import { Globe, Lock, Copy, Check, Settings, Music, Bell, Users } from "lucide-react";
+import { Globe, Lock, Copy, Check, Settings, Music, Bell, Users, Clock } from "lucide-react";
 import type { ContextData } from "../../types";
 import { cn } from "../../../../lib/utils";
 import { motion } from "framer-motion";
@@ -102,7 +104,7 @@ export function Step4({ context, onSettingsChange }: Step4Props) {
     <div className="min-h-screen bg-[#F8FAFC] py-10 px-4 sm:px-6">
       <div className="max-w-5xl mx-auto">
 
-        {/* ── Page header ───────────────────────────────────────── */}
+        {/* ── Page header (always visible & sharp) ────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -120,10 +122,23 @@ export function Step4({ context, onSettingsChange }: Step4Props) {
           <p className="text-sm text-slate-500 max-w-sm">
             Set participation access, scoring, audio, and notification preferences.
           </p>
+
+          {/* Coming-soon banner */}
+          <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900 text-white text-[11px] font-black uppercase tracking-[0.15em] shadow-md">
+            <Clock className="w-3.5 h-3.5" />
+            Coming soon
+          </div>
+          <p className="mt-3 text-xs text-slate-400 max-w-md">
+            This step is still under construction. The interface is shown
+            for preview only — settings here are not yet saved.
+          </p>
         </motion.div>
 
-        {/* ── Layout ─────────────────────────────────────────────── */}
-        <div className="space-y-5">
+        {/* ── Disabled body ─────────────────────────────────────────── */}
+        <div
+          aria-hidden="true"
+          className="space-y-5 opacity-40 pointer-events-none select-none filter grayscale"
+        >
 
           {/* Row 1 — Participation (full width) */}
           <motion.div
@@ -207,7 +222,6 @@ export function Step4({ context, onSettingsChange }: Step4Props) {
             </SectionCard>
           </motion.div>
 
-          {/* Row 2 — Game Rules + (Audio + Notifications) */}
           <div className="grid sm:grid-cols-2 gap-5 items-start">
 
             {/* Game rules */}
