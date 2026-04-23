@@ -103,10 +103,16 @@ const AudienceParticipation: React.FC = () => {
   useEffect(() => { timerRemainingRef.current = timerRemaining; }, [timerRemaining]);
   useEffect(() => { toastRef.current = toast; }, [toast]);
 
+  // ── Read session code from URL (?code=ABC123) ──────────────────────────
+  // When the participant scans the QR code or clicks the shared link from
+  // the lobby, they arrive here with `?code=XXXXXX`. We surface that code
+  // to the join form so it can pre-fill (and hide) the code field — the
+  // participant only has to type their name and click Join.
+  const prefilledCode = (searchParams.get('code') || '').toUpperCase();
+
   useEffect(() => {
-    const code = searchParams.get('code');
-    if (code) sessionStorage.setItem('pending-session-code', code);
-  }, [searchParams]);
+    if (prefilledCode) sessionStorage.setItem('pending-session-code', prefilledCode);
+  }, [prefilledCode]);
 
   const getQuestionImage = (question: Question | null): string | null => {
     if (!question) return null;
@@ -702,7 +708,7 @@ const AudienceParticipation: React.FC = () => {
   const renderContent = (): React.ReactNode => {
     switch (sessionState) {
       case 'join':
-        return <SessionJoinForm onJoin={handleJoinSession} />;
+        return <SessionJoinForm onJoin={handleJoinSession} prefilledCode={prefilledCode} />;
 
       case 'question': {
         if (!currentQuestion) return null;

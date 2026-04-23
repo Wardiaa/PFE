@@ -1,5 +1,10 @@
 // SessionJoinForm.tsx — split-screen, flat monochromatic left panel
-import React, { useState } from 'react';
+// UPDATED: Accepts an optional `prefilledCode` prop. When provided (e.g. when
+// the participant arrives via /audience-participation?code=XXXXXX), the code
+// field is pre-filled and hidden so the participant only has to enter their
+// name and click "Join". This makes the QR / shared-link flow a one-tap join
+// instead of forcing the participant to re-type the code they were just sent.
+import React, { useState, useEffect } from 'react';
 
 interface JoinData {
   code: string;
@@ -8,6 +13,7 @@ interface JoinData {
 
 interface SessionJoinFormProps {
   onJoin: (data: JoinData) => void;
+  prefilledCode?: string;
 }
 
 interface Errors {
@@ -15,11 +21,20 @@ interface Errors {
   participantName?: string;
 }
 
-const SessionJoinForm: React.FC<SessionJoinFormProps> = ({ onJoin }) => {
-  const [sessionCode, setSessionCode]         = useState('');
+const SessionJoinForm: React.FC<SessionJoinFormProps> = ({ onJoin, prefilledCode }) => {
+  const [sessionCode, setSessionCode]         = useState((prefilledCode ?? '').toUpperCase());
   const [participantName, setParticipantName] = useState('');
   const [errors, setErrors]                   = useState<Errors>({});
   const [isJoining, setIsJoining]             = useState(false);
+
+  // If the URL code arrives after first render, sync it in.
+  useEffect(() => {
+    if (prefilledCode) {
+      setSessionCode(prefilledCode.toUpperCase());
+    }
+  }, [prefilledCode]);
+
+  const hasPrefilledCode = !!prefilledCode && prefilledCode.trim().length >= 6;
 
   const validate = (): boolean => {
     const e: Errors = {};
@@ -32,18 +47,18 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({ onJoin }) => {
   };
 
  // In SessionJoinForm.tsx, make sure the code is properly formatted
-const handleSubmit = (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!validate()) return;
-  setIsJoining(true);
-  setTimeout(() => {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setIsJoining(true);
+    setTimeout(() => {
     // Ensure code is uppercase and trimmed
-    const formattedCode = sessionCode.trim().toUpperCase();
-    const formattedName = participantName.trim();
-    onJoin({ code: formattedCode, name: formattedName });
-    setIsJoining(false);
-  }, 800);
-};
+      const formattedCode = sessionCode.trim().toUpperCase();
+      const formattedName = participantName.trim();
+      onJoin({ code: formattedCode, name: formattedName });
+      setIsJoining(false);
+    }, 800);
+  };
 
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -110,42 +125,46 @@ const handleSubmit = (e: React.FormEvent) => {
 
           <div className="mb-10">
             <h1 className="text-2xl font-black text-slate-950 tracking-tight mb-1.5">
-              Join a session
+              {hasPrefilledCode ? 'Almost there!' : 'Join a session'}
             </h1>
             <p className="text-sm text-slate-400">
-              Enter the code your presenter shared with you.
+              {hasPrefilledCode
+                ? <>You're joining session <span className="font-mono font-bold text-slate-700">{sessionCode}</span>. Just tell us your name.</>
+                : 'Enter the code your presenter shared with you.'}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
 
-            {/* Session code */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">
-                Session Code
-              </label>
-              <input
-                type="text"
-                placeholder="ABC123"
-                value={sessionCode}
-                onChange={handleCodeChange}
-                maxLength={10}
-                autoFocus
-                autoComplete="off"
-                spellCheck={false}
-                className={`
-                  w-full px-4 py-3.5 rounded-xl border-2 bg-slate-50
-                  font-mono text-xl font-black text-slate-900 tracking-[0.2em]
-                  placeholder:font-sans placeholder:text-base placeholder:font-normal
-                  placeholder:text-slate-300 placeholder:tracking-normal
-                  focus:outline-none focus:bg-white transition-all duration-150
-                  ${errors.sessionCode ? 'border-red-300 bg-red-50' : 'border-slate-200 focus:border-indigo-500'}
-                `}
-              />
-              {errors.sessionCode && (
-                <p className="text-xs text-red-500 font-semibold">{errors.sessionCode}</p>
-              )}
-            </div>
+            {/* Session code — only shown when not prefilled */}
+            {!hasPrefilledCode && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">
+                  Session Code
+                </label>
+                <input
+                  type="text"
+                  placeholder="ABC123"
+                  value={sessionCode}
+                  onChange={handleCodeChange}
+                  maxLength={10}
+                  autoFocus
+                  autoComplete="off"
+                  spellCheck={false}
+                  className={`
+                    w-full px-4 py-3.5 rounded-xl border-2 bg-slate-50
+                    font-mono text-xl font-black text-slate-900 tracking-[0.2em]
+                    placeholder:font-sans placeholder:text-base placeholder:font-normal
+                    placeholder:text-slate-300 placeholder:tracking-normal
+                    focus:outline-none focus:bg-white transition-all duration-150
+                    ${errors.sessionCode ? 'border-red-300 bg-red-50' : 'border-slate-200 focus:border-indigo-500'}
+                  `}
+                />
+                {errors.sessionCode && (
+                  <p className="text-xs text-red-500 font-semibold">{errors.sessionCode}</p>
+                )}
+              </div>
+            )}
 
             {/* Name */}
             <div className="space-y-1.5">
@@ -158,6 +177,7 @@ const handleSubmit = (e: React.FormEvent) => {
                 value={participantName}
                 onChange={handleNameChange}
                 maxLength={50}
+                autoFocus={hasPrefilledCode}
                 className={`
                   w-full px-4 py-3.5 rounded-xl border-2 bg-slate-50
                   text-sm font-semibold text-slate-900

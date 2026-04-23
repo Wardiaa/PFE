@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabase";
 import { SessionService } from "../../service/session.service";
 import { useSessionSocket } from "../../lib/useSessionSocket";
 import AppIcon from "../../components/AppIcon";
+import { QRCodeSVG } from "qrcode.react";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
@@ -887,9 +888,22 @@ const HostSession: React.FC = () => {
                 {/* Share card */}
                 <Card className="p-4 sm:p-6 bg-white/10 border-white/20 backdrop-blur-md text-white">
                   <div className="flex items-center gap-4 sm:gap-6">
-                    <div className="h-24 w-24 sm:h-32 sm:w-32 bg-white rounded-lg flex items-center justify-center text-black flex-shrink-0">
-                      <AppIcon name="QrCode" size={64} className="sm:hidden" />
-                      <AppIcon name="QrCode" size={80} className="hidden sm:block" />
+                    {/* Real QR code — encodes the join URL with the
+                        session code prefilled, so a phone scan drops the
+                        participant straight into the "enter your name" step
+                        of the audience page (no manual code entry). */}
+                    <div className="h-24 w-24 sm:h-32 sm:w-32 bg-white rounded-lg flex items-center justify-center text-black flex-shrink-0 p-2">
+                      {session?.code ? (
+                        <QRCodeSVG
+                          value={`${window.location.origin}/audience-participation?code=${session.code}`}
+                          size={256}
+                          level="M"
+                          includeMargin={false}
+                          className="h-full w-full"
+                        />
+                      ) : (
+                        <AppIcon name="QrCode" size={64} />
+                      )}
                     </div>
                     <div className="space-y-2 sm:space-y-3 flex-1 min-w-0">
                       <div className="text-xs sm:text-sm uppercase tracking-wider opacity-75">
