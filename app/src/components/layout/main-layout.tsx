@@ -1,6 +1,6 @@
 // src/components/layout/main-layout.tsx
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../ui/button";
 import { NotificationsPanel } from "../notifications-panel";
 import { useAuth } from "../../contexts/AuthContext";
@@ -30,6 +30,7 @@ export function MainLayout() {
   const { user, profile, signOut, isLoading } = useAuth();
   const location = useLocation();
   const navigate  = useNavigate();
+  const [searchParams] = useSearchParams();
   const [showNotifications, setShowNotifications] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen]       = useState(false);
   const [scrolled, setScrolled]                   = useState(false);
@@ -239,6 +240,8 @@ export function MainLayout() {
   const unreadNotifications = 3;
   const isCreatePage    = location.pathname === "/create";
   const isCreateProcess = location.pathname.startsWith("/create");
+  // Hide navbar when a participant has joined a session (URL has ?code=...)
+  const isParticipantInSession = location.pathname === "/audience-participation" && !!searchParams.get("code");
 
   // Don't render anything if we're loading or should redirect
   if (isLoading) {
@@ -474,7 +477,7 @@ export function MainLayout() {
       )}
 
       {/* ── Navigation — hidden when in fullscreen ────────────────────────── */}
-      {!isCreateProcess && !isFullscreen && (
+      {!isCreateProcess && !isFullscreen && !isParticipantInSession && (
         user ? renderAuthNavbar() : <Navbar variant="audience" />
       )}
 
