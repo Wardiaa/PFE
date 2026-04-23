@@ -68,7 +68,7 @@ function computeRemainingFromDbRow(
 }
 
 const AudienceParticipation: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -498,6 +498,13 @@ const AudienceParticipation: React.FC = () => {
 
       participantSessionRef.current = ps;
       setParticipantSession(ps);
+
+      // Reflect the joined code in the URL so a refresh / share / back-nav
+      // keeps the same prefilled-code experience as the QR / copy-link flow.
+      const joinedCode = joinData.code.toUpperCase();
+      if (searchParams.get('code') !== joinedCode) {
+        setSearchParams({ code: joinedCode }, { replace: true });
+      }
 
       const paused = sessionExists.is_paused || false;
       setIsPaused(paused);

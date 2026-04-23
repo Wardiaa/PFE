@@ -1,5 +1,6 @@
 // src/pages/HostSession/index.tsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../contexts/AuthContext";
@@ -28,6 +29,106 @@ import type {
   Participant,
 } from "../../lib/presentation.types";
 
+// ── Fullscreen QR modal ──────────────────────────────────────────────────────
+// Rendered via a portal so it always escapes ancestor transforms / filters
+// (framer-motion wrappers set CSS `transform`, which breaks `position:fixed`).
+// Sizing: the QR takes up to 55 vh so the code text underneath is always visible.
+const QrFullscreenModal: React.FC<{ code: string; onClose: () => void }> = ({ code, onClose }) => {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 2147483000,
+        backgroundColor: "rgba(0,0,0,0.92)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "clamp(12px, 3vh, 28px)",
+        padding: "clamp(12px, 4vmin, 32px)",
+        cursor: "zoom-out",
+        boxSizing: "border-box",
+      }}
+    >
+      {/* Close button */}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
+        aria-label="Close"
+        style={{
+          position: "absolute",
+          top: "clamp(12px, 2vmin, 24px)",
+          right: "clamp(12px, 2vmin, 24px)",
+          height: 40, width: 40,
+          borderRadius: 9999,
+          background: "rgba(255,255,255,0.15)",
+          color: "white",
+          fontSize: 18,
+          fontWeight: 700,
+          border: "none",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        ✕
+      </button>
+
+      {/* QR code — capped at 55 vh so text below is never clipped */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "white",
+          borderRadius: 16,
+          padding: "clamp(10px, 2vmin, 20px)",
+          boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)",
+          cursor: "default",
+          flexShrink: 0,
+          lineHeight: 0,
+        }}
+      >
+        <QRCodeSVG
+          value={`${window.location.origin}/audience-participation?code=${code}`}
+          size={512}
+          level="M"
+          includeMargin={false}
+          style={{
+            display: "block",
+            width: "min(55vh, 55vw, 480px)",
+            height: "min(55vh, 55vw, 480px)",
+          }}
+        />
+      </div>
+
+      {/* Code + hint */}
+      <div onClick={(e) => e.stopPropagation()} style={{ textAlign: "center", color: "white", flexShrink: 0 }}>
+        <div style={{ fontSize: "clamp(10px, 1.4vmin, 13px)", textTransform: "uppercase", letterSpacing: "0.3em", opacity: 0.7, marginBottom: 6 }}>
+          Scan to join
+        </div>
+        <div style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: "clamp(28px, 6vmin, 52px)", fontWeight: 900, letterSpacing: "0.2em" }}>
+          {code}
+        </div>
+        <div style={{ marginTop: 8, fontSize: "clamp(10px, 1.2vmin, 12px)", opacity: 0.5 }}>
+          Click anywhere or press Esc to close
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 const HostSession: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -51,6 +152,7 @@ const HostSession: React.FC = () => {
   const [hideParticipantNames, setHideParticipantNames] =
     useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [showQrModal, setShowQrModal] = useState<boolean>(false);
   // Mobile lobby: show participant list panel
   const [showMobileParticipants, setShowMobileParticipants] = useState<boolean>(false);
 
@@ -888,11 +990,17 @@ const HostSession: React.FC = () => {
                 {/* Share card */}
                 <Card className="p-4 sm:p-6 bg-white/10 border-white/20 backdrop-blur-md text-white">
                   <div className="flex items-center gap-4 sm:gap-6">
-                    {/* Real QR code — encodes the join URL with the
-                        session code prefilled, so a phone scan drops the
-                        participant straight into the "enter your name" step
-                        of the audience page (no manual code entry). */}
-                    <div className="h-24 w-24 sm:h-32 sm:w-32 bg-white rounded-lg flex items-center justify-center text-black flex-shrink-0 p-2">
+                    {/* Real QR code — encodes the join URL with the session
+                        code prefilled. Click it (or the button below) to
+                        blow it up fullscreen so the back of the room can
+                        scan it too. */}
+                    <button
+                      type="button"
+                      onClick={() => session?.code && setShowQrModal(true)}
+                      disabled={!session?.code}
+                      title="Click to enlarge"
+                      className="h-24 w-24 sm:h-32 sm:w-32 bg-white rounded-lg flex items-center justify-center text-black flex-shrink-0 p-2 transition-transform hover:scale-105 hover:ring-2 hover:ring-white/60 disabled:cursor-not-allowed"
+                    >
                       {session?.code ? (
                         <QRCodeSVG
                           value={`${window.location.origin}/audience-participation?code=${session.code}`}
@@ -904,7 +1012,7 @@ const HostSession: React.FC = () => {
                       ) : (
                         <AppIcon name="QrCode" size={64} />
                       )}
-                    </div>
+                    </button>
                     <div className="space-y-2 sm:space-y-3 flex-1 min-w-0">
                       <div className="text-xs sm:text-sm uppercase tracking-wider opacity-75">
                         Scan to join
@@ -916,6 +1024,16 @@ const HostSession: React.FC = () => {
                         onClick={handleCopyLink}
                       >
                         <AppIcon name="Copy" className="mr-2 h-4 w-4" /> Copy Link
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full bg-white/20 text-white border border-white/30 hover:bg-white/30"
+                        onClick={() => session?.code && setShowQrModal(true)}
+                        disabled={!session?.code}
+                      >
+                        <span className="mr-2">⛶</span>
+                        Show QR fullscreen
                       </Button>
                       <p className="text-xs opacity-75 truncate">
                         or enter code: {session.code}
@@ -1024,6 +1142,11 @@ const HostSession: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* ── Fullscreen QR modal ── */}
+        {showQrModal && session?.code && (
+          <QrFullscreenModal code={session.code} onClose={() => setShowQrModal(false)} />
+        )}
       </div>
     );
   }
@@ -1249,6 +1372,11 @@ const HostSession: React.FC = () => {
         onConfirm={handleConfirmEnd}
         onViewResults={handleViewFinalResults}
       />
+
+      {/* ── Fullscreen QR modal ── */}
+      {showQrModal && session?.code && (
+        <QrFullscreenModal code={session.code} onClose={() => setShowQrModal(false)} />
+      )}
     </div>
   );
 };
