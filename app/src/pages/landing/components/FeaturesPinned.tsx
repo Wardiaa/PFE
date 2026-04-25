@@ -119,7 +119,7 @@ const FeaturesPinned: React.FC = () => {
   };
 
   return (
-    <div className="bg-black text-white antialiased">
+    <div id="features" className="bg-black text-white antialiased">
        {/* Intro section - Your original with faster, smoother animation */}
       <section className="h-[70vh] flex flex-col items-center justify-center px-6 text-center">
         <motion.div
