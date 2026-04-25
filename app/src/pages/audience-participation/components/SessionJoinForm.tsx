@@ -96,7 +96,7 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({ onJoin, prefilledCode
         {/* Headline */}
         <div className="relative z-10">
           <p className="text-slate-600 text-xs font-bold uppercase tracking-[0.3em] mb-5">
-            Live session ( jcp quoi mettre)
+            Live session        
           </p>
           <h2 className="text-4xl lg:text-5xl xl:text-6xl font-black text-white leading-[0.95] tracking-tighter mb-8">
             Ready<br />to play?
@@ -115,7 +115,7 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({ onJoin, prefilledCode
 
         {/* Bottom label */}
         <p className="relative z-10 text-slate-700 text-[10px] font-mono tracking-widest uppercase">
-          jcp quoi mettre mm dagi
+          
         </p>
       </div>
 

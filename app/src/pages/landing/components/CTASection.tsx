@@ -25,7 +25,7 @@ const CTASection: React.FC = () => {
           </Link>
         </div>
         <p className="mt-8 text-zinc-500 text-sm font-medium">
-          No credit card required. Up to 10 participants free forever.
+          
         </p>
       </div>
     </section>
