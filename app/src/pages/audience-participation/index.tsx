@@ -645,6 +645,11 @@ const AudienceParticipation: React.FC = () => {
       return (
         <div className="fixed top-0 left-0 right-0 z-50">
           <div className="flex justify-between px-4 pt-2">
+            
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold shadow-sm border bg-background border-border text-foreground">
+              <AppIcon name={isPaused ? 'PauseCircle' : 'Infinity'} size={12} />
+              <span>{isPaused ? 'Paused' : 'No timer'}</span>
+            </div>
           </div>
         </div>
       );
@@ -663,6 +668,21 @@ const AudienceParticipation: React.FC = () => {
             className={`h-full transition-none ${barColor}`}
             style={{ width: `${Math.max(0, Math.min(100, fraction * 100))}%` }}
           />
+        </div>
+        <div className="flex justify-between px-4 pt-1">
+          
+          <div
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold shadow-sm border ${
+              isPaused
+                ? 'bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-950/40 dark:border-yellow-800 dark:text-yellow-400'
+                : isWarning
+                ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950/40 dark:border-red-800 dark:text-red-400 animate-pulse'
+                : 'bg-background border-border text-foreground'
+            }`}
+          >
+            
+            <span>{`${timerRemaining}s`}</span>
+          </div>
         </div>
       </div>
     );
@@ -751,21 +771,9 @@ const AudienceParticipation: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-success/10 border border-success/20">
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  isPaused
-                    ? 'bg-yellow-500'
-                    : wsConnected
-                    ? 'bg-success '
-                    : 'bg-yellow-500'
-                }`}
-              />
-              <span className="text-sm font-medium whitespace-nowrap">
-                {isPaused
-                  ? 'Paused'
-                  : wsConnected
-                  ? 'Live'
-                  : 'Connecting...'}
+              <div className={`w-2 h-2 rounded-full ${isPaused ? 'bg-yellow-500' : 'bg-success animate-pulse'}`} />
+              <span className="text-sm font-medium text-success whitespace-nowrap">
+                {isPaused ? 'Paused' : 'Live'}
               </span>
             </div>
           </div>
