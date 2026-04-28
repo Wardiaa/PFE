@@ -1,3 +1,6 @@
+// builder/types/index.ts
+import type { GameMode } from "../../../lib/presentation.types";
+
 export interface QuestionOption {
   id: string;
   text: string;
@@ -51,14 +54,19 @@ export interface Question {
 }
 
 export interface ContextData {
+  id?: string;                     // optional, for existing contexts
   title: string;
-  description: string;
+  description: string;             // kept as required (existing behaviour)
   theme: string;
   category: string;
   tags: string[];
   coverImage?: string | null;
   questions: Question[];
   settings: any;
+
+  // NEW: elimination mode & visual theme for live session
+  gameMode?: GameMode;             // "standard" | "elimination"
+  themeId?: SessionThemeId;        // e.g. "default" | "cent-pour-cent-logique"
 }
 
 export type HistoryAction =
@@ -70,6 +78,9 @@ export type HistoryAction =
   | { type: "SET_CATEGORY"; payload: string }
   | { type: "SET_TAGS"; payload: string[] }
   | { type: "SET_COVER_IMAGE"; payload: string | null }
+  // ── NEW: 100% Logique support ────────────────────────────────────────────
+  | { type: "SET_GAME_MODE"; payload: GameMode }
+  | { type: "SET_THEME_ID"; payload: SessionThemeId }
   | {
       type: "UPDATE_QUESTION";
       payload: { id: string; updates: Partial<Question> };
@@ -77,3 +88,21 @@ export type HistoryAction =
   | { type: "ADD_QUESTION"; payload: Question }
   | { type: "DELETE_QUESTION"; payload: string }
   | { type: "REORDER_QUESTIONS"; payload: Question[] };
+
+// ============================================================================
+// New type: visual theme identifier for sessions
+// ============================================================================
+export type SessionThemeId = "default" | "cent-pour-cent-logique" | string;
+
+// ============================================================================
+// Helpers to safely read gameMode and themeId from a Supabase context row
+// ============================================================================
+export const getGameMode = (
+  ctx: { game_mode?: string | null } | null | undefined,
+): GameMode =>
+  (ctx?.game_mode as GameMode) === "elimination" ? "elimination" : "standard";
+
+export const getThemeId = (
+  ctx: { theme_id?: string | null; settings?: any } | null | undefined,
+): SessionThemeId =>
+  ctx?.theme_id ?? ctx?.settings?.theme ?? "default";

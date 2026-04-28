@@ -1,25 +1,25 @@
 /**
- * useSessionSocket.ts
- *
  * Real-time session events via Supabase Broadcast channels.
- * Broadcast is a pub/sub layer — it does NOT poll the database,
- * so latency is ~50-100ms regardless of internet speed.
  *
- * Drop-in replacement for a native WebSocket hook.
- * The host broadcasts events; all audience clients receive them instantly.
+ * Standard message types (unchanged):
+ *   SESSION_START      { questionId, questionIndex, timeLimit, startedAt }
+ *   QUESTION_CHANGE    { questionId, questionIndex, timeLimit, startedAt }
+ *   PAUSE              { remainingSeconds }
+ *   RESUME             { remainingSeconds, resumedAt }
+ *   SESSION_END        {}
+ *   RESPONSE_SUBMITTED { participantId, questionId }
  *
- * Message types:
- *   SESSION_START   { questionId, questionIndex, timeLimit, startedAt }
- *   QUESTION_CHANGE { questionId, questionIndex, timeLimit, startedAt }
- *   PAUSE           { remainingSeconds }
- *   RESUME          { remainingSeconds, resumedAt }
- *   SESSION_END     {}
- *   RESPONSE_SUBMITTED { participantId, questionId }  (audience → host)
+ * Elimination message types:
+ *   PLAYER_ELIMINATED  { participantId, participantName, questionId, roundNumber, eliminatedAt }
+ *   GAME_STATE_UPDATE  { alive, eliminated, totalPlayers, currentRound, history }
+ *   GAME_END           { winner }
+ *   ANSWER_RECEIVED    { participantId, questionId, correct }
+ *   WINNER_REVEAL      { winner }   ← NEW: broadcast when host clicks "Show Winner"
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react';
-import { supabase } from './supabase';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import { useEffect, useRef, useCallback, useState } from "react";
+import { supabase } from "./supabase";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export interface WSMessage {
   type: string;
@@ -28,7 +28,7 @@ export interface WSMessage {
 
 export interface UseSessionSocketOptions {
   sessionId: string | null;
-  role: 'host' | 'audience';
+  role: "host" | "audience";
   onMessage: (msg: WSMessage) => void;
   enabled?: boolean;
 }
@@ -38,7 +38,26 @@ export interface UseSessionSocketResult {
   connected: boolean;
 }
 
-const BROADCAST_EVENT = 'session-event';
+const BROADCAST_EVENT = "session-event";
+
+/** Strongly-typed message kinds — useful in switch statements. */
+export const SESSION_EVENTS = {
+  // existing
+  SESSION_START: "SESSION_START",
+  QUESTION_CHANGE: "QUESTION_CHANGE",
+  PAUSE: "PAUSE",
+  RESUME: "RESUME",
+  SESSION_END: "SESSION_END",
+  RESPONSE_SUBMITTED: "RESPONSE_SUBMITTED",
+  // 100% Logique
+  PLAYER_ELIMINATED: "PLAYER_ELIMINATED",
+  GAME_STATE_UPDATE: "GAME_STATE_UPDATE",
+  GAME_END: "GAME_END",
+  ANSWER_RECEIVED: "ANSWER_RECEIVED",
+  WINNER_REVEAL: "WINNER_REVEAL",
+  // late-joiner support
+  REQUEST_GAME_STATE: "REQUEST_GAME_STATE",
+} as const;
 
 export function useSessionSocket({
   sessionId,
@@ -50,7 +69,6 @@ export function useSessionSocket({
   const onMessageRef = useRef(onMessage);
   const [connected, setConnected] = useState(false);
 
-  // Keep callback fresh without re-subscribing
   useEffect(() => {
     onMessageRef.current = onMessage;
   }, [onMessage]);
@@ -61,20 +79,26 @@ export function useSessionSocket({
     const channelName = `session-broadcast-${sessionId}`;
     const channel = supabase.channel(channelName, {
       config: {
-        broadcast: { self: false }, // host doesn't echo back to itself
+        broadcast: { self: false },
       },
     });
 
     channel
-      .on('broadcast', { event: BROADCAST_EVENT }, ({ payload }) => {
-        if (payload) {
-          onMessageRef.current(payload as WSMessage);
-        }
+      .on("broadcast", { event: BROADCAST_EVENT }, ({ payload }) => {
+        if (payload) onMessageRef.current(payload as WSMessage);
       })
       .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
+        if (status === "SUBSCRIBED") {
           setConnected(true);
-        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          // Late-joining audience asks the host for the current game state.
+          if (role === "audience") {
+            channel.send({
+              type: "broadcast",
+              event: BROADCAST_EVENT,
+              payload: { type: SESSION_EVENTS.REQUEST_GAME_STATE },
+            });
+          }
+        } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
           setConnected(false);
         }
       });
@@ -86,14 +110,14 @@ export function useSessionSocket({
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [sessionId, enabled]);
+  }, [sessionId, enabled, role]);
 
   const sendMessage = useCallback((msg: WSMessage) => {
     const channel = channelRef.current;
     if (!channel) return;
 
     channel.send({
-      type: 'broadcast',
+      type: "broadcast",
       event: BROADCAST_EVENT,
       payload: msg,
     });

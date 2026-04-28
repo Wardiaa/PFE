@@ -5,8 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabase";
-import { SessionService } from "../../service/session.service";
-import { useSessionSocket } from "../../lib/useSessionSocket";
+import { useSessionSocket, SESSION_EVENTS } from "../../lib/useSessionSocket";
 import AppIcon from "../../components/AppIcon";
 import { QRCodeSVG } from "qrcode.react";
 import { Button } from "../../components/ui/button";
@@ -22,17 +21,20 @@ import QuestionDisplay from "./components/QuestionDisplay";
 import ControlPanel from "./components/ControlPanel";
 import PauseOverlay from "./components/PauseOverlay";
 import EndSessionModal from "./components/EndSessionModal";
+import { EliminationHistory } from "./components/EliminationHistory";
+import { SessionService } from "../../service/session.service.ts";
+import "../../styles/cent-pour-cent-logique.css";
 import type {
   Session,
   Question,
   QuestionResponses,
   Participant,
+  GameState,
+  EliminationEvent,
+  GameMode,
 } from "../../lib/presentation.types";
 
 // ── Fullscreen QR modal ──────────────────────────────────────────────────────
-// Rendered via a portal so it always escapes ancestor transforms / filters
-// (framer-motion wrappers set CSS `transform`, which breaks `position:fixed`).
-// Sizing: the QR takes up to 55 vh so the code text underneath is always visible.
 const QrFullscreenModal: React.FC<{ code: string; onClose: () => void }> = ({ code, onClose }) => {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -60,7 +62,6 @@ const QrFullscreenModal: React.FC<{ code: string; onClose: () => void }> = ({ co
         boxSizing: "border-box",
       }}
     >
-      {/* Close button */}
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onClose(); }}
@@ -83,10 +84,8 @@ const QrFullscreenModal: React.FC<{ code: string; onClose: () => void }> = ({ co
           flexShrink: 0,
         }}
       >
-        ✕
+        <AppIcon name="X" size={20} />
       </button>
-
-      {/* QR code — capped at 55 vh so text below is never clipped */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -111,8 +110,6 @@ const QrFullscreenModal: React.FC<{ code: string; onClose: () => void }> = ({ co
           }}
         />
       </div>
-
-      {/* Code + hint */}
       <div onClick={(e) => e.stopPropagation()} style={{ textAlign: "center", color: "white", flexShrink: 0 }}>
         <div style={{ fontSize: "clamp(10px, 1.4vmin, 13px)", textTransform: "uppercase", letterSpacing: "0.3em", opacity: 0.7, marginBottom: 6 }}>
           Scan to join
@@ -135,6 +132,7 @@ const HostSession: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  // ── All useState hooks first ──────────────────────────────────────────────
   const [session, setSession] = useState<Session | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(-1);
@@ -143,20 +141,49 @@ const HostSession: React.FC = () => {
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isEndModalOpen, setIsEndModalOpen] = useState<boolean>(false);
   const [timer, setTimer] = useState<number>(0);
-  const [responses, setResponses] = useState<Record<string, QuestionResponses>>(
-    {},
-  );
+  const [responses, setResponses] = useState<Record<string, QuestionResponses>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [timerActive, setTimerActive] = useState<boolean>(false);
-  const [hideParticipantNames, setHideParticipantNames] =
-    useState<boolean>(false);
+  const [hideParticipantNames, setHideParticipantNames] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
-  // Mobile lobby: show participant list panel
   const [showMobileParticipants, setShowMobileParticipants] = useState<boolean>(false);
 
-  // ── Stable refs ──────────────────────────────────────────────────────────
+  // ── 100% Logique elimination state ───────────────────────────────────────
+  const [contextMeta, setContextMeta] = useState<{
+    gameMode: GameMode;
+    themeId: string;
+  }>({ gameMode: "standard", themeId: "default" });
+
+  const [gameState, setGameState] = useState<GameState>({
+    alive: [],
+    eliminated: [],
+    winner: null,
+    totalPlayers: 0,
+    currentRound: 0,
+    history: [],
+  });
+
+  const [showEliminationPanel, setShowEliminationPanel] = useState<boolean>(false);
+
+  // ── Winner reveal (host-controlled) ───────────────────────────────────────
+  // The WinnerCelebration overlay is now opt-in: it only appears after the
+  // host clicks the "Show Winner" button below the results of the LAST
+  // question. We store the revealed winner locally and broadcast it so the
+  // audience can render their own WinnerCelebration screen.
+  const [revealedWinner, setRevealedWinner] = useState<Participant | null>(null);
+  const [isRevealingWinner, setIsRevealingWinner] = useState<boolean>(false);
+
+  // ── Derived values ────────────────────────────────────────────────────────
+  const isElimination = contextMeta.gameMode === "elimination";
+  const themeId = contextMeta.themeId;
+
+  // ── Survivor / eliminated counters ────────────────────────────────────────
+  const survivorsCount = isElimination ? gameState.alive.length : 0;
+  const eliminatedCount = isElimination ? gameState.eliminated.length : 0;
+
+  // ── All useRef hooks ──────────────────────────────────────────────────────
   const timerRef = useRef<number>(0);
   const timerActiveRef = useRef<boolean>(false);
   const timerIntervalRef = useRef<number | undefined>(undefined);
@@ -165,6 +192,9 @@ const HostSession: React.FC = () => {
   const currentQuestionRef = useRef<Question | undefined>(undefined);
   const hasLoadedRef = useRef<boolean>(false);
   const hideParticipantNamesRef = useRef<boolean>(false);
+  const gameStateRef = useRef<GameState>(gameState);
+  const isEliminationRef = useRef<boolean>(false);
+  const sendMessageRef = useRef<(msg: any) => void>(() => {});
 
   const mapQuestionType = (dbType: string): Question["type"] => {
     const mapping: Record<string, Question["type"]> = {
@@ -205,7 +235,6 @@ const HostSession: React.FC = () => {
     return limit;
   };
 
-  // ── Fullscreen toggle ────────────────────────────────────────────────────
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
@@ -216,6 +245,29 @@ const HostSession: React.FC = () => {
     }
   }, []);
 
+  // ── Keep refs in sync ────────────────────────────────────────────────────
+  useEffect(() => { sessionRef.current = session; }, [session]);
+  useEffect(() => { currentQuestionRef.current = currentQuestion; }, [currentQuestion]);
+  useEffect(() => { timerRef.current = timer; }, [timer]);
+  useEffect(() => { timerActiveRef.current = timerActive; }, [timerActive]);
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
+  useEffect(() => { hideParticipantNamesRef.current = hideParticipantNames; }, [hideParticipantNames]);
+  useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+  useEffect(() => { isEliminationRef.current = isElimination; }, [isElimination]);
+
+  // ── Debug log for game state ─────────────────────────────────────────────
+  useEffect(() => {
+    if (isElimination) {
+      console.log('[Host] Game state updated:', {
+        alive: gameState.alive.length,
+        eliminated: gameState.eliminated.length,
+        total: gameState.totalPlayers,
+        winner: gameState.winner
+      });
+    }
+  }, [gameState, isElimination]);
+
+  // ── Fullscreen change listener ───────────────────────────────────────────
   useEffect(() => {
     const onFsChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -224,18 +276,10 @@ const HostSession: React.FC = () => {
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
-  // Keep refs in sync
-  useEffect(() => { sessionRef.current = session; }, [session]);
-  useEffect(() => { currentQuestionRef.current = currentQuestion; }, [currentQuestion]);
-  useEffect(() => { timerRef.current = timer; }, [timer]);
-  useEffect(() => { timerActiveRef.current = timerActive; }, [timerActive]);
-  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
-  useEffect(() => { hideParticipantNamesRef.current = hideParticipantNames; }, [hideParticipantNames]);
-
-  // ── Real-time: receive RESPONSE_SUBMITTED from audience ─────────────────
+  // ── Real-time message handler ────────────────────────────────────────────
   const handleWsMessage = useCallback(
     (msg: { type: string; payload?: Record<string, unknown> }) => {
-      if (msg.type === "RESPONSE_SUBMITTED") {
+      if (msg.type === SESSION_EVENTS.RESPONSE_SUBMITTED) {
         const q = currentQuestionRef.current;
         const sess = sessionRef.current;
         if (q && sess) {
@@ -247,9 +291,51 @@ const HostSession: React.FC = () => {
             setResponses((prev) => ({ ...prev, [q.id]: updated }));
           });
         }
+        return;
+      }
+
+      if (msg.type === SESSION_EVENTS.PLAYER_ELIMINATED) {
+        const ev = msg.payload as unknown as EliminationEvent;
+        console.log('[Host] PLAYER_ELIMINATED received:', ev);
+        const sess = sessionRef.current;
+        if (sess) {
+          SessionService.getGameState(sess.id).then((newState) => {
+            console.log('[Host] Game state refreshed after elimination:', {
+              alive: newState.alive.length,
+              eliminated: newState.eliminated.length
+            });
+            setGameState(newState);
+          });
+        }
+        toast({
+          title: "Joueur éliminé",
+          description: `${ev.participantName} — manche ${ev.roundNumber}`,
+        });
+        return;
+      }
+
+      if (msg.type === SESSION_EVENTS.GAME_STATE_UPDATE) {
+        setGameState(msg.payload as unknown as GameState);
+        return;
+      }
+
+      if (msg.type === SESSION_EVENTS.GAME_END) {
+        const sess = sessionRef.current;
+        if (sess) SessionService.getGameState(sess.id).then(setGameState);
+        return;
+      }
+
+      if (msg.type === SESSION_EVENTS.REQUEST_GAME_STATE) {
+        if (isEliminationRef.current) {
+          sendMessageRef.current?.({
+            type: SESSION_EVENTS.GAME_STATE_UPDATE,
+            payload: gameStateRef.current as unknown as Record<string, unknown>,
+          });
+        }
+        return;
       }
     },
-    [],
+    [toast],
   );
 
   const { sendMessage, connected: wsConnected } = useSessionSocket({
@@ -258,6 +344,8 @@ const HostSession: React.FC = () => {
     onMessage: handleWsMessage,
     enabled: !!session,
   });
+
+  useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
 
   // ── Timer interval ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -298,8 +386,7 @@ const HostSession: React.FC = () => {
         timerIntervalRef.current = undefined;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQuestionIndex, timerActive, timerRef.current, isPaused]);
+  }, [currentQuestionIndex, timerActive, timerRef.current, isPaused, toast]);
 
   useEffect(
     () => () => {
@@ -349,7 +436,7 @@ const HostSession: React.FC = () => {
             .from("contexts")
             .select(
               `
-              id, title,
+              id, title, game_mode, theme,
               questions (
                 id, title, description, type, points, time_limit,
                 options, scale, labels, display_style, image_url, question_order,
@@ -359,6 +446,14 @@ const HostSession: React.FC = () => {
             )
             .eq("id", existingSession.context_id)
             .maybeSingle();
+
+          const ctxGameMode: GameMode =
+            (contextData as any)?.game_mode === "elimination"
+              ? "elimination"
+              : "standard";
+          const ctxThemeId: string =
+            (contextData as any)?.theme || "default";
+          setContextMeta({ gameMode: ctxGameMode, themeId: ctxThemeId });
 
           const questionsArray = contextData?.questions || [];
           const questions: Question[] = questionsArray
@@ -389,6 +484,8 @@ const HostSession: React.FC = () => {
               id: existingSession.context_id,
               title: contextData?.title || "Untitled Session",
               questions,
+              gameMode: ctxGameMode,
+              themeId: ctxThemeId,
             },
             status: existingSession.status as
               | "WAITING"
@@ -396,6 +493,7 @@ const HostSession: React.FC = () => {
               | "PAUSED"
               | "ENDED",
             currentQuestionIndex: existingSession.current_question_index,
+            gameMode: ctxGameMode,
           };
 
           setSession(sessionData);
@@ -403,7 +501,6 @@ const HostSession: React.FC = () => {
           setIsPaused(existingSession.is_paused || false);
           isPausedRef.current = existingSession.is_paused || false;
 
-          // Restore timer if rejoining mid-session
           if (
             existingSession.current_question_index >= 0 &&
             existingSession.status === "ACTIVE"
@@ -515,10 +612,66 @@ const HostSession: React.FC = () => {
     };
 
     loadSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, user]);
+  }, [id, user, navigate, toast]);
 
-  // ── Supabase subscriptions: participants + response fallback ────────────
+  // ── Hydrate elimination game state ───────────────────────────────────────
+  useEffect(() => {
+    if (!session?.id || !isElimination) return;
+    SessionService.getGameState(session.id).then(setGameState);
+  }, [session?.id, isElimination]);
+
+  // ── Real-time game state updates via Supabase subscription ────────────────
+  useEffect(() => {
+    if (!session?.id || !isElimination) return;
+
+    const gameStateChannel = supabase
+      .channel(`game-state-${session.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "participants",
+          filter: `session_id=eq.${session.id}`,
+        },
+        () => {
+          console.log('[Host] Participant update detected, refreshing game state...');
+          SessionService.getGameState(session.id).then(setGameState);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "elimination_log",
+          filter: `session_id=eq.${session.id}`,
+        },
+        () => {
+          console.log('[Host] Elimination log inserted, refreshing game state...');
+          SessionService.getGameState(session.id).then(setGameState);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(gameStateChannel);
+    };
+  }, [session?.id, isElimination]);
+
+  // ── Periodic game state refresh for elimination mode (fallback) ────────────
+  useEffect(() => {
+    if (!session?.id || !isElimination) return;
+
+    const interval = setInterval(async () => {
+      const newState = await SessionService.getGameState(session.id);
+      setGameState(newState);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [session?.id, isElimination]);
+
+  // ── Supabase subscriptions: participants (INSERT + UPDATE) + responses ──
   useEffect(() => {
     if (!session) return;
 
@@ -545,6 +698,9 @@ const HostSession: React.FC = () => {
                 avatar: p.avatar_url,
                 isAnonymous: p.is_anonymous,
                 joinedAt: new Date(p.joined_at),
+                isAlive: p.is_alive ?? true,
+                eliminatedAtRound: p.eliminated_at_round ?? null,
+                eliminatedAtQuestionId: p.eliminated_at_question_id ?? null,
               },
             ];
           });
@@ -552,6 +708,38 @@ const HostSession: React.FC = () => {
             title: "New Participant",
             description: `${p.name} joined the session`,
           });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "participants",
+          filter: `session_id=eq.${session.id}`,
+        },
+        (payload) => {
+          const p = payload.new as any;
+          setParticipants((prev) =>
+            prev.map((existing) =>
+              existing.id === p.id
+                ? {
+                    ...existing,
+                    score: p.score ?? existing.score,
+                    isAlive: p.is_alive ?? existing.isAlive ?? true,
+                    eliminatedAtRound:
+                      p.eliminated_at_round ?? existing.eliminatedAtRound ?? null,
+                    eliminatedAtQuestionId:
+                      p.eliminated_at_question_id ??
+                      existing.eliminatedAtQuestionId ??
+                      null,
+                  }
+                : existing,
+            ),
+          );
+          if (isEliminationRef.current && p.is_alive === false) {
+            SessionService.getGameState(session.id).then(setGameState);
+          }
         },
       )
       .subscribe();
@@ -695,9 +883,70 @@ const HostSession: React.FC = () => {
         },
       });
     } else {
-      sendMessage({ type: "SESSION_END", payload: {} });
+      // Last question completed.
+      if (isElimination) {
+        // In elimination mode we do NOT auto-end the session and we do NOT
+        // determine the winner here. The host must click the dedicated
+        // "Show Winner" button (rendered in the showResults panel below
+        // the last question). That button calls `handleShowWinner` which
+        // determines the winner and broadcasts WINNER_REVEAL.
+        toast({
+          title: "Dernière question terminée",
+          description: "Cliquez sur « Afficher le gagnant » pour révéler le gagnant.",
+        });
+      } else {
+        sendMessage({ type: "SESSION_END", payload: {} });
+        await SessionService.updateSessionStatus(session.id, "ENDED");
+        navigate(`/results/${session.id}`);
+      }
+    }
+  };
+
+  /**
+   * Reveal the winner. Triggered by the "Show Winner" button shown after the
+   * last question in elimination mode. Determines the winner using the
+   * official rules (alive participant — i.e. answered every question
+   * correctly — with the earliest correct response on the last question as
+   * the tie-breaker), broadcasts a WINNER_REVEAL event so the audience can
+   * render their own celebration overlay, and then ends the session.
+   */
+  const handleShowWinner = async (): Promise<void> => {
+    if (!session || !isElimination) return;
+    if (isRevealingWinner) return;
+
+    setIsRevealingWinner(true);
+    try {
+      const winner = await SessionService.determineWinner(session.id);
+
+      if (!winner) {
+        toast({
+          title: "Aucun gagnant",
+          description: "Impossible de déterminer un gagnant pour cette session.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setRevealedWinner(winner);
+
+      // Broadcast to all audience participants so they show the same screen.
+      sendMessage({
+        type: SESSION_EVENTS.WINNER_REVEAL,
+        payload: winner as unknown as Record<string, unknown>,
+      });
+
+      // Mark session ended in the backend.
+      sendMessage({ type: SESSION_EVENTS.SESSION_END, payload: {} });
       await SessionService.updateSessionStatus(session.id, "ENDED");
-      navigate(`/results/${session.id}`);
+    } catch (err: any) {
+      console.error("handleShowWinner error:", err);
+      toast({
+        title: "Erreur",
+        description: err?.message || "Échec de la révélation du gagnant.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRevealingWinner(false);
     }
   };
 
@@ -774,11 +1023,6 @@ const HostSession: React.FC = () => {
     });
   };
 
-  // ── Listen for "End session & leave" from the main-layout warning modal ────
-  // When the host navigates away via a navbar link, the Leave-session modal
-  // fires a custom browser event instead of replicating the socket broadcast.
-  // We receive it here (HostSession is still mounted at that point) and call
-  // sendMessage exactly as we do for the EndSessionModal confirm flow.
   useEffect(() => {
     const handler = () => {
       sendMessage({ type: "SESSION_END", payload: {} });
@@ -787,11 +1031,6 @@ const HostSession: React.FC = () => {
     return () => window.removeEventListener("syncra:session-end-requested", handler);
   }, [sendMessage]);
 
-  // ── handleEnd opens the EndSessionModal ──────────────────────────────────
-  // Used by BOTH the "End" control panel button AND the "Exit" header button.
-  // This ensures a proper confirm flow that broadcasts SESSION_END and updates
-  // the DB before navigating — guaranteeing audience participants see the
-  // SessionEndedState screen.
   const handleEnd = (): void => setIsEndModalOpen(true);
 
   const handleConfirmEnd = async (): Promise<void> => {
@@ -835,7 +1074,6 @@ const HostSession: React.FC = () => {
       : 0;
 
   // ── Render ───────────────────────────────────────────────────────────────
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -887,7 +1125,6 @@ const HostSession: React.FC = () => {
   if (currentQuestionIndex === -1) {
     return (
       <div className="min-h-screen bg-primary flex flex-col text-white">
-        {/* ── Mobile participant panel overlay ── */}
         <AnimatePresence>
           {showMobileParticipants && (
             <motion.div
@@ -959,14 +1196,16 @@ const HostSession: React.FC = () => {
           )}
         </AnimatePresence>
 
-        {/* ── Lobby body ── */}
         <div className="flex-1 flex flex-col p-4 sm:p-6 md:p-8">
           <div className="max-w-6xl w-full mx-auto flex-1 flex flex-col">
+            {isElimination && (
+              <div className="mb-4 sm:mb-6 rounded-xl border border-yellow-400/40 bg-yellow-400/10 px-4 py-3 flex items-center justify-center gap-2 text-sm sm:text-base font-semibold backdrop-blur-sm">
+                <AppIcon name="Crown" size={18} className="text-yellow-300" />
+                <span>Mode élimination activé — 100% Logique</span>
+              </div>
+            )}
 
-            {/* Desktop: two-column grid | Mobile: stacked */}
             <div className="flex-1 flex flex-col md:grid md:grid-cols-2 md:gap-8 md:items-center gap-6">
-
-              {/* ── Left / top: session info ── */}
               <div className="space-y-5 sm:space-y-6 md:space-y-8">
                 <div>
                   <Badge
@@ -987,13 +1226,8 @@ const HostSession: React.FC = () => {
                   </p>
                 </div>
 
-                {/* Share card */}
                 <Card className="p-4 sm:p-6 bg-white/10 border-white/20 backdrop-blur-md text-white">
                   <div className="flex items-center gap-4 sm:gap-6">
-                    {/* Real QR code — encodes the join URL with the session
-                        code prefilled. Click it (or the button below) to
-                        blow it up fullscreen so the back of the room can
-                        scan it too. */}
                     <button
                       type="button"
                       onClick={() => session?.code && setShowQrModal(true)}
@@ -1032,7 +1266,7 @@ const HostSession: React.FC = () => {
                         onClick={() => session?.code && setShowQrModal(true)}
                         disabled={!session?.code}
                       >
-                        <span className="mr-2">⛶</span>
+                        <AppIcon name="Maximize" size={14} className="mr-2" />
                         Show QR fullscreen
                       </Button>
                       <p className="text-xs opacity-75 truncate">
@@ -1042,7 +1276,6 @@ const HostSession: React.FC = () => {
                   </div>
                 </Card>
 
-                {/* Stats grid */}
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 sm:p-4">
                     <div className="text-2xl sm:text-3xl font-bold">
@@ -1063,7 +1296,6 @@ const HostSession: React.FC = () => {
                 </div>
               </div>
 
-              {/* ── Right / bottom: participant list (desktop only) ── */}
               <div className="hidden md:flex bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 flex-col" style={{ minHeight: "380px", maxHeight: "500px" }}>
                 <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
                   <div className="flex items-center gap-2 font-bold text-lg">
@@ -1129,7 +1361,6 @@ const HostSession: React.FC = () => {
               </div>
             </div>
 
-            {/* ── Mobile Start button (sticky at bottom) ── */}
             <div className="md:hidden mt-4 pb-safe">
               <Button
                 size="lg"
@@ -1143,7 +1374,6 @@ const HostSession: React.FC = () => {
           </div>
         </div>
 
-        {/* ── Fullscreen QR modal ── */}
         {showQrModal && session?.code && (
           <QrFullscreenModal code={session.code} onClose={() => setShowQrModal(false)} />
         )}
@@ -1154,16 +1384,10 @@ const HostSession: React.FC = () => {
   // ── ACTIVE QUESTION VIEW ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="h-14 md:h-16 border-b border-border flex items-center justify-between px-3 md:px-6 bg-card sticky top-0 z-30 gap-2">
-        {/* Left: title */}
         <div className="flex items-center gap-2 md:gap-3 min-w-0">
           <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-            <AppIcon
-              name="Radio"
-              size={14}
-              className="text-primary-foreground"
-            />
+            <AppIcon name="Radio" size={14} className="text-primary-foreground" />
           </div>
           <div className="min-w-0">
             <span className="font-bold text-foreground text-sm md:text-base truncate block max-w-[120px] sm:max-w-[200px] md:max-w-none">
@@ -1182,44 +1406,60 @@ const HostSession: React.FC = () => {
           </div>
         </div>
 
-        {/* Right: controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
-          {/* Real-time dot – hidden on very small screens */}
-          {wsConnected && (
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              <span className="hidden md:inline">Real-time</span>
+          {isElimination && (
+            <>
+              <div className="hidden sm:flex items-center gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg bg-gradient-to-r from-yellow-500/20 to-yellow-500/10 border border-yellow-500/30">
+                <AppIcon name="Users" size={13} className="text-yellow-700 dark:text-yellow-400" />
+                <span className="text-xs sm:text-sm font-semibold text-yellow-700 dark:text-yellow-400">
+                  {survivorsCount}
+                </span>
+                <span className="text-xs text-muted-foreground">/</span>
+                <AppIcon name="Skull" size={13} className="text-red-700 dark:text-red-400" />
+                <span className="text-xs sm:text-sm font-semibold text-red-700 dark:text-red-400">
+                  {eliminatedCount}
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setShowEliminationPanel((v) => !v)}
+                title="Historique des éliminations"
+                className="h-8 w-8 md:h-9 md:w-9 relative"
+              >
+                <AppIcon name="History" size={15} />
+                {gameState.history.length > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {gameState.history.length}
+                  </span>
+                )}
+              </Button>
+            </>
+          )}
+
+          {currentQuestion && getQuestionTimeLimit(currentQuestion) === null && (
+            <div className="flex items-center gap-1 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg bg-muted">
+              <AppIcon name="Infinity" size={14} className="text-primary" />
+              <span className="font-semibold text-primary text-xs sm:text-sm hidden sm:inline">No timer</span>
+            </div>
+          )}
+          {currentQuestion && getQuestionTimeLimit(currentQuestion) !== null && (
+            <div
+              className={`flex items-center gap-1 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg ${
+                isPaused ? "bg-yellow-500/20" : "bg-muted"
+              }`}
+            >
+              <AppIcon name="Clock" size={14} className="text-primary" />
+              <span className="font-mono font-bold text-primary text-xs sm:text-sm">
+                {timer}s
+              </span>
             </div>
           )}
 
-          {/* Timer display */}
-          {currentQuestion &&
-            getQuestionTimeLimit(currentQuestion) === null && (
-              <div className="flex items-center gap-1 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg bg-muted">
-                <AppIcon name="Infinity" size={14} className="text-primary" />
-                <span className="font-semibold text-primary text-xs sm:text-sm hidden sm:inline">No timer</span>
-              </div>
-            )}
-          {currentQuestion &&
-            getQuestionTimeLimit(currentQuestion) !== null && (
-              <div
-                className={`flex items-center gap-1 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg ${
-                  isPaused ? "bg-yellow-500/20" : "bg-muted"
-                }`}
-              >
-                <AppIcon name="Clock" size={14} className="text-primary" />
-                <span className="font-mono font-bold text-primary text-xs sm:text-sm">
-                  {timer}s
-                </span>
-              </div>
-            )}
-
-          {/* Q counter */}
           <Badge variant="secondary" className="text-xs sm:text-sm px-2 sm:px-3 py-0.5 sm:py-1">
             {currentQuestionIndex + 1}/{session.presentation.questions.length}
           </Badge>
 
-          {/* Fullscreen – desktop only */}
           <Button
             variant="outline"
             size="icon"
@@ -1227,21 +1467,9 @@ const HostSession: React.FC = () => {
             title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
             className="hidden md:flex h-8 w-8 md:h-9 md:w-9"
           >
-            <AppIcon
-              name={isFullscreen ? "Minimize" : "Maximize"}
-              size={15}
-            />
+            <AppIcon name={isFullscreen ? "Minimize" : "Maximize"} size={15} />
           </Button>
 
-          {/*
-            FIX: Exit button now calls handleEnd() instead of navigate("/dashboard").
-            This opens the EndSessionModal which properly:
-              1. Broadcasts SESSION_END to all audience participants
-              2. Updates the session status to ENDED in the database
-              3. Navigates to the results page
-            Previously, navigate("/dashboard") directly bypassed all session-end
-            logic, leaving audience participants stuck on the current question.
-          */}
           <Button
             variant="destructive"
             size="sm"
@@ -1253,7 +1481,6 @@ const HostSession: React.FC = () => {
         </div>
       </header>
 
-      {/* Timer progress bar */}
       {currentQuestion && getQuestionTimeLimit(currentQuestion) !== null && (
         <div className="h-1 w-full bg-muted/40">
           {isPaused ? (
@@ -1277,12 +1504,6 @@ const HostSession: React.FC = () => {
         </div>
       )}
 
-      {/*
-        Main content area.
-        On mobile, we need bottom padding for the ControlPanel (which is fixed
-        at the bottom of the screen). The panel is ~260px collapsed and ~420px
-        expanded — we use a generous pb so content is never hidden behind it.
-      */}
       <main className="flex-1 flex flex-col items-center p-3 sm:p-4 md:p-6 lg:p-8 pb-72 sm:pb-64 lg:pb-8 relative overflow-hidden">
         <div className="max-w-5xl w-full">
           {currentQuestion && (
@@ -1304,39 +1525,50 @@ const HostSession: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3 sm:gap-4">
                   <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
-                    <AppIcon
-                      name="Trophy"
-                      size={22}
-                      className="text-yellow-600"
-                    />
+                    <AppIcon name="Trophy" size={22} className="text-yellow-600" />
                   </div>
                   <div>
                     <div className="font-bold text-base sm:text-lg">
                       Ready for next question?
                     </div>
                     <div className="text-xs sm:text-sm text-muted-foreground">
-                      {participants
-                        .slice(0, 3)
-                        .map((p) => p.name)
-                        .join(", ")}{" "}
+                      {participants.slice(0, 3).map((p) => p.name).join(", ")}{" "}
                       {participants.length > 3 ? "and others are waiting" : ""}
                     </div>
                   </div>
                 </div>
-                <Button size="lg" onClick={handleNext} className="w-full sm:w-auto sm:min-w-40">
-                  {currentQuestionIndex ===
-                  session.presentation.questions.length - 1 ? (
-                    <>
+                {currentQuestionIndex === session.presentation.questions.length - 1 ? (
+                  isElimination ? (
+                    <Button
+                      size="lg"
+                      onClick={handleShowWinner}
+                      disabled={isRevealingWinner || !!revealedWinner}
+                      className="w-full sm:w-auto sm:min-w-40 bg-yellow-500 hover:bg-yellow-600 text-yellow-950 font-bold"
+                    >
+                      {isRevealingWinner ? (
+                        <>
+                          Révélation…{" "}
+                          <AppIcon name="Loader2" className="ml-2 h-4 w-4 animate-spin" />
+                        </>
+                      ) : (
+                        <>
+                          Afficher le gagnant{" "}
+                          <AppIcon name="Crown" className="ml-2 h-4 w-4" />
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    <Button size="lg" onClick={handleNext} className="w-full sm:w-auto sm:min-w-40">
                       View Results{" "}
                       <AppIcon name="BarChart3" className="ml-2 h-4 w-4" />
-                    </>
-                  ) : (
-                    <>
-                      Next Question{" "}
-                      <AppIcon name="ChevronRight" className="ml-2 h-4 w-4" />
-                    </>
-                  )}
-                </Button>
+                    </Button>
+                  )
+                ) : (
+                  <Button size="lg" onClick={handleNext} className="w-full sm:w-auto sm:min-w-40">
+                    Next Question{" "}
+                    <AppIcon name="ChevronRight" className="ml-2 h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </motion.div>
           )}
@@ -1373,7 +1605,114 @@ const HostSession: React.FC = () => {
         onViewResults={handleViewFinalResults}
       />
 
-      {/* ── Fullscreen QR modal ── */}
+      <AnimatePresence>
+        {isElimination && showEliminationPanel && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[140] bg-black/40"
+            onClick={() => setShowEliminationPanel(false)}
+          >
+            <motion.aside
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 280 }}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute top-0 right-0 h-full w-full sm:w-[380px] bg-background border-l border-border shadow-2xl p-4 sm:p-5 overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <AppIcon name="History" size={18} className="text-primary" />
+                  <h2 className="text-base font-semibold">Historique des éliminations</h2>
+                </div>
+                <button
+                  onClick={() => setShowEliminationPanel(false)}
+                  className="w-8 h-8 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center"
+                  aria-label="Fermer"
+                >
+                  <AppIcon name="X" size={15} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-center">
+                  <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">
+                    {survivorsCount}
+                  </div>
+                  <div className="text-xs text-muted-foreground">En lice</div>
+                </div>
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-center">
+                  <div className="text-2xl font-bold text-red-700 dark:text-red-400">
+                    {eliminatedCount}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Éliminés</div>
+                </div>
+              </div>
+
+              <EliminationHistory
+                sessionId={session.id}
+                gameState={gameState}
+              />
+            </motion.aside>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/*
+        Winner overlay (host side).
+        Shown ONLY after the host clicks the "Show Winner" button — i.e.
+        once `revealedWinner` is set. Previously this was driven by
+        `gameState.winner`, which auto-popped as soon as the last question
+        was displayed.
+      */}
+      {isElimination && revealedWinner && (
+        <div className="fixed inset-0 z-[150] bg-black/85 backdrop-blur-sm flex items-center justify-center p-6">
+          <motion.div
+            initial={{ scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", damping: 16, stiffness: 240 }}
+            className="max-w-md w-full text-center bg-gradient-to-br from-yellow-400 via-yellow-500 to-amber-600 rounded-3xl p-8 shadow-2xl border-4 border-yellow-200/40"
+          >
+            <div className="mx-auto mb-4 w-20 h-20 rounded-full bg-yellow-950/15 flex items-center justify-center">
+              <AppIcon name="Crown" size={48} className="text-yellow-950" />
+            </div>
+            <div className="text-xs uppercase tracking-[0.3em] text-yellow-900/80 font-bold mb-2">
+              100% Logique
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-black text-yellow-950 mb-2">
+              {revealedWinner.name}
+            </h2>
+            <p className="text-yellow-950/80 font-semibold mb-6">
+              remporte la manche
+            </p>
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="bg-yellow-950/10 rounded-lg p-3">
+                <div className="text-2xl font-bold text-yellow-950">
+                  {revealedWinner.score}
+                </div>
+                <div className="text-xs text-yellow-950/70">Points</div>
+              </div>
+              <div className="bg-yellow-950/10 rounded-lg p-3">
+                <div className="text-2xl font-bold text-yellow-950">
+                  {gameState.totalPlayers}
+                </div>
+                <div className="text-xs text-yellow-950/70">Joueurs</div>
+              </div>
+            </div>
+            <Button
+              size="lg"
+              className="w-full bg-yellow-950 text-yellow-100 hover:bg-yellow-900"
+              onClick={handleViewFinalResults}
+            >
+              Voir les résultats
+              <AppIcon name="ArrowRight" className="ml-2 h-4 w-4" />
+            </Button>
+          </motion.div>
+        </div>
+      )}
+
       {showQrModal && session?.code && (
         <QrFullscreenModal code={session.code} onClose={() => setShowQrModal(false)} />
       )}

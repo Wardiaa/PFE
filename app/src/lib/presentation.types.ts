@@ -1,3 +1,7 @@
+// presentation.types.ts — UPDATED for 100% Logique elimination mode.
+// Adds GameMode + per-participant elimination state + new event payload types.
+// Existing fields are unchanged so non-elimination sessions keep working.
+
 export type QuestionType =
   | "multiple-choice"
   | "rating"
@@ -6,10 +10,14 @@ export type QuestionType =
 
 export type DisplayStyle = "numbers" | "stars" | "hearts" | "smileys";
 
+/** session-level game mode flag. */
+export type GameMode = "standard" | "elimination";
+
 export interface QuestionOption {
   id: string;
   text: string;
   isCorrect?: boolean;
+  imageUrl?: string | null;
 }
 
 export interface Scale {
@@ -37,12 +45,24 @@ export interface Question {
   displayStyle?: DisplayStyle;
   showResultsInstantly?: boolean;
   hideParticipantNames?: boolean;
+
+  /** optional explanation revealed after the round (for elimination mode). */
+  explanation?: string;
+
+  /** per-question override; defaults to the session's gameMode. */
+  gameMode?: GameMode;
 }
 
 export interface Presentation {
   id: string;
   title: string;
   questions: Question[];
+
+  /** surfaced from contexts.game_mode. */
+  gameMode?: GameMode;
+
+  /** optional theme id (e.g. "cent-pour-cent-logique"). */
+  themeId?: string;
 }
 
 export interface Session {
@@ -55,6 +75,9 @@ export interface Session {
   currentQuestionIndex: number;
   currentQuestionId?: string;
   currentQuestionStartedAt?: Date;
+
+  /** derived from the context, mirrored on the session for convenience. */
+  gameMode?: GameMode;
 }
 
 export interface Participant {
@@ -64,6 +87,11 @@ export interface Participant {
   avatar?: string;
   isAnonymous?: boolean;
   joinedAt: Date;
+
+  /** elimination state. */
+  isAlive?: boolean;
+  eliminatedAtRound?: number | null;
+  eliminatedAtQuestionId?: string | null;
 }
 
 export interface IndividualChoiceResponse {
@@ -122,3 +150,32 @@ export type QuestionResponses =
   | RatingResponses
   | OpenTextResponses
   | WordCloudResponses;
+
+/* ============================================================================
+ * Elimination / game-show types
+ * ========================================================================== */
+
+export interface EliminationEvent {
+  participantId: string;
+  participantName: string;
+  questionId: string;
+  roundNumber: number;
+  eliminatedAt: Date;
+}
+
+export interface GameState {
+  alive: Participant[];
+  eliminated: Participant[];
+  winner?: Participant | null;
+  totalPlayers: number;
+  currentRound: number;
+  history: EliminationEvent[];
+}
+
+/* Real-time broadcast payload helpers ----------------------------------- */
+
+export type GameSocketMessage =
+  | { type: "PLAYER_ELIMINATED"; payload: EliminationEvent }
+  | { type: "GAME_STATE_UPDATE"; payload: GameState }
+  | { type: "GAME_END"; payload: { winner: Participant | null } }
+  | { type: "ANSWER_RECEIVED"; payload: { participantId: string; questionId: string; correct: boolean } };
