@@ -255,17 +255,6 @@ const HostSession: React.FC = () => {
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
   useEffect(() => { isEliminationRef.current = isElimination; }, [isElimination]);
 
-  // ── Debug log for game state ─────────────────────────────────────────────
-  useEffect(() => {
-    if (isElimination) {
-      console.log('[Host] Game state updated:', {
-        alive: gameState.alive.length,
-        eliminated: gameState.eliminated.length,
-        total: gameState.totalPlayers,
-        winner: gameState.winner
-      });
-    }
-  }, [gameState, isElimination]);
 
   // ── Fullscreen change listener ───────────────────────────────────────────
   useEffect(() => {
@@ -296,14 +285,9 @@ const HostSession: React.FC = () => {
 
       if (msg.type === SESSION_EVENTS.PLAYER_ELIMINATED) {
         const ev = msg.payload as unknown as EliminationEvent;
-        console.log('[Host] PLAYER_ELIMINATED received:', ev);
         const sess = sessionRef.current;
         if (sess) {
           SessionService.getGameState(sess.id).then((newState) => {
-            console.log('[Host] Game state refreshed after elimination:', {
-              alive: newState.alive.length,
-              eliminated: newState.eliminated.length
-            });
             setGameState(newState);
           });
         }
@@ -635,7 +619,6 @@ const HostSession: React.FC = () => {
           filter: `session_id=eq.${session.id}`,
         },
         () => {
-          console.log('[Host] Participant update detected, refreshing game state...');
           SessionService.getGameState(session.id).then(setGameState);
         }
       )
@@ -648,7 +631,6 @@ const HostSession: React.FC = () => {
           filter: `session_id=eq.${session.id}`,
         },
         () => {
-          console.log('[Host] Elimination log inserted, refreshing game state...');
           SessionService.getGameState(session.id).then(setGameState);
         }
       )

@@ -3,16 +3,18 @@
 // current question, see eliminations as they happen, and watch the live
 // leaderboard — but cannot submit answers. Includes a "Quitter" button.
 //
-// New in this version:
-//   - `hideEliminationBanner` prop (existing): hides the red "you have been
-//     eliminated" banner during the post-submit waiting window so a
-//     participant doesn't learn their fate before the round timer ends.
-//   - `showAnswerReveal` + `submittedOptionId` props (NEW): when the round
-//     timer ends and the participant got the question wrong, the audience
-//     code flips `showAnswerReveal` on for ~2 seconds before showing the
-//     EliminationOverlay. While it's on, this component highlights the
-//     CORRECT option with a green border and the WRONG option the
-//     participant submitted (if any) with a red border.
+// Answer reveal behaviour:
+//   - `hideEliminationBanner`: hides the red "you have been eliminated"
+//     banner during the post-submit waiting window so a participant doesn't
+//     learn their fate before the round timer ends.
+//   - `showAnswerReveal` + `submittedOptionId`: when the round timer ends,
+//     the audience code flips `showAnswerReveal` on so this component
+//     highlights:
+//       • the CORRECT option with a green border (always)
+//       • the WRONG option the participant submitted with a red border
+//         (only when they actually picked a wrong answer this round —
+//         established spectators who didn't submit see only the green
+//         border on the correct option, no red borders).
 
 import { Eye, LogOut } from "lucide-react";
 import { LiveLeaderboard } from "./LiveLeaderboard";
@@ -56,6 +58,15 @@ export function SpectatorMode({
 }: Props) {
   return (
     <div className="cpl-theme min-h-screen px-4 py-8 sm:py-12">
+      {/* Keyframes powering the subtle fade-in on green/red answer reveal
+          borders. Scoped to this component so it doesn't bleed elsewhere. */}
+      <style>{`
+        @keyframes cplRevealFade {
+          0%   { opacity: 0; transform: scale(0.97); }
+          60%  { opacity: 1; transform: scale(1.01); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
       <div className="mx-auto max-w-3xl">
         {/* Spectator banner — hidden during the post-submit waiting window. */}
         {!hideEliminationBanner && (
@@ -105,22 +116,34 @@ export function SpectatorMode({
                 let optionClass =
                   "rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-white/70 transition-colors";
 
+                let highlightStyle: React.CSSProperties | undefined;
+
                 if (showAnswerReveal) {
                   const isCorrect = !!(opt as any).isCorrect;
+                  // Red border ONLY for the specific wrong option this
+                  // participant submitted. Established spectators (no
+                  // submission this round) just see the green border on
+                  // the correct option.
                   const isSubmittedWrong =
                     submittedOptionId === opt.id && !isCorrect;
 
                   if (isCorrect) {
                     optionClass =
                       "rounded-lg border-2 border-green-500 bg-green-500/10 px-4 py-3 text-white ring-2 ring-green-500/40 transition-colors";
+                    highlightStyle = {
+                      animation: "cplRevealFade 500ms ease-out both",
+                    };
                   } else if (isSubmittedWrong) {
                     optionClass =
                       "rounded-lg border-2 border-red-500 bg-red-500/10 px-4 py-3 text-white ring-2 ring-red-500/40 transition-colors";
+                    highlightStyle = {
+                      animation: "cplRevealFade 500ms ease-out both",
+                    };
                   }
                 }
 
                 return (
-                  <li key={opt.id} className={optionClass}>
+                  <li key={opt.id} className={optionClass} style={highlightStyle}>
                     {opt.text}
                   </li>
                 );

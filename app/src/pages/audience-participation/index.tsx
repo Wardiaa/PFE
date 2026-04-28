@@ -251,11 +251,6 @@ const AudienceParticipation: React.FC = () => {
       try {
         const newState = await SessionService.getGameState(participantSession.session.id);
         if (isMounted) {
-          console.log('[Leaderboard] Refreshing game state:', {
-            alive: newState.alive.length,
-            eliminated: newState.eliminated.length,
-            total: newState.totalPlayers
-          });
           setGameState(newState);
 
           // Check if current user is eliminated
@@ -519,17 +514,12 @@ const AudienceParticipation: React.FC = () => {
 
         case SESSION_EVENTS.PLAYER_ELIMINATED: {
           const ev = payload as unknown as EliminationEvent;
-          console.log('[Leaderboard] Player eliminated event received:', ev);
           setEliminationEvents((prev) => [...prev, ev]);
 
           // Immediately refresh game state
           if (participantSessionRef.current?.session.id) {
             SessionService.getGameState(participantSessionRef.current.session.id)
               .then((newState) => {
-                console.log('[Leaderboard] Updated game state after elimination:', {
-                  alive: newState.alive.length,
-                  eliminated: newState.eliminated.length
-                });
                 setGameState(newState);
 
                 // Check if current user was eliminated
@@ -629,8 +619,9 @@ const AudienceParticipation: React.FC = () => {
       const liveRoundNumber =
         currentQuestionRef.current?.number ?? gameState.currentRound ?? 0;
       if (eliminatedAtRound === liveRoundNumber) {
-        // Reveal the correct answer (green border) and the wrong submitted
-        // answer (red border) for ~2 seconds before opening the overlay.
+        // Case B: just got eliminated this round. Reveal the correct
+        // answer (green border) and the wrong submitted answer (red
+        // border) for ~2 seconds before opening the EliminationOverlay.
         setShowAnswerReveal(true);
         clearAnswerRevealTimeout();
         answerRevealTimeoutRef.current = window.setTimeout(() => {
@@ -638,6 +629,14 @@ const AudienceParticipation: React.FC = () => {
           setShowEliminationOverlay(true);
           answerRevealTimeoutRef.current = undefined;
         }, ANSWER_REVEAL_DURATION_MS);
+      } else {
+        // Case D: established spectator (eliminated in a PRIOR round).
+        // Just reveal the correct answer (green) and all wrong options
+        // (red) — there's no overlay to follow, so we leave the reveal
+        // visible until the next question loads (applyQuestion clears
+        // showAnswerReveal). submittedOptionId is null for spectators,
+        // which tells SpectatorMode to mark every wrong option in red.
+        setShowAnswerReveal(true);
       }
       return;
     }
