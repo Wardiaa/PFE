@@ -3,12 +3,16 @@
 // current question, see eliminations as they happen, and watch the live
 // leaderboard — but cannot submit answers. Includes a "Quitter" button.
 //
-// New in this version: an optional `hideEliminationBanner` prop. The audience
-// component now reuses this same screen as a "waiting" view right after a
-// participant submits an answer (correct OR wrong) — during that interim
-// window we don't want to reveal whether they're eliminated, so the
-// "Vous avez été éliminé à la manche X" banner is hidden until the round
-// timer ends.
+// New in this version:
+//   - `hideEliminationBanner` prop (existing): hides the red "you have been
+//     eliminated" banner during the post-submit waiting window so a
+//     participant doesn't learn their fate before the round timer ends.
+//   - `showAnswerReveal` + `submittedOptionId` props (NEW): when the round
+//     timer ends and the participant got the question wrong, the audience
+//     code flips `showAnswerReveal` on for ~2 seconds before showing the
+//     EliminationOverlay. While it's on, this component highlights the
+//     CORRECT option with a green border and the WRONG option the
+//     participant submitted (if any) with a red border.
 
 import { Eye, LogOut } from "lucide-react";
 import { LiveLeaderboard } from "./LiveLeaderboard";
@@ -26,6 +30,19 @@ interface Props {
    * Defaults to false (banner shown — original behaviour).
    */
   hideEliminationBanner?: boolean;
+  /**
+   * When true, highlight the correct option with a green border and the
+   * participant's submitted option (if wrong) with a red border. Used for
+   * the brief "answer reveal" window right before the EliminationOverlay
+   * appears for a participant who answered incorrectly.
+   */
+  showAnswerReveal?: boolean;
+  /**
+   * The option id the participant submitted for the current question (if
+   * any). Used together with `showAnswerReveal` to draw a red border around
+   * the wrong choice.
+   */
+  submittedOptionId?: string | null;
 }
 
 export function SpectatorMode({
@@ -34,6 +51,8 @@ export function SpectatorMode({
   eliminatedAtRound,
   onLeave,
   hideEliminationBanner = false,
+  showAnswerReveal = false,
+  submittedOptionId = null,
 }: Props) {
   return (
     <div className="cpl-theme min-h-screen px-4 py-8 sm:py-12">
@@ -81,17 +100,36 @@ export function SpectatorMode({
               />
             )}
             <ul className="grid gap-2 sm:grid-cols-2">
-              {(currentQuestion.options ?? []).map((opt) => (
-                <li
-                  key={opt.id}
-                  className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-white/70"
-                >
-                  {opt.text}
-                </li>
-              ))}
+              {(currentQuestion.options ?? []).map((opt) => {
+                // Default look — neutral border.
+                let optionClass =
+                  "rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-white/70 transition-colors";
+
+                if (showAnswerReveal) {
+                  const isCorrect = !!(opt as any).isCorrect;
+                  const isSubmittedWrong =
+                    submittedOptionId === opt.id && !isCorrect;
+
+                  if (isCorrect) {
+                    optionClass =
+                      "rounded-lg border-2 border-green-500 bg-green-500/10 px-4 py-3 text-white ring-2 ring-green-500/40 transition-colors";
+                  } else if (isSubmittedWrong) {
+                    optionClass =
+                      "rounded-lg border-2 border-red-500 bg-red-500/10 px-4 py-3 text-white ring-2 ring-red-500/40 transition-colors";
+                  }
+                }
+
+                return (
+                  <li key={opt.id} className={optionClass}>
+                    {opt.text}
+                  </li>
+                );
+              })}
             </ul>
             <p className="mt-4 text-xs text-[color:var(--cpl-text-dim)]">
-              {hideEliminationBanner
+              {showAnswerReveal
+                ? "Réponse correcte révélée…"
+                : hideEliminationBanner
                 ? "Réponse enregistrée — en attente de la fin de la manche…"
                 : "Mode spectateur — vous ne pouvez pas répondre."}
             </p>

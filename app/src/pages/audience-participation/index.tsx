@@ -1,5 +1,17 @@
 // src/pages/audience-participation/index.tsx
 // COMPLETE FILE — original behavior preserved + 100% Logique elimination flow.
+//
+// Updates in this version:
+//   1. When a participant submits a WRONG answer, after the round timer ends
+//      we first show the SpectatorMode with the correct answer highlighted in
+//      green and the participant's wrong answer highlighted in red for ~2
+//      seconds, then the EliminationOverlay slides in. Correct answers keep
+//      their original behaviour (no answer reveal).
+//   2. If the host moves on to the next question while the EliminationOverlay
+//      is still visible, the overlay is auto-dismissed and the participant
+//      drops straight into spectator mode for the new round.
+//   3. The AnswerFeedback component has been removed from this page (it was
+//      not behaving correctly).
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -30,7 +42,6 @@ import { EliminationOverlay } from './components/EliminationOverlay';
 import { SpectatorMode } from './components/SpectatorMode';
 import { LiveLeaderboard } from './components/LiveLeaderboard';
 import { WinnerCelebration } from './components/WinnerCelebration';
-import { AnswerFeedback } from './components/AnswerFeedback';
 import { CentPourCentBackground } from './components/CentPourCentBackground';
 import { SessionService } from '../../service/session.service.ts';
 import '../../styles/cent-pour-cent-logique.css';
@@ -42,6 +53,10 @@ interface ParticipantSession {
   participantId: string;
   participantName: string;
 }
+
+// Duration of the "answer reveal" window shown to a wrongly-answering
+// participant before the EliminationOverlay slides in.
+const ANSWER_REVEAL_DURATION_MS = 2000;
 
 function computeRemainingFromDbRow(
   row: {
@@ -109,11 +124,16 @@ const AudienceParticipation: React.FC = () => {
   // The WinnerCelebration overlay is rendered ONLY when this is set —
   // we no longer auto-show it from gameState.winner.
   const [revealedWinner, setRevealedWinner] = useState<Participant | null>(null);
-  const [feedback, setFeedback] = useState<{
-    show: boolean;
-    correct: boolean;
-    pointsAwarded: number;
-  } | null>(null);
+
+  // ── Answer-reveal state (NEW) ─────────────────────────────────────────────
+  // The option id this participant submitted for the CURRENT question. Reset
+  // whenever a new question starts. Used by SpectatorMode to draw the red
+  // border around a wrong submitted answer during the reveal window.
+  const [submittedOptionId, setSubmittedOptionId] = useState<string | null>(null);
+  // When true, SpectatorMode highlights the correct option in green and the
+  // participant's submitted option in red. Only flipped on for participants
+  // who answered incorrectly, for ~2s before the EliminationOverlay opens.
+  const [showAnswerReveal, setShowAnswerReveal] = useState<boolean>(false);
 
   // ── Refs ────────────────────────────────────────────────────────────────
   const participantSessionRef = useRef<ParticipantSession | null>(null);
@@ -126,6 +146,9 @@ const AudienceParticipation: React.FC = () => {
   const timerIntervalRef = useRef<number | undefined>(undefined);
   const toastRef = useRef(toast);
   const isEliminatedRef = useRef<boolean>(false);
+  // Tracks pending timeouts so that a question change can cancel the
+  // "answer reveal → elimination overlay" sequence cleanly.
+  const answerRevealTimeoutRef = useRef<number | undefined>(undefined);
 
   useEffect(() => { participantSessionRef.current = participantSession; }, [participantSession]);
   useEffect(() => { currentQuestionRef.current = currentQuestion; }, [currentQuestion]);
@@ -162,11 +185,19 @@ const AudienceParticipation: React.FC = () => {
   const themeId: string = contextMeta.themeId || 'default';
   const themeClass = themeId === 'cent-pour-cent-logique' ? 'cpl-theme' : '';
 
+  // Helper: cancel any in-flight "answer reveal → overlay" timer.
+  const clearAnswerRevealTimeout = useCallback(() => {
+    if (answerRevealTimeoutRef.current !== undefined) {
+      clearTimeout(answerRevealTimeoutRef.current);
+      answerRevealTimeoutRef.current = undefined;
+    }
+  }, []);
+
   // Pull game_mode + theme from the contexts table once we know the session.
   useEffect(() => {
     const sessionId = participantSession?.session?.id;
     if (!sessionId) return;
-    
+
     let cancelled = false;
 
     const loadMetadata = async () => {
@@ -189,14 +220,14 @@ const AudienceParticipation: React.FC = () => {
 
         const gameModeValue = ctx?.game_mode === 'elimination' ? 'elimination' : 'standard';
         const themeValue = ctx?.theme || 'default';
-        
-        setContextMeta({ 
-          gameMode: gameModeValue, 
-          themeId: themeValue 
+
+        setContextMeta({
+          gameMode: gameModeValue,
+          themeId: themeValue
         });
-        
+
         isEliminationRef.current = gameModeValue === 'elimination';
-        
+
       } catch (err) {
         console.error('[Metadata] Error:', err);
       }
@@ -212,9 +243,9 @@ const AudienceParticipation: React.FC = () => {
   // Refresh game state frequently for elimination mode
   useEffect(() => {
     if (!isElimination || !participantSession?.session.id) return;
-    
+
     let isMounted = true;
-    
+
     const refreshGameState = async () => {
       if (!isMounted) return;
       try {
@@ -226,7 +257,7 @@ const AudienceParticipation: React.FC = () => {
             total: newState.totalPlayers
           });
           setGameState(newState);
-          
+
           // Check if current user is eliminated
           const me = newState.eliminated.find(p => p.id === participantSession.participantId);
           if (me && !isEliminated) {
@@ -238,13 +269,13 @@ const AudienceParticipation: React.FC = () => {
         console.error('Failed to refresh game state:', err);
       }
     };
-    
+
     // Refresh immediately
     refreshGameState();
-    
+
     // Then refresh every 2 seconds
     const interval = setInterval(refreshGameState, 2000);
-    
+
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -303,6 +334,8 @@ const AudienceParticipation: React.FC = () => {
   }, [stopLocalCountdown]);
 
   useEffect(() => () => stopLocalCountdown(), [stopLocalCountdown]);
+  // Also clear any pending answer-reveal timeout on unmount.
+  useEffect(() => () => clearAnswerRevealTimeout(), [clearAnswerRevealTimeout]);
 
   const applyQuestion = useCallback(
     (
@@ -329,13 +362,22 @@ const AudienceParticipation: React.FC = () => {
       questionClosedRef.current = false;
       setIsPaused(false);
       isPausedRef.current = false;
-      // New round → clear any leftover post-timer feedback from the previous one.
+      // New round → clear any leftover post-timer feedback / reveal state
+      // from the previous one.
       setShowCorrectAnswerFeedback(false);
+      setSubmittedOptionId(null);
+      setShowAnswerReveal(false);
+      clearAnswerRevealTimeout();
+      // If the EliminationOverlay was still visible from the previous round
+      // (the host moved on before the participant clicked either button),
+      // dismiss it so the participant drops into spectator mode for the
+      // new question.
+      setShowEliminationOverlay(false);
       setSessionState('question');
       sessionStateRef.current = 'question';
       if (limit !== null && remaining > 0) startLocalCountdown();
     },
-    [startLocalCountdown]
+    [startLocalCountdown, clearAnswerRevealTimeout]
   );
 
   const loadQuestion = useCallback(
@@ -432,6 +474,14 @@ const AudienceParticipation: React.FC = () => {
           const timeLimit = payload?.timeLimit as number | null | undefined;
           if (questionId) {
             stopLocalCountdown();
+            // Auto-dismiss the EliminationOverlay (and cancel any pending
+            // reveal-then-overlay sequence) if the host moves on to the
+            // next question before the participant chose a button. The
+            // participant will fall through into spectator mode for the
+            // new round via `applyQuestion` resetting state.
+            clearAnswerRevealTimeout();
+            setShowAnswerReveal(false);
+            setShowEliminationOverlay(false);
             loadQuestion(questionId, questionIndex, timeLimit, undefined, false);
           }
           break;
@@ -459,6 +509,9 @@ const AudienceParticipation: React.FC = () => {
 
         case 'SESSION_END': {
           stopLocalCountdown();
+          clearAnswerRevealTimeout();
+          setShowAnswerReveal(false);
+          setShowEliminationOverlay(false);
           setSessionState('ended');
           sessionStateRef.current = 'ended';
           break;
@@ -468,7 +521,7 @@ const AudienceParticipation: React.FC = () => {
           const ev = payload as unknown as EliminationEvent;
           console.log('[Leaderboard] Player eliminated event received:', ev);
           setEliminationEvents((prev) => [...prev, ev]);
-          
+
           // Immediately refresh game state
           if (participantSessionRef.current?.session.id) {
             SessionService.getGameState(participantSessionRef.current.session.id)
@@ -478,7 +531,7 @@ const AudienceParticipation: React.FC = () => {
                   eliminated: newState.eliminated.length
                 });
                 setGameState(newState);
-                
+
                 // Check if current user was eliminated
                 const me = newState.eliminated.find(p => p.id === participantSessionRef.current?.participantId);
                 if (me && !isEliminatedRef.current) {
@@ -490,12 +543,12 @@ const AudienceParticipation: React.FC = () => {
           }
           break;
         }
-        
+
         case SESSION_EVENTS.GAME_STATE_UPDATE: {
           setGameState(payload as unknown as GameState);
           break;
         }
-        
+
         case SESSION_EVENTS.GAME_END: {
           if (participantSessionRef.current?.session.id) {
             SessionService.getGameState(participantSessionRef.current.session.id)
@@ -513,6 +566,8 @@ const AudienceParticipation: React.FC = () => {
             setRevealedWinner(winner);
             // Make sure the elimination overlay is dismissed so the
             // winner overlay can take the whole screen.
+            clearAnswerRevealTimeout();
+            setShowAnswerReveal(false);
             setShowEliminationOverlay(false);
           }
           break;
@@ -522,7 +577,7 @@ const AudienceParticipation: React.FC = () => {
           break;
       }
     },
-    [loadQuestion, startLocalCountdown, stopLocalCountdown]
+    [loadQuestion, startLocalCountdown, stopLocalCountdown, clearAnswerRevealTimeout]
   );
 
   const { connected: wsConnected, sendMessage } = useSessionSocket({
@@ -537,6 +592,11 @@ const AudienceParticipation: React.FC = () => {
   // participant submits a wrong answer. If the participant did not submit
   // anything in time, they are auto-eliminated (no answer = wrong) and
   // the overlay is then shown.
+  //
+  // For wrongly-answering participants we now insert a brief "answer
+  // reveal" window first: SpectatorMode highlights the correct option in
+  // green and the submitted (wrong) option in red for ANSWER_REVEAL_DURATION_MS,
+  // then the EliminationOverlay slides in.
   useEffect(() => {
     if (!questionClosed) return;
     if (!isElimination) return;
@@ -569,7 +629,15 @@ const AudienceParticipation: React.FC = () => {
       const liveRoundNumber =
         currentQuestionRef.current?.number ?? gameState.currentRound ?? 0;
       if (eliminatedAtRound === liveRoundNumber) {
-        setShowEliminationOverlay(true);
+        // Reveal the correct answer (green border) and the wrong submitted
+        // answer (red border) for ~2 seconds before opening the overlay.
+        setShowAnswerReveal(true);
+        clearAnswerRevealTimeout();
+        answerRevealTimeoutRef.current = window.setTimeout(() => {
+          setShowAnswerReveal(false);
+          setShowEliminationOverlay(true);
+          answerRevealTimeoutRef.current = undefined;
+        }, ANSWER_REVEAL_DURATION_MS);
       }
       return;
     }
@@ -595,7 +663,16 @@ const AudienceParticipation: React.FC = () => {
           setEliminatedAtRound(eliminated.roundNumber);
           setIsEliminated(true);
         }
-        setShowEliminationOverlay(true);
+        // Show the correct answer briefly (no submitted option to mark in
+        // red since this participant never answered) and then open the
+        // EliminationOverlay.
+        setShowAnswerReveal(true);
+        clearAnswerRevealTimeout();
+        answerRevealTimeoutRef.current = window.setTimeout(() => {
+          setShowAnswerReveal(false);
+          setShowEliminationOverlay(true);
+          answerRevealTimeoutRef.current = undefined;
+        }, ANSWER_REVEAL_DURATION_MS);
       } catch (err) {
         console.error('Auto-eliminate on timer end failed:', err);
         // Even on failure, show the overlay so the user can opt to leave.
@@ -687,6 +764,13 @@ const AudienceParticipation: React.FC = () => {
           const newQuestionIndex: number = updatedSession.current_question_index;
           if (newQuestionId && newQuestionId !== currentQuestionRef.current?.id) {
             stopLocalCountdown();
+            // Same auto-dismiss logic as the broadcast path: if the host
+            // advances while the EliminationOverlay (or its preceding
+            // answer-reveal window) is still visible, drop them straight
+            // into spectator mode for the next round.
+            clearAnswerRevealTimeout();
+            setShowAnswerReveal(false);
+            setShowEliminationOverlay(false);
             loadQuestion(
               newQuestionId,
               newQuestionIndex,
@@ -700,7 +784,7 @@ const AudienceParticipation: React.FC = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(sessionChannel); };
-  }, [participantSession?.session.id, wsConnected, loadQuestion, startLocalCountdown, stopLocalCountdown]);
+  }, [participantSession?.session.id, wsConnected, loadQuestion, startLocalCountdown, stopLocalCountdown, clearAnswerRevealTimeout]);
 
   const handleJoinSession = async (joinData: { code: string; name: string }) => {
     setIsLoading(true);
@@ -768,6 +852,8 @@ const AudienceParticipation: React.FC = () => {
           setQuestionClosed(false);
           questionClosedRef.current = false;
           setShowCorrectAnswerFeedback(false);
+          setSubmittedOptionId(null);
+          setShowAnswerReveal(false);
           setSessionState('question');
           sessionStateRef.current = 'question';
           if (timeLimit !== null && !paused && remaining !== null && remaining > 0) startLocalCountdown();
@@ -837,6 +923,10 @@ const AudienceParticipation: React.FC = () => {
       const isCorrect = !!chosenOption?.isCorrect;
       const pts = (q as any).points ?? 0;
 
+      // Remember this submission so we can highlight it in the answer
+      // reveal window once the round timer ends.
+      setSubmittedOptionId(chosenOptionId);
+
       try {
         // IMPORTANT: read the round number from the live question, NOT from
         // `ps.session.currentQuestionIndex` (which is captured at join time
@@ -858,9 +948,6 @@ const AudienceParticipation: React.FC = () => {
           pointsIfCorrect: pts,
         });
 
-        setFeedback({ show: true, correct: result.correct, pointsAwarded: pts });
-        setTimeout(() => setFeedback(null), 1500);
-
         if (!result.correct && result.eliminated) {
           sendMessage({
             type: SESSION_EVENTS.PLAYER_ELIMINATED,
@@ -870,7 +957,7 @@ const AudienceParticipation: React.FC = () => {
           setIsEliminated(true);
           // NOTE: Do NOT show the EliminationOverlay here.
           // The overlay must only appear AFTER the question timer ends —
-          // see the `useEffect` watching `questionClosed` below.
+          // see the `useEffect` watching `questionClosed` above.
         }
 
         sendMessage({
@@ -923,6 +1010,7 @@ const AudienceParticipation: React.FC = () => {
 
   const handleJoinNewSession = () => {
     stopLocalCountdown();
+    clearAnswerRevealTimeout();
     participantSessionRef.current = null;
     currentQuestionRef.current = null;
     sessionStateRef.current = 'join';
@@ -954,8 +1042,9 @@ const AudienceParticipation: React.FC = () => {
     setEliminatedAtRound(0);
     setShowEliminationOverlay(false);
     setShowCorrectAnswerFeedback(false);
+    setSubmittedOptionId(null);
+    setShowAnswerReveal(false);
     setRevealedWinner(null);
-    setFeedback(null);
   };
 
   const handleRetry = () => {
@@ -1087,13 +1176,7 @@ const AudienceParticipation: React.FC = () => {
               />
             )}
 
-            {isElimination && feedback && (
-              <AnswerFeedback
-                show={feedback.show}
-                correct={feedback.correct}
-                pointsAwarded={feedback.pointsAwarded}
-              />
-            )}
+            {/* AnswerFeedback removed — was not behaving correctly. */}
           </div>
         );
       }
@@ -1200,7 +1283,7 @@ const AudienceParticipation: React.FC = () => {
   }
 
   // ── Spectator-style waiting view ──────────────────────────────────────────
-  // Two situations now render the spectator UI:
+  // Three situations now render the spectator UI:
   //
   //   1. The participant has just SUBMITTED an answer (correct OR wrong) and
   //      the round timer has not finished yet. They sit in this view —
@@ -1208,9 +1291,15 @@ const AudienceParticipation: React.FC = () => {
   //      reveal whether their answer was correct before everyone else's
   //      time is up.
   //
-  //   2. The participant is eliminated, the dramatic EliminationOverlay
-  //      has been dismissed (they chose "Stay as spectator"), and a winner
-  //      hasn't been revealed yet. In this case we show the banner.
+  //   2. The participant answered WRONG and the timer just ended → for
+  //      ANSWER_REVEAL_DURATION_MS we show this view with the correct option
+  //      highlighted in green and the wrong submitted option highlighted in
+  //      red. Then the EliminationOverlay slides in.
+  //
+  //   3. The participant is eliminated, the dramatic EliminationOverlay
+  //      has been dismissed (they chose "Stay as spectator", or the host
+  //      moved on), and a winner hasn't been revealed yet. In this case we
+  //      show the banner.
   if (isElimination) {
     const liveRoundNumber =
       currentQuestion?.number ?? gameState.currentRound ?? 0;
@@ -1227,16 +1316,20 @@ const AudienceParticipation: React.FC = () => {
       eliminatedAtRound === liveRoundNumber;
 
     // I was eliminated in a PRIOR round (or in this round, after the
-    // EliminationOverlay was dismissed) → established spectator.
+    // EliminationOverlay was dismissed) → established spectator. Also
+    // covers the brief answer-reveal window after the timer ends.
     const isEliminatedSpectator =
       isEliminated && !showEliminationOverlay && !showCorrectAnswerFeedback;
 
     if (hasJustSubmittedAndWaiting || isEliminatedSpectator) {
       // Only hide the "Vous avez été éliminé" banner during the
-      // post-submit waiting window of the CURRENT round — never for an
-      // established spectator from a prior round.
+      // post-submit waiting window of the CURRENT round, or during the
+      // brief answer-reveal window — never for an established spectator
+      // from a prior round.
       const hideBanner =
-        hasJustSubmittedAndWaiting || eliminatedThisRoundWaiting;
+        hasJustSubmittedAndWaiting ||
+        eliminatedThisRoundWaiting ||
+        showAnswerReveal;
       return (
         <div className={themeClass + ' min-h-screen'}>
           <SpectatorMode
@@ -1245,6 +1338,8 @@ const AudienceParticipation: React.FC = () => {
             eliminatedAtRound={eliminatedAtRound}
             onLeave={handleJoinNewSession}
             hideEliminationBanner={hideBanner}
+            showAnswerReveal={showAnswerReveal}
+            submittedOptionId={submittedOptionId}
           />
         </div>
       );
