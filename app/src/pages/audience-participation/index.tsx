@@ -100,6 +100,11 @@ const AudienceParticipation: React.FC = () => {
   const [isEliminated, setIsEliminated] = useState<boolean>(false);
   const [eliminatedAtRound, setEliminatedAtRound] = useState<number>(0);
   const [showEliminationOverlay, setShowEliminationOverlay] = useState<boolean>(false);
+  // Becomes true ONLY when the question timer ends AND the participant had
+  // submitted a correct answer. Drives the "Bonne réponse !" screen so it no
+  // longer pops up the instant they answer — they sit in a spectator-style
+  // waiting view until the round closes.
+  const [showCorrectAnswerFeedback, setShowCorrectAnswerFeedback] = useState<boolean>(false);
   // Local state holding the winner once the host explicitly reveals it.
   // The WinnerCelebration overlay is rendered ONLY when this is set —
   // we no longer auto-show it from gameState.winner.
@@ -324,6 +329,8 @@ const AudienceParticipation: React.FC = () => {
       questionClosedRef.current = false;
       setIsPaused(false);
       isPausedRef.current = false;
+      // New round → clear any leftover post-timer feedback from the previous one.
+      setShowCorrectAnswerFeedback(false);
       setSessionState('question');
       sessionStateRef.current = 'question';
       if (limit !== null && remaining > 0) startLocalCountdown();
@@ -540,17 +547,37 @@ const AudienceParticipation: React.FC = () => {
     const ps = participantSession;
     const q = currentQuestion;
 
-    // Case A: I already answered correctly → no overlay.
-    if (sessionStateRef.current === 'submitted') return;
+    // Case A: I already answered correctly → no elimination overlay,
+    // but NOW (timer is up) we flip on the "Bonne réponse !" screen.
+    // It was held back until this moment so the participant sat in a
+    // spectator-style waiting view right after submitting.
+    if (sessionStateRef.current === 'submitted') {
+      setShowCorrectAnswerFeedback(true);
+      return;
+    }
 
     // Case B: I submitted a wrong answer earlier (already marked eliminated).
+    // The overlay must fire ONLY on the round I was actually eliminated in.
+    // Otherwise — once I've chosen "Stay as spectator" — every subsequent
+    // round's timer end would pop the overlay back up.
+    //
+    // IMPORTANT: don't read the round number from `ps.session` — that's a
+    // snapshot captured at join time and never updates. Use the live
+    // `currentQuestion.number` (set every time `loadQuestion` runs) with a
+    // fallback to `gameState.currentRound`.
     if (isEliminatedRef.current) {
-      setShowEliminationOverlay(true);
+      const liveRoundNumber =
+        currentQuestionRef.current?.number ?? gameState.currentRound ?? 0;
+      if (eliminatedAtRound === liveRoundNumber) {
+        setShowEliminationOverlay(true);
+      }
       return;
     }
 
     // Case C: I never submitted before time ran out → auto-eliminate.
-    const roundNumber = ((ps.session as any).currentQuestionIndex ?? 0) + 1;
+    // Same caveat as Case B — read the round number from the live question.
+    const roundNumber =
+      currentQuestionRef.current?.number ?? gameState.currentRound ?? 0;
     (async () => {
       try {
         const eliminated = await SessionService.eliminateParticipant({
@@ -740,6 +767,7 @@ const AudienceParticipation: React.FC = () => {
           questionActiveRef.current = true;
           setQuestionClosed(false);
           questionClosedRef.current = false;
+          setShowCorrectAnswerFeedback(false);
           setSessionState('question');
           sessionStateRef.current = 'question';
           if (timeLimit !== null && !paused && remaining !== null && remaining > 0) startLocalCountdown();
@@ -810,11 +838,21 @@ const AudienceParticipation: React.FC = () => {
       const pts = (q as any).points ?? 0;
 
       try {
+        // IMPORTANT: read the round number from the live question, NOT from
+        // `ps.session.currentQuestionIndex` (which is captured at join time
+        // and never updates). Using the stale value caused the server to
+        // store `eliminated.roundNumber = 1` even when the player was
+        // actually eliminated in round 3, which then broke the
+        // `eliminatedAtRound === liveRoundNumber` check in the
+        // `questionClosed` effect — so the EliminationOverlay never fired.
+        const liveRoundNumber =
+          currentQuestionRef.current?.number ?? gameState.currentRound ?? 0;
+
         const result = await SessionService.submitEliminationAnswer({
           sessionId: ps.session.id,
           participantId: ps.participantId,
           questionId: q.id,
-          roundNumber: ((ps.session as any).currentQuestionIndex ?? 0) + 1,
+          roundNumber: liveRoundNumber,
           chosenOptionId,
           isCorrect,
           pointsIfCorrect: pts,
@@ -915,6 +953,7 @@ const AudienceParticipation: React.FC = () => {
     setIsEliminated(false);
     setEliminatedAtRound(0);
     setShowEliminationOverlay(false);
+    setShowCorrectAnswerFeedback(false);
     setRevealedWinner(null);
     setFeedback(null);
   };
@@ -1061,6 +1100,12 @@ const AudienceParticipation: React.FC = () => {
 
       case 'submitted':
         if (isElimination) {
+          // The "Bonne réponse !" screen is now held back until the round
+          // timer finishes. While waiting, the participant is rendered into
+          // a spectator-style waiting view by the conditional block at the
+          // bottom of this component (see `isElimination && (… || isEliminated …)`),
+          // so we return null here for that interim state.
+          if (!showCorrectAnswerFeedback) return null;
           return (
             <CentPourCentBackground
               subtitle="Bonne réponse ! Préparez-vous pour la prochaine question…"
@@ -1154,18 +1199,56 @@ const AudienceParticipation: React.FC = () => {
     );
   }
 
-  // I am eliminated AND the dramatic overlay is no longer showing → spectator.
-  if (isElimination && isEliminated && !showEliminationOverlay) {
-    return (
-      <div className={themeClass + ' min-h-screen'}>
-        <SpectatorMode
-          currentQuestion={currentQuestion ?? null}
-          gameState={gameState}
-          eliminatedAtRound={eliminatedAtRound}
-          onLeave={handleJoinNewSession}
-        />
-      </div>
-    );
+  // ── Spectator-style waiting view ──────────────────────────────────────────
+  // Two situations now render the spectator UI:
+  //
+  //   1. The participant has just SUBMITTED an answer (correct OR wrong) and
+  //      the round timer has not finished yet. They sit in this view —
+  //      with the "you have been eliminated" banner HIDDEN — so we don't
+  //      reveal whether their answer was correct before everyone else's
+  //      time is up.
+  //
+  //   2. The participant is eliminated, the dramatic EliminationOverlay
+  //      has been dismissed (they chose "Stay as spectator"), and a winner
+  //      hasn't been revealed yet. In this case we show the banner.
+  if (isElimination) {
+    const liveRoundNumber =
+      currentQuestion?.number ?? gameState.currentRound ?? 0;
+
+    // I just submitted in THIS round and the timer hasn't ended yet.
+    const hasJustSubmittedAndWaiting =
+      sessionState === 'submitted' && !showCorrectAnswerFeedback;
+
+    // I just got eliminated in THIS round and the timer hasn't ended yet
+    // (so we still want to hide the banner — see `hideBanner` below).
+    const eliminatedThisRoundWaiting =
+      isEliminated &&
+      !questionClosed &&
+      eliminatedAtRound === liveRoundNumber;
+
+    // I was eliminated in a PRIOR round (or in this round, after the
+    // EliminationOverlay was dismissed) → established spectator.
+    const isEliminatedSpectator =
+      isEliminated && !showEliminationOverlay && !showCorrectAnswerFeedback;
+
+    if (hasJustSubmittedAndWaiting || isEliminatedSpectator) {
+      // Only hide the "Vous avez été éliminé" banner during the
+      // post-submit waiting window of the CURRENT round — never for an
+      // established spectator from a prior round.
+      const hideBanner =
+        hasJustSubmittedAndWaiting || eliminatedThisRoundWaiting;
+      return (
+        <div className={themeClass + ' min-h-screen'}>
+          <SpectatorMode
+            currentQuestion={currentQuestion ?? null}
+            gameState={gameState}
+            eliminatedAtRound={eliminatedAtRound}
+            onLeave={handleJoinNewSession}
+            hideEliminationBanner={hideBanner}
+          />
+        </div>
+      );
+    }
   }
 
   // Standard render flow
