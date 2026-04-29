@@ -27,7 +27,7 @@ const OpenTextQuestion: React.FC<OpenTextQuestionProps> = ({ question, onSubmit 
 
   const handleSubmit = (): void => {
     if (!response?.trim()) return;
-    
+
     setIsSubmitting(true);
     setTimeout(() => {
       onSubmit({ text: response?.trim() });
@@ -62,11 +62,11 @@ const OpenTextQuestion: React.FC<OpenTextQuestionProps> = ({ question, onSubmit 
             </p>
           )}
           {questionImage && (
-            <div className="mt-5 overflow-hidden rounded-xl border border-border bg-muted/30 flex justify-center">
+            <div className="mt-5 rounded-xl border border-border bg-muted/30 flex justify-center p-2">
               <img
                 src={questionImage}
                 alt="Question visual"
-                className="w-full max-h-[360px] object-contain"
+                className="block w-auto max-w-full h-auto max-h-[420px] object-contain mx-auto rounded-lg"
               />
             </div>
           )}
@@ -89,7 +89,7 @@ const OpenTextQuestion: React.FC<OpenTextQuestionProps> = ({ question, onSubmit 
                 remainingChars < 50
                   ? 'text-warning'
                   : remainingChars === 0
-                  ? 'text-destructive' 
+                  ? 'text-destructive'
                   : 'text-muted-foreground'
               }`}
             >

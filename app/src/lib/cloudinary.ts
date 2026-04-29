@@ -106,8 +106,16 @@ export async function deleteImageFromCloudinary(
 }
 
 /**
- * Optimize image URL for web display
- * Apply transformations like resizing, quality optimization, etc.
+ * Optimize image URL for web display.
+ *
+ * IMPORTANT: this function MUST NOT crop. We use Cloudinary's `c_limit`
+ * mode, which only downscales the image when it's larger than the
+ * provided width/height bounds and ALWAYS preserves the original aspect
+ * ratio. This guarantees the full image is preserved end-to-end —
+ * useful for question images where edges (e.g. labels "A" / "B") would
+ * otherwise be cropped off by `c_fill`.
+ *
+ * width / height here are *maximum* dimensions, not exact dimensions.
  */
 export function optimizeImageUrl(
   url: string,
@@ -122,19 +130,21 @@ export function optimizeImageUrl(
     return url; // Return unchanged if not a Cloudinary URL
   }
 
-  const width = options?.width || 800;
-  const height = options?.height || 600;
+  const width = options?.width || 1600;
+  const height = options?.height || 1600;
   const quality = options?.quality || "auto";
   const format = options?.format || "auto";
 
   // Extract public ID from URL and rebuild with transformations
   // Example: https://res.cloudinary.com/cloud/image/upload/v123/folder/file.jpg
-  // To: https://res.cloudinary.com/cloud/image/upload/w_800,h_600,q_auto,f_auto/v123/folder/file.jpg
+  // To: https://res.cloudinary.com/cloud/image/upload/w_1600,h_1600,c_limit,q_auto,f_auto/v123/folder/file.jpg
 
   const parts = url.split("/image/upload/");
   if (parts.length === 2) {
     const [base, rest] = parts;
-    const transformations = `w_${width},h_${height},q_${quality},f_${format},c_fill`;
+    // c_limit = scale down only if larger than w/h bounds, never crop,
+    // always preserve aspect ratio.
+    const transformations = `w_${width},h_${height},c_limit,q_${quality},f_${format}`;
     return `${base}/image/upload/${transformations}/${rest}`;
   }
 

@@ -64,10 +64,12 @@ export function ImageUploadWidget({
         },
       );
 
-      // Optimize the URL for web display
+      // Optimize the URL for web display.
+      // NOTE: optimizeImageUrl now uses c_limit (no cropping). Width/height
+      // here are MAX bounds; the original aspect ratio is always preserved.
       const optimizedUrl = optimizeImageUrl(imageUrl, {
-        width: 800,
-        height: 600,
+        width: 1600,
+        height: 1600,
         quality: "auto",
         format: "auto",
       });
@@ -124,17 +126,17 @@ export function ImageUploadWidget({
 
   return (
     <div className={cn("w-full space-y-3", className)}>
-      {/* Image Preview */}
+      {/* Image Preview — show full image, never crop. Just bound the box height. */}
       {currentImageUrl && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="relative rounded-lg overflow-hidden border-2 border-emerald-200 bg-emerald-50"
+          className="relative rounded-lg border-2 border-emerald-200 bg-emerald-50 flex justify-center p-2"
         >
           <img
             src={currentImageUrl}
             alt="Question preview"
-            className="w-full h-auto object-cover max-h-48"
+            className="block w-auto max-w-full h-auto max-h-48 object-contain mx-auto rounded"
           />
           {/* Remove button */}
           {onImageRemove && (

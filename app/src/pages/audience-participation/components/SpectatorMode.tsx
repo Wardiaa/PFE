@@ -118,17 +118,19 @@ export function SpectatorMode({
               {currentQuestion.text}
             </h2>
             {currentQuestion.image && (
-              <img
-                src={currentQuestion.image}
-                alt=""
-                className="w-full rounded-xl border border-white/10 mb-4 object-contain max-h-64"
-              />
+              <div className="mb-4 flex justify-center rounded-xl border border-white/10 bg-white/[0.02] p-2">
+                <img
+                  src={currentQuestion.image}
+                  alt=""
+                  className="block w-auto max-w-full h-auto max-h-[420px] object-contain mx-auto rounded-lg"
+                />
+              </div>
             )}
             <ul className="grid gap-2 sm:grid-cols-2">
               {(currentQuestion.options ?? []).map((opt) => {
                 const imageOnly = isImageOnlyOption(opt as Option);
                 const isCorrect = !!(opt as any).isCorrect;
-                
+
                 // Default look — neutral border.
                 let optionClass = imageOnly
                   ? "rounded-lg border border-white/10 bg-white/[0.03] overflow-hidden transition-colors"

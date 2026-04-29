@@ -449,14 +449,22 @@ function QuestionCard({ question, scale = 1 }: { question: Question; scale?: num
         </p>
       )}
 
-      {/* Image — full image visible, object-contain to show entire image */}
+      {/* Question image — full image visible, never cropped, only scaled down */}
       {((question as any).imageUrl || (question as any).image) && (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100 flex justify-center" style={{ marginTop: 20 * s, marginBottom: 20 * s }}>
+        <div
+          className="rounded-xl border border-slate-200 bg-slate-100 flex justify-center"
+          style={{ marginTop: 20 * s, marginBottom: 20 * s, padding: 8 * s }}
+        >
           <img
             src={(question as any).imageUrl || (question as any).image}
             alt=""
-            className="w-full object-contain"
-            style={{ maxHeight: 360 * s }}
+            className="block mx-auto object-contain rounded-lg"
+            style={{
+              width: "auto",
+              height: "auto",
+              maxWidth: "100%",
+              maxHeight: 360 * s,
+            }}
           />
         </div>
       )}

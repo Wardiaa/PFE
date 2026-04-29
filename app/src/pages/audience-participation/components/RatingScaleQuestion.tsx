@@ -35,11 +35,11 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
   const questionImage = question?.image || question?.imageUrl;
 
   // Min is fixed at 1, max is adjustable
-  const scale = { 
-    min: 1, 
-    max: question?.scale?.max || 5 
+  const scale = {
+    min: 1,
+    max: question?.scale?.max || 5
   };
-  
+
   const ratings = Array.from(
     { length: scale.max - scale.min + 1 },
     (_, i) => scale.min + i
@@ -71,7 +71,7 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
   const renderRatingButton = (rating: number) => {
     const isSelected = selectedRating === rating;
     const isHovered = hoveredRating === rating;
-    
+
     const baseClass = `w-10 h-10 md:w-12 md:h-12 rounded-xl border-2 flex items-center justify-center transition-all duration-250 ${
       isSelected
         ? 'border-primary bg-primary shadow-lg scale-105'
@@ -187,11 +187,11 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
             </p>
           )}
           {questionImage && (
-            <div className="mt-5 overflow-hidden rounded-xl border border-border bg-muted/30 flex justify-center">
+            <div className="mt-5 rounded-xl border border-border bg-muted/30 flex justify-center p-2">
               <img
                 src={questionImage}
                 alt="Question visual"
-                className="w-full max-h-[360px] object-contain"
+                className="block w-auto max-w-full h-auto max-h-[420px] object-contain mx-auto rounded-lg"
               />
             </div>
           )}

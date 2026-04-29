@@ -27,7 +27,7 @@ const WordCloudQuestion: React.FC<WordCloudQuestionProps> = ({ question, onSubmi
 
   const handleSubmit = (): void => {
     if (wordArray?.length === 0) return;
-    
+
     setIsSubmitting(true);
     setTimeout(() => {
       onSubmit({ words: wordArray });
@@ -37,7 +37,7 @@ const WordCloudQuestion: React.FC<WordCloudQuestionProps> = ({ question, onSubmi
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const value = e?.target?.value;
     const newWordArray = value?.trim()?.split(/\s+/)?.filter(word => word?.length > 0);
-    
+
     if (newWordArray?.length <= maxWords) {
       setWords(value);
     }
@@ -70,11 +70,11 @@ const WordCloudQuestion: React.FC<WordCloudQuestionProps> = ({ question, onSubmi
             </p>
           )}
           {questionImage && (
-            <div className="mt-5 overflow-hidden rounded-xl border border-border bg-muted/30 flex justify-center">
+            <div className="mt-5 rounded-xl border border-border bg-muted/30 flex justify-center p-2">
               <img
                 src={questionImage}
                 alt="Question visual"
-                className="w-full max-h-[360px] object-contain"
+                className="block w-auto max-w-full h-auto max-h-[420px] object-contain mx-auto rounded-lg"
               />
             </div>
           )}
@@ -98,7 +98,7 @@ const WordCloudQuestion: React.FC<WordCloudQuestionProps> = ({ question, onSubmi
                 remainingWords <= 2
                   ? 'text-warning'
                   : remainingWords === 0
-                  ? 'text-destructive' 
+                  ? 'text-destructive'
                   : 'text-muted-foreground'
               }`}
             >
