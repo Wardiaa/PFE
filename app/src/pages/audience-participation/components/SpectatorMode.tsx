@@ -202,8 +202,16 @@ export function SpectatorMode({
           </div>
         )}
 
-        {/* Live leaderboard */}
-        <LiveLeaderboard gameState={gameState} />
+        {/* Live leaderboard — only shown once the participant is truly in
+            "spectator after elimination" mode. We hide it during the
+            post-submit waiting window (hideEliminationBanner === true),
+            because the round timer is still running and seeing the
+            leaderboard would spoil the participant's own elimination.
+            Default-collapsed to keep the screen compact when there are
+            many players. */}
+        {!hideEliminationBanner && (
+          <LiveLeaderboard gameState={gameState} defaultCollapsed />
+        )}
       </div>
     </div>
   );

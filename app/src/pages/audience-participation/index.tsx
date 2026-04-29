@@ -1367,15 +1367,23 @@ const AudienceParticipation: React.FC = () => {
             {renderContent()}
           </div>
 
-          {/* Live leaderboard sits below the question in elimination mode */}
-          {isElimination && sessionState !== 'join' && (
-            <div className="mx-auto max-w-3xl mt-8">
-              <LiveLeaderboard
-                gameState={gameState}
-                highlightParticipantId={participantSession?.participantId}
-              />
-            </div>
-          )}
+          {/* Live leaderboard — only shown AFTER the round timer ends, or
+              when the participant has been eliminated. We deliberately hide
+              it while the timer is still running so participants don't see
+              themselves drop out of the leaderboard before the round closes
+              (which would spoil their elimination). Default-collapsed to
+              keep the screen compact when there are many players. */}
+          {isElimination &&
+            sessionState !== 'join' &&
+            (timerRemaining === 0 || showAnswerReveal || isEliminated) && (
+              <div className="mx-auto max-w-3xl mt-8">
+                <LiveLeaderboard
+                  gameState={gameState}
+                  highlightParticipantId={participantSession?.participantId}
+                  defaultCollapsed
+                />
+              </div>
+            )}
         </div>
       </main>
     </div>

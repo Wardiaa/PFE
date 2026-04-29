@@ -1,13 +1,29 @@
 // LiveLeaderboard.tsx
 // Renders the alive players as a glowing pod grid (top 12) plus a count
 // badge for total alive / total players.
+//
+// Collapsible: a chevron in the header toggles the body open/closed. Useful
+// when the participant list grows long. The header (titles + count badge)
+// stays visible at all times so participants always see how many people are
+// still in.
+//
+// VISIBILITY: this component is purely presentational — it always renders
+// when mounted. It's the parent's job to decide WHEN to render it. For
+// example, the audience-side page should only mount this once the round
+// timer has ended (or the participant is in SpectatorMode).
 
-import { Crown, Skull } from "lucide-react";
+import { useState } from "react";
+import { Crown, Skull, ChevronDown, ChevronUp } from "lucide-react";
 import type { GameState, Participant } from "../../../lib/presentation.types";
 
 interface Props {
   gameState: GameState;
   highlightParticipantId?: string;
+  /**
+   * Initial collapsed state. Defaults to false (expanded). Useful to set
+   * to `true` on small screens or when many players are connected.
+   */
+  defaultCollapsed?: boolean;
 }
 
 const initials = (name: string) =>
@@ -66,12 +82,18 @@ function Pod({
   );
 }
 
-export function LiveLeaderboard({ gameState, highlightParticipantId }: Props) {
+export function LiveLeaderboard({
+  gameState,
+  highlightParticipantId,
+  defaultCollapsed = false,
+}: Props) {
+  const [collapsed, setCollapsed] = useState<boolean>(defaultCollapsed);
+
   // Sort alive participants by score (highest first)
   const aliveSorted = [...gameState.alive].sort((a, b) => b.score - a.score);
   const leaderId = aliveSorted[0]?.id;
   const visibleAlive = aliveSorted.slice(0, 12);
-  
+
   // Sort eliminated participants by elimination round (most recent first)
   const recentEliminated = [...gameState.eliminated]
     .sort((a, b) => (b.eliminatedAtRound ?? 0) - (a.eliminatedAtRound ?? 0))
@@ -85,14 +107,29 @@ export function LiveLeaderboard({ gameState, highlightParticipantId }: Props) {
 
   return (
     <section className="cpl-card p-5 sm:p-6">
-      <header className="mb-4 flex items-end justify-between">
-        <div>
-          <h3 className="cpl-display text-lg text-white">En lice</h3>
+      {/* Header — always visible, doubles as the collapse toggle. */}
+      <button
+        type="button"
+        onClick={() => setCollapsed((c) => !c)}
+        aria-expanded={!collapsed}
+        aria-controls="cpl-leaderboard-body"
+        className="w-full mb-4 flex items-end justify-between gap-3 text-left rounded-md hover:bg-white/5 transition-colors -mx-2 px-2 py-1"
+      >
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="cpl-display text-lg text-white">En lice</h3>
+            {collapsed ? (
+              <ChevronDown className="h-4 w-4 text-[color:var(--cpl-text-muted)]" />
+            ) : (
+              <ChevronUp className="h-4 w-4 text-[color:var(--cpl-text-muted)]" />
+            )}
+          </div>
           <p className="text-xs text-[color:var(--cpl-text-muted)]">
-            {aliveCount} joueur{aliveCount > 1 ? "s" : ""} survivant{aliveCount > 1 ? "s" : ""} sur {totalCount}
+            {aliveCount} joueur{aliveCount > 1 ? "s" : ""} survivant
+            {aliveCount > 1 ? "s" : ""} sur {totalCount}
           </p>
         </div>
-        <div className="text-right">
+        <div className="text-right flex-shrink-0">
           <div className="cpl-wordmark text-xl">
             {aliveCount}/{totalCount}
           </div>
@@ -100,46 +137,55 @@ export function LiveLeaderboard({ gameState, highlightParticipantId }: Props) {
             Manche {currentRound}
           </div>
         </div>
-      </header>
+      </button>
 
-      {visibleAlive.length === 0 ? (
-        <p className="text-sm text-[color:var(--cpl-text-muted)]">
-          {eliminatedCount > 0 ? "Tous les joueurs ont été éliminés." : "En attente des participants..."}
-        </p>
-      ) : (
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {visibleAlive.map((p, i) => (
-            <Pod
-              key={p.id}
-              participant={p}
-              rank={i + 1}
-              highlight={p.id === highlightParticipantId}
-              variant={p.id === leaderId ? "leader" : "alive"}
-            />
-          ))}
-        </div>
-      )}
-
-      {gameState.alive.length > visibleAlive.length && (
-        <p className="mt-3 text-xs text-[color:var(--cpl-text-dim)]">
-          +{gameState.alive.length - visibleAlive.length} autres joueurs en lice…
-        </p>
-      )}
-
-      {recentEliminated.length > 0 && (
-        <div className="mt-6">
-          <h4 className="mb-2 text-xs uppercase tracking-widest text-[color:var(--cpl-text-dim)]">
-            Éliminés
-          </h4>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {recentEliminated.map((p) => (
-              <Pod key={p.id} participant={p} variant="eliminated" />
-            ))}
-          </div>
-          {gameState.eliminated.length > recentEliminated.length && (
-            <p className="mt-2 text-xs text-[color:var(--cpl-text-dim)]">
-              +{gameState.eliminated.length - recentEliminated.length} autres éliminés
+      {/* Collapsible body */}
+      {!collapsed && (
+        <div id="cpl-leaderboard-body">
+          {visibleAlive.length === 0 ? (
+            <p className="text-sm text-[color:var(--cpl-text-muted)]">
+              {eliminatedCount > 0
+                ? "Tous les joueurs ont été éliminés."
+                : "En attente des participants..."}
             </p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {visibleAlive.map((p, i) => (
+                <Pod
+                  key={p.id}
+                  participant={p}
+                  rank={i + 1}
+                  highlight={p.id === highlightParticipantId}
+                  variant={p.id === leaderId ? "leader" : "alive"}
+                />
+              ))}
+            </div>
+          )}
+
+          {gameState.alive.length > visibleAlive.length && (
+            <p className="mt-3 text-xs text-[color:var(--cpl-text-dim)]">
+              +{gameState.alive.length - visibleAlive.length} autres joueurs en
+              lice…
+            </p>
+          )}
+
+          {recentEliminated.length > 0 && (
+            <div className="mt-6">
+              <h4 className="mb-2 text-xs uppercase tracking-widest text-[color:var(--cpl-text-dim)]">
+                Éliminés
+              </h4>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {recentEliminated.map((p) => (
+                  <Pod key={p.id} participant={p} variant="eliminated" />
+                ))}
+              </div>
+              {gameState.eliminated.length > recentEliminated.length && (
+                <p className="mt-2 text-xs text-[color:var(--cpl-text-dim)]">
+                  +{gameState.eliminated.length - recentEliminated.length}{" "}
+                  autres éliminés
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}
