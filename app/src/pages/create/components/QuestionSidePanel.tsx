@@ -354,16 +354,16 @@ export function QuestionSidePanel({
   };
 
   const setUploadingState = (optionIndex: number, state: Partial<UploadState>) => {
-    setUploadStates((prev) => ({
-      ...prev,
-      [optionIndex]: {
-        isUploading: false,
-        progress: 0,
-        error: null,
-        ...prev[optionIndex],
-        ...state,
-      },
-    }));
+    setUploadStates((prev) => {
+      const existing = prev[optionIndex] || { isUploading: false, progress: 0, error: null };
+      return {
+        ...prev,
+        [optionIndex]: {
+          ...existing,
+          ...state,
+        },
+      };
+    });
   };
 
   const simulateUploadProgress = (optionIndex: number) => {
