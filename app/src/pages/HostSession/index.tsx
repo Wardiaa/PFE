@@ -22,6 +22,7 @@ import ControlPanel from "./components/ControlPanel";
 import PauseOverlay from "./components/PauseOverlay";
 import EndSessionModal from "./components/EndSessionModal";
 import { EliminationHistory } from "./components/EliminationHistory";
+import { RoundEliminationsOverlay } from "./components/RoundEliminationsOverlay";
 import { SessionService } from "../../service/session.service.ts";
 import "../../styles/cent-pour-cent-logique.css";
 import type {
@@ -166,6 +167,34 @@ const HostSession: React.FC = () => {
   });
 
   const [showEliminationPanel, setShowEliminationPanel] = useState<boolean>(false);
+
+  // ── Frozen game state for the EliminationHistory side-panel ─────────────
+  // The live `gameState` updates the instant the server reports a player
+  // elimination via realtime. To avoid spoiling the round in progress, we
+  // keep a delayed mirror that is only refreshed when the round actually
+  // ends (timer hits 0 / showResults flips on) or when a new question
+  // starts. EliminationHistory reads from this frozen snapshot.
+  const [displayedGameState, setDisplayedGameState] = useState<GameState>({
+    alive: [],
+    eliminated: [],
+    winner: null,
+    totalPlayers: 0,
+    currentRound: 0,
+    history: [],
+  });
+
+  // Snapshot of `gameState.eliminated.length` taken when the current round
+  // started. Used to compute "how many got eliminated during this round"
+  // for the round-end overlay below.
+  const roundStartEliminatedCountRef = useRef<number>(0);
+
+  // When non-null, the round-end overlay is shown with this number.
+  const [roundEliminationCount, setRoundEliminationCount] = useState<
+    number | null
+  >(null);
+  // Round number captured at the moment the overlay is triggered, so the
+  // overlay keeps showing the correct round even if state advances.
+  const [overlayRoundNumber, setOverlayRoundNumber] = useState<number>(0);
 
   // ── Winner reveal (host-controlled) ───────────────────────────────────────
   // The WinnerCelebration overlay is now opt-in: it only appears after the
@@ -359,6 +388,25 @@ const HostSession: React.FC = () => {
             setTimerActive(false);
             setShowResults(true);
             toast({ title: "Time's Up!", description: "Showing results..." });
+
+            // ── Round just ended: refresh the EliminationHistory snapshot
+            // and show the round-end overlay with the count of players
+            // eliminated during this round. We wait briefly so any
+            // server-side eliminations triggered by the round end have
+            // time to propagate via realtime.
+            if (isEliminationRef.current) {
+              window.setTimeout(() => {
+                const latest = gameStateRef.current;
+                const count =
+                  latest.eliminated.length -
+                  roundStartEliminatedCountRef.current;
+                setDisplayedGameState(latest);
+                if (count > 0) {
+                  setRoundEliminationCount(count);
+                  setOverlayRoundNumber(latest.currentRound);
+                }
+              }, 1200);
+            }
           }
         }
       }, 1000);
@@ -385,6 +433,16 @@ const HostSession: React.FC = () => {
       setHideParticipantNames(currentQuestion.hideParticipantNames ?? false);
     }
   }, [currentQuestion?.id]);
+
+  // ── New round started: take baseline snapshot for the overlay & sync
+  // the EliminationHistory mirror so it shows the state as of round-start.
+  // Also dismiss any leftover round-end overlay from the previous round.
+  useEffect(() => {
+    if (currentQuestionIndex < 0) return;
+    roundStartEliminatedCountRef.current = gameStateRef.current.eliminated.length;
+    setDisplayedGameState(gameStateRef.current);
+    setRoundEliminationCount(null);
+  }, [currentQuestionIndex]);
 
   // ── Reload responses when hideParticipantNames or showResults changes ────
   useEffect(() => {
@@ -1391,17 +1449,6 @@ const HostSession: React.FC = () => {
         <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
           {isElimination && (
             <>
-              <div className="hidden sm:flex items-center gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg bg-gradient-to-r from-yellow-500/20 to-yellow-500/10 border border-yellow-500/30">
-                <AppIcon name="Users" size={13} className="text-yellow-700 dark:text-yellow-400" />
-                <span className="text-xs sm:text-sm font-semibold text-yellow-700 dark:text-yellow-400">
-                  {survivorsCount}
-                </span>
-                <span className="text-xs text-muted-foreground">/</span>
-                <AppIcon name="Skull" size={13} className="text-red-700 dark:text-red-400" />
-                <span className="text-xs sm:text-sm font-semibold text-red-700 dark:text-red-400">
-                  {eliminatedCount}
-                </span>
-              </div>
               <Button
                 variant="outline"
                 size="icon"
@@ -1410,11 +1457,6 @@ const HostSession: React.FC = () => {
                 className="h-8 w-8 md:h-9 md:w-9 relative"
               >
                 <AppIcon name="History" size={15} />
-                {gameState.history.length > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                    {gameState.history.length}
-                  </span>
-                )}
               </Button>
             </>
           )}
@@ -1635,7 +1677,7 @@ const HostSession: React.FC = () => {
 
               <EliminationHistory
                 sessionId={session.id}
-                gameState={gameState}
+                gameState={displayedGameState}
               />
             </motion.aside>
           </motion.div>
@@ -1697,6 +1739,21 @@ const HostSession: React.FC = () => {
 
       {showQrModal && session?.code && (
         <QrFullscreenModal code={session.code} onClose={() => setShowQrModal(false)} />
+      )}
+
+      {/*
+        Round-end elimination overlay. Pops the moment the timer hits 0
+        (with a short delay so server-side eliminations propagate), shows
+        the count of players eliminated during the round that just ended,
+        and is dismissed by the host with the X button or by clicking the
+        backdrop.
+      */}
+      {isElimination && (
+        <RoundEliminationsOverlay
+          count={roundEliminationCount}
+          roundNumber={overlayRoundNumber}
+          onClose={() => setRoundEliminationCount(null)}
+        />
       )}
     </div>
   );

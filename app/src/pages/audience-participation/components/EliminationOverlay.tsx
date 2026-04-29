@@ -21,9 +21,7 @@ export function EliminationOverlay({ show, roundNumber, onStay, onLeave }: Props
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md cpl-wrong-shake px-4"
     >
       <div className="text-center max-w-md w-full">
-        <div className="flex justify-center mb-6">
-          <Skull className="w-20 h-20 text-[color:var(--cpl-danger)]" />
-        </div>
+        
 
         <div className="cpl-eliminated-stamp">ÉLIMINÉ</div>
 
@@ -38,8 +36,7 @@ export function EliminationOverlay({ show, roundNumber, onStay, onLeave }: Props
           <button
             type="button"
             onClick={onStay}
-            className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold text-white bg-[color:var(--cpl-primary,#1b2a8a)] hover:opacity-90 transition-opacity border border-white/20 shadow-lg"
-          >
+            className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold text-white/90 bg-teal-700 hover:bg-teal-600 transition-colors border border-white/20">
             <Eye className="w-5 h-5" />
             Rester en spectateur
           </button>
