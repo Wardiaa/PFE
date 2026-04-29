@@ -27,6 +27,14 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({ questio
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const questionImage = question?.image || question?.imageUrl;
 
+  // Check if an option has only an image and no text
+  const isImageOnlyOption = (option: Option): boolean => {
+    // Check if imageUrl exists AND text is either undefined, null, or empty string
+    const hasImage = !!option.imageUrl;
+    const hasNoText = !option.text || option.text.trim() === '';
+    return hasImage && hasNoText;
+  };
+
   const handleOptionSelect = (optionId: string): void => {
     if (!isSubmitting) {
       setSelectedOption(optionId);
@@ -63,58 +71,88 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({ questio
             </p>
           )}
           {questionImage && (
-            <div className="mt-5 overflow-hidden rounded-xl border border-border bg-muted/30">
+            <div className="mt-5 overflow-hidden rounded-xl border border-border bg-muted/30 flex justify-center">
               <img
                 src={questionImage}
                 alt="Question visual"
-                className="w-full max-h-[360px] object-cover"
+                className="w-full max-h-[360px] object-contain"
               />
             </div>
           )}
         </div>
 
-        <div className="space-y-3 mb-6 md:mb-8">
-          {question?.options?.map((option) => (
-            <button
-              key={option?.id}
-              onClick={() => handleOptionSelect(option?.id)}
-              disabled={isSubmitting}
-              className={`w-full min-h-[56px] md:min-h-[64px] px-4 md:px-6 py-3 md:py-4 rounded-xl border-2 transition-all duration-250 text-left ${
-                selectedOption === option?.id
-                  ? 'border-primary bg-primary/5 shadow-md'
-                  : 'border-border bg-background hover:border-primary/50 hover:bg-muted'
-              } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-            >
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 md:gap-4">
-                  <div
-                    className={`flex-shrink-0 w-5 h-5 md:w-6 md:h-6 rounded-full border-2 transition-all duration-250 flex items-center justify-center ${
-                      selectedOption === option?.id
-                        ? 'border-primary bg-primary' 
-                        : 'border-muted-foreground/30'
-                    }`}
-                  >
-                    {selectedOption === option?.id && (
-                      <AppIcon name="Check" size={12} className="text-white" />
-                    )}
-                  </div>
-                  <span className="text-base md:text-lg font-medium text-foreground flex-1">
-                    {option?.text}
-                  </span>
-                </div>
-
-                {option?.imageUrl && (
-                  <div className="pl-8 md:pl-10">
+        {/* Grid layout: 2 columns for options */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 md:mb-8">
+          {question?.options?.map((option) => {
+            const imageOnly = isImageOnlyOption(option);
+            
+            return (
+              <button
+                key={option?.id}
+                onClick={() => handleOptionSelect(option?.id)}
+                disabled={isSubmitting}
+                className={`text-left transition-all duration-250 ${
+                  selectedOption === option?.id
+                    ? 'border-primary bg-primary/5 shadow-md'
+                    : 'border-border bg-background hover:border-primary/50 hover:bg-muted'
+                } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${
+                  imageOnly ? 'rounded-xl border-2 overflow-hidden p-0' : 'rounded-xl border-2 p-4 md:p-5'
+                }`}
+              >
+                {imageOnly ? (
+                  // Image-only option - show full image without padding
+                  <div className="relative w-full">
                     <img
-                      src={option.imageUrl}
+                      src={option.imageUrl || ''}
                       alt=""
-                      className="w-full max-h-56 rounded-lg object-cover border border-border bg-muted"
+                      className="w-full h-auto object-contain max-h-32"
                     />
+                    <div
+                      className={`absolute top-2 left-2 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-250 bg-white/80 ${
+                        selectedOption === option?.id
+                          ? 'border-primary bg-primary' 
+                          : 'border-muted-foreground/30'
+                      }`}
+                    >
+                      {selectedOption === option?.id && (
+                        <AppIcon name="Check" size={12} className="text-white" />
+                      )}
+                    </div>
                   </div>
+                ) : (
+                  // Option with text (may also have an image)
+                  <>
+                    <div className="flex items-start gap-3 md:gap-4">
+                      <div
+                        className={`flex-shrink-0 w-5 h-5 md:w-6 md:h-6 rounded-full border-2 transition-all duration-250 flex items-center justify-center mt-0.5 ${
+                          selectedOption === option?.id
+                            ? 'border-primary bg-primary' 
+                            : 'border-muted-foreground/30'
+                        }`}
+                      >
+                        {selectedOption === option?.id && (
+                          <AppIcon name="Check" size={12} className="text-white" />
+                        )}
+                      </div>
+                      <span className="text-sm md:text-base lg:text-lg font-medium text-foreground flex-1 leading-snug">
+                        {option?.text}
+                      </span>
+                    </div>
+
+                    {option?.imageUrl && (
+                      <div className="mt-3 ml-8 md:ml-10 overflow-hidden rounded-lg border border-border bg-muted/30">
+                        <img
+                          src={option.imageUrl}
+                          alt=""
+                          className="w-full max-h-28 md:max-h-32 object-contain"
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
 
         <Button

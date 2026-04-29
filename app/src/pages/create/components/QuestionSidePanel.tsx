@@ -1,4 +1,4 @@
-import { useState, useEffect, type ChangeEvent } from "react";
+import { useState, useEffect, type ChangeEvent, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../../../lib/utils";
 import type { Question } from "../types";
@@ -30,6 +30,7 @@ import {
   Heart,
   PawPrint,
   Clock,
+  Upload,
 } from "lucide-react";
 
 // Local interactivity settings state
@@ -52,6 +53,13 @@ interface QuestionSidePanelProps {
   onToggle: () => void;
   /** When true, renders as a flat inline panel (no absolute positioning — for mobile bottom sheets) */
   inline?: boolean;
+}
+
+// Track upload progress per option
+interface UploadState {
+  isUploading: boolean;
+  progress: number;
+  error: string | null;
 }
 
 const menuItems = [
@@ -172,8 +180,6 @@ const MentiToggle = ({
 );
 
 // ── ComingSoon wrapper ─────────────────────────────────────────────────────
-// Greys out + disables interaction on a section, but keeps it visible so
-// the demo still shows that the feature is planned.
 function ComingSoon({
   children,
   label = "Coming soon",
@@ -277,10 +283,8 @@ export function QuestionSidePanel({
   inline = false,
 }: QuestionSidePanelProps) {
   const [activeMenu, setActiveMenu] = useState<string>("edit");
-  const [uploadingOptionIndex, setUploadingOptionIndex] = useState<
-    number | null
-  >(null);
-  const [optionImageError, setOptionImageError] = useState<string | null>(null);
+  const [uploadStates, setUploadStates] = useState<Record<number, UploadState>>({});
+  const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   const [interactivitySettings, setInteractivitySettings] =
     useState<InteractivitySettings>({
@@ -349,6 +353,33 @@ export function QuestionSidePanel({
     onUpdateQuestion({ options: newOptions });
   };
 
+  const setUploadingState = (optionIndex: number, state: Partial<UploadState>) => {
+    setUploadStates((prev) => ({
+      ...prev,
+      [optionIndex]: {
+        isUploading: false,
+        progress: 0,
+        error: null,
+        ...prev[optionIndex],
+        ...state,
+      },
+    }));
+  };
+
+  const simulateUploadProgress = (optionIndex: number) => {
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += 8;
+      if (progress >= 95) {
+        clearInterval(interval);
+        setUploadingState(optionIndex, { progress: 95 });
+      } else {
+        setUploadingState(optionIndex, { progress });
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  };
+
   const handleOptionImageUpload = async (
     optionIndex: number,
     event: ChangeEvent<HTMLInputElement>,
@@ -356,16 +387,24 @@ export function QuestionSidePanel({
     const file = event.currentTarget.files?.[0];
     if (!file) return;
 
-    setOptionImageError(null);
+    // Reset the input value after reading the file
+    const input = event.currentTarget;
+    
+    setUploadingState(optionIndex, { isUploading: true, progress: 0, error: null });
 
     const validation = validateImageFile(file);
     if (!validation.valid) {
-      setOptionImageError(validation.error || "Invalid image file");
-      event.currentTarget.value = "";
+      setUploadingState(optionIndex, { 
+        isUploading: false, 
+        progress: 0, 
+        error: validation.error || "Invalid image file" 
+      });
+      // Clear the input value
+      if (input) input.value = '';
       return;
     }
 
-    setUploadingOptionIndex(optionIndex);
+    const clearProgressInterval = simulateUploadProgress(optionIndex);
 
     try {
       const uploadedUrl = await uploadImageToCloudinary(file);
@@ -376,15 +415,27 @@ export function QuestionSidePanel({
         format: "auto",
       });
 
-      updateOption(optionIndex, { imageUrl: optimizedUrl });
+      setUploadingState(optionIndex, { progress: 100 });
+      
+      setTimeout(() => {
+        updateOption(optionIndex, { imageUrl: optimizedUrl });
+        setUploadingState(optionIndex, { isUploading: false, progress: 0, error: null });
+      }, 200);
     } catch (error) {
-      setOptionImageError(
-        error instanceof Error ? error.message : "Failed to upload image",
-      );
+      setUploadingState(optionIndex, { 
+        isUploading: false, 
+        progress: 0, 
+        error: error instanceof Error ? error.message : "Failed to upload image" 
+      });
     } finally {
-      setUploadingOptionIndex(null);
-      event.currentTarget.value = "";
+      clearProgressInterval();
+      // Clear the input value so the same file can be uploaded again if needed
+      if (input) input.value = '';
     }
+  };
+
+  const triggerFileInput = (optionIndex: number) => {
+    fileInputRefs.current[optionIndex]?.click();
   };
 
   // Edit Panel - New UI Style
@@ -463,126 +514,143 @@ export function QuestionSidePanel({
               Options
             </label>
             <div className="space-y-2">
-              {currentQuestion.options?.map((opt, idx) => (
-                <div key={opt.id} className="space-y-2">
-                  <div className="flex items-center gap-2 group">
-                    <button
-                      onClick={() => {
-                        const newOpts = [...(currentQuestion.options || [])];
-                        newOpts[idx] = {
-                          ...newOpts[idx],
-                          isCorrect: !newOpts[idx].isCorrect,
-                        };
-                        onUpdateQuestion({ options: newOpts });
-                      }}
-                      className={cn(
-                        "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors shrink-0",
-                        opt.isCorrect
-                          ? "bg-[#6366F1] border-[#6366F1]"
-                          : "border-slate-200",
-                      )}
-                    >
-                      {opt.isCorrect && (
-                        <Check className="w-3 h-3 text-white" />
-                      )}
-                    </button>
-
-                    <div className="flex-1 flex items-center gap-2 bg-[#F1F3F5] rounded-xl px-3 py-2.5 border border-transparent focus-within:border-slate-200 transition-all">
-                      <div
+              {currentQuestion.options?.map((opt, idx) => {
+                const uploadState = uploadStates[idx] || { isUploading: false, progress: 0, error: null };
+                
+                return (
+                  <div key={opt.id} className="space-y-2">
+                    <div className="flex items-center gap-2 group">
+                      <button
+                        onClick={() => {
+                          const newOpts = [...(currentQuestion.options || [])];
+                          newOpts[idx] = {
+                            ...newOpts[idx],
+                            isCorrect: !newOpts[idx].isCorrect,
+                          };
+                          onUpdateQuestion({ options: newOpts });
+                        }}
                         className={cn(
-                          "w-4 h-4 rounded-full shrink-0",
-                          idx === 0
-                            ? "bg-blue-500"
-                            : idx === 1
-                              ? "bg-rose-400"
-                              : idx === 2
-                                ? "bg-indigo-900"
-                                : "bg-emerald-500",
+                          "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors shrink-0",
+                          opt.isCorrect
+                            ? "bg-[#6366F1] border-[#6366F1]"
+                            : "border-slate-200",
                         )}
-                      />
-
-                      <input
-                        type="text"
-                        value={opt.text}
-                        onChange={(e) =>
-                          updateOption(idx, { text: e.target.value })
-                        }
-                        className="bg-transparent border-none outline-none text-sm w-full font-medium"
-                        placeholder={"Option " + (idx + 1)}
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          document
-                            .getElementById(`option-image-${opt.id}`)
-                            ?.click()
-                        }
-                        disabled={uploadingOptionIndex === idx}
-                        className="w-8 h-8 shrink-0 rounded-lg bg-white border border-slate-200 flex items-center justify-center hover:border-[#6366F1] hover:text-[#6366F1] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                        title={
-                          opt.imageUrl
-                            ? "Change option image"
-                            : "Upload option image"
-                        }
                       >
-                        {uploadingOptionIndex === idx ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-[#6366F1]" />
-                        ) : (
-                          <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
+                        {opt.isCorrect && (
+                          <Check className="w-3 h-3 text-white" />
                         )}
                       </button>
-                      <input
-                        id={`option-image-${opt.id}`}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(event) =>
-                          handleOptionImageUpload(idx, event)
-                        }
-                        disabled={uploadingOptionIndex === idx}
-                      />
+
+                      <div className="flex-1 flex items-center gap-2 bg-[#F1F3F5] rounded-xl px-3 py-2.5 border border-transparent focus-within:border-slate-200 transition-all">
+                        <div
+                          className={cn(
+                            "w-4 h-4 rounded-full shrink-0",
+                            idx === 0
+                              ? "bg-blue-500"
+                              : idx === 1
+                                ? "bg-rose-400"
+                                : idx === 2
+                                  ? "bg-indigo-900"
+                                  : "bg-emerald-500",
+                          )}
+                        />
+
+                        <input
+                          type="text"
+                          value={opt.text}
+                          onChange={(e) =>
+                            updateOption(idx, { text: e.target.value })
+                          }
+                          className="bg-transparent border-none outline-none text-sm w-full font-medium"
+                          placeholder={"Option " + (idx + 1)}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => triggerFileInput(idx)}
+                          disabled={uploadState.isUploading}
+                          className="w-8 h-8 shrink-0 rounded-lg bg-white border border-slate-200 flex items-center justify-center hover:border-[#6366F1] hover:text-[#6366F1] transition-colors disabled:opacity-60 disabled:cursor-not-allowed relative"
+                          title={
+                            opt.imageUrl
+                              ? "Change option image"
+                              : "Upload option image"
+                          }
+                        >
+                          {uploadState.isUploading ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-[#6366F1]" />
+                          ) : (
+                            <Upload className="w-3.5 h-3.5 text-slate-400" />
+                          )}
+                        </button>
+                        <input
+                          ref={(el) => {
+                            fileInputRefs.current[idx] = el;
+                          }}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(event) => handleOptionImageUpload(idx, event)}
+                          disabled={uploadState.isUploading}
+                        />
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          const newOpts = (currentQuestion.options || []).filter(
+                            (_, i) => i !== idx,
+                          );
+                          onUpdateQuestion({ options: newOpts });
+                        }}
+                        className="text-slate-400 hover:text-rose-500 shrink-0"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
 
-                    <button
-                      onClick={() => {
-                        const newOpts = (currentQuestion.options || []).filter(
-                          (_, i) => i !== idx,
-                        );
-                        onUpdateQuestion({ options: newOpts });
-                      }}
-                      className="text-slate-400 hover:text-rose-500 shrink-0"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                    {/* Upload Progress Bar */}
+                    {uploadState.isUploading && uploadState.progress > 0 && uploadState.progress < 100 && (
+                      <div className="ml-7">
+                        <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>Uploading... {uploadState.progress}%</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-indigo-600 rounded-full transition-all duration-300"
+                            style={{ width: `${uploadState.progress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Upload Error */}
+                    {uploadState.error && (
+                      <p className="ml-7 text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
+                        {uploadState.error}
+                      </p>
+                    )}
+
+                    {opt.imageUrl && !uploadState.isUploading && (
+                      <div className="ml-7 relative w-full max-w-[220px] overflow-hidden rounded-xl border border-slate-200 bg-white">
+                        <img
+                          src={opt.imageUrl}
+                          alt=""
+                          className="w-full h-28 object-contain"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeOptionImage(idx)}
+                          className="absolute top-2 right-2 p-1.5 rounded-full bg-rose-500 text-white hover:bg-rose-600 transition-colors"
+                          title="Remove option image"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
-
-                  {opt.imageUrl && (
-                    <div className="ml-7 relative w-full max-w-[220px] overflow-hidden rounded-xl border border-slate-200 bg-white">
-                      <img
-                        src={opt.imageUrl}
-                        alt=""
-                        className="w-full h-28 object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeOptionImage(idx)}
-                        className="absolute top-2 right-2 p-1.5 rounded-full bg-rose-500 text-white hover:bg-rose-600 transition-colors"
-                        title="Remove option image"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
-
-            {optionImageError && (
-              <p className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
-                {optionImageError}
-              </p>
-            )}
 
             <button
               onClick={() => {
@@ -860,9 +928,6 @@ export function QuestionSidePanel({
         <div className="h-px bg-slate-100" />
 
         {/* ── Settings ─────────────────────────────────────────────── */}
-        {/* "Show results instantly" and "Lock question" stay live; the
-            other two rows (Allow skip / Shuffle options) are wrapped in
-            ComingSoon since they're UI-only for now. */}
         <section className="space-y-3">
           <h3 className="text-sm font-bold text-slate-800">Settings</h3>
           <div className="space-y-2.5">

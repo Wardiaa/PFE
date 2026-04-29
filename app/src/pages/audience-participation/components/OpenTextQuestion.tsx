@@ -62,11 +62,11 @@ const OpenTextQuestion: React.FC<OpenTextQuestionProps> = ({ question, onSubmit 
             </p>
           )}
           {questionImage && (
-            <div className="mt-5 overflow-hidden rounded-xl border border-border bg-muted/30">
+            <div className="mt-5 overflow-hidden rounded-xl border border-border bg-muted/30 flex justify-center">
               <img
                 src={questionImage}
                 alt="Question visual"
-                className="w-full max-h-[360px] object-cover"
+                className="w-full max-h-[360px] object-contain"
               />
             </div>
           )}

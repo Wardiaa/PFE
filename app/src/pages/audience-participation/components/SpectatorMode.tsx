@@ -20,6 +20,13 @@ import { Eye, LogOut } from "lucide-react";
 import { LiveLeaderboard } from "./LiveLeaderboard";
 import type { GameState, Question } from "../../../lib/presentation.types";
 
+interface Option {
+  id: string;
+  text: string;
+  imageUrl?: string | null;
+  isCorrect?: boolean;
+}
+
 interface Props {
   currentQuestion: Question | null;
   gameState: GameState;
@@ -46,6 +53,13 @@ interface Props {
    */
   submittedOptionId?: string | null;
 }
+
+// Helper: check if an option has only an image and no text
+const isImageOnlyOption = (option: Option): boolean => {
+  const hasImage = !!option.imageUrl;
+  const hasNoText = !option.text || option.text.trim() === '';
+  return hasImage && hasNoText;
+};
 
 export function SpectatorMode({
   currentQuestion,
@@ -107,19 +121,22 @@ export function SpectatorMode({
               <img
                 src={currentQuestion.image}
                 alt=""
-                className="w-full rounded-xl border border-white/10 mb-4"
+                className="w-full rounded-xl border border-white/10 mb-4 object-contain max-h-64"
               />
             )}
             <ul className="grid gap-2 sm:grid-cols-2">
               {(currentQuestion.options ?? []).map((opt) => {
+                const imageOnly = isImageOnlyOption(opt as Option);
+                const isCorrect = !!(opt as any).isCorrect;
+                
                 // Default look — neutral border.
-                let optionClass =
-                  "rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-white/70 transition-colors";
+                let optionClass = imageOnly
+                  ? "rounded-lg border border-white/10 bg-white/[0.03] overflow-hidden transition-colors"
+                  : "rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-white/70 transition-colors";
 
                 let highlightStyle: React.CSSProperties | undefined;
 
                 if (showAnswerReveal) {
-                  const isCorrect = !!(opt as any).isCorrect;
                   // Red border ONLY for the specific wrong option this
                   // participant submitted. Established spectators (no
                   // submission this round) just see the green border on
@@ -128,14 +145,24 @@ export function SpectatorMode({
                     submittedOptionId === opt.id && !isCorrect;
 
                   if (isCorrect) {
-                    optionClass =
-                      "rounded-lg border-2 border-green-500 bg-green-500/10 px-4 py-3 text-white ring-2 ring-green-500/40 transition-colors";
+                    if (imageOnly) {
+                      optionClass =
+                        "rounded-lg border-2 border-green-500 bg-green-500/10 overflow-hidden ring-2 ring-green-500/40 transition-colors";
+                    } else {
+                      optionClass =
+                        "rounded-lg border-2 border-green-500 bg-green-500/10 px-4 py-3 text-white ring-2 ring-green-500/40 transition-colors";
+                    }
                     highlightStyle = {
                       animation: "cplRevealFade 500ms ease-out both",
                     };
                   } else if (isSubmittedWrong) {
-                    optionClass =
-                      "rounded-lg border-2 border-red-500 bg-red-500/10 px-4 py-3 text-white ring-2 ring-red-500/40 transition-colors";
+                    if (imageOnly) {
+                      optionClass =
+                        "rounded-lg border-2 border-red-500 bg-red-500/10 overflow-hidden ring-2 ring-red-500/40 transition-colors";
+                    } else {
+                      optionClass =
+                        "rounded-lg border-2 border-red-500 bg-red-500/10 px-4 py-3 text-white ring-2 ring-red-500/40 transition-colors";
+                    }
                     highlightStyle = {
                       animation: "cplRevealFade 500ms ease-out both",
                     };
@@ -144,7 +171,17 @@ export function SpectatorMode({
 
                 return (
                   <li key={opt.id} className={optionClass} style={highlightStyle}>
-                    {opt.text}
+                    {imageOnly ? (
+                      <div className="relative">
+                        <img
+                          src={(opt as Option).imageUrl || ''}
+                          alt=""
+                          className="w-full h-auto object-contain max-h-32"
+                        />
+                      </div>
+                    ) : (
+                      opt.text
+                    )}
                   </li>
                 );
               })}

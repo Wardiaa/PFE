@@ -70,6 +70,13 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
 }) => {
   const questionImage = (question as any).image || (question as any).imageUrl;
 
+  // Check if an option has only an image and no text
+  const isImageOnlyOption = (option: any): boolean => {
+    const hasImage = !!option.imageUrl || !!option.image;
+    const hasNoText = !option.text || option.text.trim() === '';
+    return hasImage && hasNoText;
+  };
+
   const renderQuestionContent = () => {
     switch (question.type) {
       case "multiple-choice":
@@ -111,6 +118,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
               ? Math.round((responseCount / totalResponses) * 100)
               : 0;
           const isCorrect = showCorrectAnswer && option.isCorrect;
+          const imageOnly = isImageOnlyOption(option);
 
           // Names that chose this option
           const respondentNames: string[] =
@@ -127,70 +135,131 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: index * 0.08 }}
               className={`
-                relative bg-card border-2 rounded-xl p-3 sm:p-4 md:p-5 transition-all duration-300
+                relative bg-card border-2 rounded-xl transition-all duration-300
                 ${
                   isCorrect
                     ? "border-green-500 bg-green-50 dark:bg-green-950/20"
                     : "border-border hover:border-primary/50"
                 }
+                ${imageOnly ? "overflow-hidden p-0" : "p-3 sm:p-4 md:p-5"}
               `}
             >
-              {/* Option header row */}
-              <div className="flex items-center gap-2 sm:gap-3 mb-2">
-                <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <span className="text-base sm:text-lg font-semibold text-primary">
-                    {String.fromCharCode(65 + index)}
-                  </span>
-                </div>
-                <p className="text-sm sm:text-base md:text-lg font-medium text-foreground flex-1 leading-snug">
-                  {option.text}
-                </p>
-                {isCorrect && (
-                  <AppIcon
-                    name="CheckCircle"
-                    size={20}
-                    className="text-green-600 flex-shrink-0"
-                  />
-                )}
-              </div>
-
-              {/* Option image */}
-              {optionImage && (
-                <div className="mt-3 ml-10 sm:ml-13 overflow-hidden rounded-lg border border-border bg-muted">
+              {imageOnly ? (
+                // Image-only option - full width image with floating elements
+                <div className="relative">
                   <img
                     src={optionImage}
                     alt=""
-                    className="w-full max-h-24 sm:max-h-28 object-cover"
+                    className="w-full h-auto object-contain max-h-48"
                   />
-                </div>
-              )}
-
-              {/* Results bar + participant name chips */}
-              {showResults && (
-                <div className="ml-10 sm:ml-13 mt-2">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs text-muted-foreground">
-                      {responseCount}{" "}
-                      {responseCount === 1 ? "response" : "responses"}
-                    </span>
-                    <span className="text-xs sm:text-sm font-semibold text-primary">
-                      {percentage}%
+                  
+                  {/* Floating letter badge - top left */}
+                  <div className="absolute top-2 left-2 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/90 flex items-center justify-center shadow-md">
+                    <span className="text-sm sm:text-lg font-bold text-white">
+                      {String.fromCharCode(65 + index)}
                     </span>
                   </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-500 rounded-full ${
-                        isCorrect ? "bg-green-500" : "bg-primary"
-                      }`}
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
+                  
+                  {/* Correct answer badge - top right */}
+                  {isCorrect && (
+                    <div className="absolute top-2 right-2">
+                      <AppIcon
+                        name="CheckCircle"
+                        size={24}
+                        className="text-green-600 bg-white rounded-full shadow-md"
+                      />
+                    </div>
+                  )}
 
-                  {/* Compact participant name chips */}
-                  {!hideParticipantNames && respondentNames.length > 0 && (
-                    <ParticipantChips names={respondentNames} />
+                  {/* Results section - below the image */}
+                  {showResults && (
+                    <div className="p-3 sm:p-4 md:p-5">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs text-muted-foreground">
+                          {responseCount}{" "}
+                          {responseCount === 1 ? "response" : "responses"}
+                        </span>
+                        <span className="text-xs sm:text-sm font-semibold text-primary">
+                          {percentage}%
+                        </span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-500 rounded-full ${
+                            isCorrect ? "bg-green-500" : "bg-primary"
+                          }`}
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+
+                      {/* Participant name chips */}
+                      {!hideParticipantNames && respondentNames.length > 0 && (
+                        <ParticipantChips names={respondentNames} />
+                      )}
+                    </div>
                   )}
                 </div>
+              ) : (
+                // Text option (may also have an image)
+                <>
+                  {/* Option header row with letter */}
+                  <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                    <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <span className="text-base sm:text-lg font-semibold text-primary">
+                        {String.fromCharCode(65 + index)}
+                      </span>
+                    </div>
+                    <p className="text-sm sm:text-base md:text-lg font-medium text-foreground flex-1 leading-snug">
+                      {option.text}
+                    </p>
+                    {isCorrect && (
+                      <AppIcon
+                        name="CheckCircle"
+                        size={20}
+                        className="text-green-600 flex-shrink-0"
+                      />
+                    )}
+                  </div>
+
+                  {/* Option image (if present) */}
+                  {optionImage && (
+                    <div className="mt-3 ml-10 sm:ml-13 overflow-hidden rounded-lg border border-border bg-muted/30 flex justify-center">
+                      <img
+                        src={optionImage}
+                        alt=""
+                        className="w-full max-h-28 sm:max-h-32 object-contain"
+                      />
+                    </div>
+                  )}
+
+                  {/* Results bar + participant name chips */}
+                  {showResults && (
+                    <div className="ml-10 sm:ml-13 mt-2">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs text-muted-foreground">
+                          {responseCount}{" "}
+                          {responseCount === 1 ? "response" : "responses"}
+                        </span>
+                        <span className="text-xs sm:text-sm font-semibold text-primary">
+                          {percentage}%
+                        </span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-500 rounded-full ${
+                            isCorrect ? "bg-green-500" : "bg-primary"
+                          }`}
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+
+                      {/* Compact participant name chips */}
+                      {!hideParticipantNames && respondentNames.length > 0 && (
+                        <ParticipantChips names={respondentNames} />
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </motion.div>
           );

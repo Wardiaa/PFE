@@ -87,38 +87,74 @@ function MultipleChoicePreview({ question, scale }: { question: Question; scale:
   const options = question.options || [];
   const s = scale;
 
+  // Check if an option has only an image and no text
+  const isImageOnlyOption = (opt: any) => {
+    return opt.imageUrl && (!opt.text || opt.text.trim() === "");
+  };
+
   return (
     <div className="space-y-3 mb-6">
-      {options.map((opt: any) => (
-        <button
-          key={opt.id}
-          onClick={() => setSelected(opt.id)}
-          className={`w-full text-left rounded-xl border-2 transition-all duration-150 ${
-            selected === opt.id
-              ? "border-indigo-600 bg-indigo-50 shadow-md"
-              : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-100"
-          }`}
-          style={{ minHeight: 56 * s, padding: `${12 * s}px ${16 * s}px` }}
-        >
-          <div className="flex items-center" style={{ gap: 12 * s }}>
-            {/* Radio circle — exact original: w-5 h-5 rounded-full border-2 */}
-            <div
-              className={`flex-shrink-0 rounded-full border-2 flex items-center justify-center transition-all duration-150 ${
-                selected === opt.id ? "border-indigo-600 bg-indigo-600" : "border-slate-300"
-              }`}
-              style={{ width: 20 * s, height: 20 * s }}
-            >
-              {selected === opt.id && <IconCheck size={Math.round(12 * s)} />}
-            </div>
-            <span
-              className={`font-medium flex-1 ${selected === opt.id ? "text-slate-900" : "text-slate-900"}`}
-              style={{ fontSize: 16 * s }}
-            >
-              {opt.text}
-            </span>
-          </div>
-        </button>
-      ))}
+      {/* Grid layout of 2 columns for options */}
+      <div className="grid grid-cols-2 gap-3">
+        {options.map((opt: any) => (
+          <button
+            key={opt.id}
+            onClick={() => setSelected(opt.id)}
+            className={`text-left rounded-xl border-2 transition-all duration-150 ${
+              selected === opt.id
+                ? "border-indigo-600 bg-indigo-50 shadow-md"
+                : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-100"
+            } ${isImageOnlyOption(opt) ? "p-0 overflow-hidden" : ""}`}
+            style={{ minHeight: isImageOnlyOption(opt) ? "auto" : 56 * s }}
+          >
+            {isImageOnlyOption(opt) ? (
+              // Image-only option - show full image without padding
+              <div className="relative w-full">
+                <img
+                  src={opt.imageUrl}
+                  alt=""
+                  className="w-full h-auto object-contain max-h-32"
+                />
+                <div
+                  className={`absolute top-2 left-2 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-150 bg-white/80 ${
+                    selected === opt.id ? "border-indigo-600 bg-indigo-600" : "border-slate-300"
+                  }`}
+                >
+                  {selected === opt.id && <IconCheck size={12} />}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center" style={{ padding: `${12 * s}px ${16 * s}px`, gap: 12 * s }}>
+                <div
+                  className={`flex-shrink-0 rounded-full border-2 flex items-center justify-center transition-all duration-150 ${
+                    selected === opt.id ? "border-indigo-600 bg-indigo-600" : "border-slate-300"
+                  }`}
+                  style={{ width: 20 * s, height: 20 * s }}
+                >
+                  {selected === opt.id && <IconCheck size={Math.round(12 * s)} />}
+                </div>
+                <div className="flex-1">
+                  <span
+                    className={`font-medium ${selected === opt.id ? "text-slate-900" : "text-slate-900"}`}
+                    style={{ fontSize: 16 * s }}
+                  >
+                    {opt.text}
+                  </span>
+                  {opt.imageUrl && (
+                    <div className="mt-2 overflow-hidden rounded-lg">
+                      <img
+                        src={opt.imageUrl}
+                        alt=""
+                        className="w-full h-auto max-h-24 object-contain"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
       {options.length === 0 && (
         <p className="text-center text-slate-400" style={{ fontSize: 14 * s, padding: `${12 * s}px 0` }}>
           No options added yet
@@ -375,7 +411,6 @@ function WordCloudPreview({ question, scale: s }: { question: Question; scale: n
 }
 
 // ─── Question card ────────────────────────────────────────────────────────────
-// Mirrors: bg-card rounded-xl p-6 shadow-lg border border-border
 function QuestionCard({ question, scale = 1 }: { question: Question; scale?: number }) {
   const type = normalizeType(question.type || "");
   const cfg = typeConfig[type as keyof typeof typeConfig] || typeConfig["multiple-choice"];
@@ -414,13 +449,13 @@ function QuestionCard({ question, scale = 1 }: { question: Question; scale?: num
         </p>
       )}
 
-      {/* Image */}
+      {/* Image — full image visible, object-contain to show entire image */}
       {((question as any).imageUrl || (question as any).image) && (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100" style={{ marginTop: 20 * s, marginBottom: 20 * s }}>
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100 flex justify-center" style={{ marginTop: 20 * s, marginBottom: 20 * s }}>
           <img
             src={(question as any).imageUrl || (question as any).image}
             alt=""
-            className="w-full object-cover"
+            className="w-full object-contain"
             style={{ maxHeight: 360 * s }}
           />
         </div>
@@ -436,7 +471,6 @@ function QuestionCard({ question, scale = 1 }: { question: Question; scale?: num
 }
 
 // ─── Session title card ───────────────────────────────────────────────────────
-// Mirrors: bg-card rounded-xl p-4 shadow-sm border border-border (not shadow-lg)
 function SessionHeader({
   totalQuestions,
   currentIndex,
@@ -454,16 +488,13 @@ function SessionHeader({
     >
       <div className="flex items-center justify-between flex-wrap" style={{ gap: 12 * s }}>
         <div className="flex-1 min-w-0">
-          {/* text-base font-semibold text-foreground */}
           <h3 className="font-semibold text-slate-900 truncate" style={{ fontSize: 16 * s }}>
             Session Preview
           </h3>
-          {/* text-sm text-muted-foreground mt-1 */}
           <p className="text-slate-500" style={{ fontSize: 14 * s, marginTop: 4 * s }}>
             Code: ABC123 • Joined as Participant
           </p>
         </div>
-        {/* bg-success/10 border border-success/20 px-3 py-1.5 rounded-lg */}
         <div
           className="flex items-center rounded-lg border"
           style={{
@@ -473,7 +504,6 @@ function SessionHeader({
             borderColor: "rgb(34 197 94 / 0.2)",
           }}
         >
-          {/* bg-success animate-pulse w-2 h-2 rounded-full */}
           <div
             className="rounded-full bg-green-500 animate-pulse"
             style={{ width: 8 * s, height: 8 * s }}
@@ -484,7 +514,6 @@ function SessionHeader({
         </div>
       </div>
 
-      {/* Progress row — mt-4 pt-4 border-t border-border */}
       {totalQuestions > 0 && (
         <div
           className="flex items-center justify-between border-t border-slate-200"
@@ -501,13 +530,12 @@ function SessionHeader({
                 style={{
                   width: 8 * s,
                   height: 8 * s,
-                  // bg-primary (current), bg-success (done), bg-muted (upcoming)
                   backgroundColor:
                     i === currentIndex
-                      ? "#4f46e5"   // indigo-600 (primary)
+                      ? "#4f46e5"
                       : i < currentIndex
-                      ? "#22c55e"   // green-500 (success)
-                      : "#e2e8f0",  // slate-200 (muted)
+                      ? "#22c55e"
+                      : "#e2e8f0",
                 }}
               />
             ))}
@@ -519,7 +547,6 @@ function SessionHeader({
 }
 
 // ─── Timer bar stub ───────────────────────────────────────────────────────────
-// Mirrors: h-1.5 w-full bg-muted/60 → inner h-full bg-primary at 60%
 function TimerBarStub({ scale }: { scale: number }) {
   return (
     <div
@@ -572,7 +599,6 @@ function PhoneFrame({ question, totalQuestions, currentIndex }: { question: Ques
 }
 
 // ─── Desktop frame ────────────────────────────────────────────────────────────
-// Removed internal scrollbar – now uses outer modal scroll
 function DesktopFrame({ question, totalQuestions, currentIndex }: { question: Question; totalQuestions: number; currentIndex: number }) {
   const SCALE = 0.75;
 
@@ -593,7 +619,6 @@ function DesktopFrame({ question, totalQuestions, currentIndex }: { question: Qu
         {/* Page — no internal scrolling, expands naturally */}
         <div className="bg-white">
           <TimerBarStub scale={SCALE} />
-          {/* container mx-auto px-4 py-8 matching original */}
           <div
             className="mx-auto"
             style={{
