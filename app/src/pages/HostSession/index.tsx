@@ -739,10 +739,6 @@ const HostSession: React.FC = () => {
               },
             ];
           });
-          toast({
-            title: "New Participant",
-            description: `${p.name} joined the session`,
-          });
         },
       )
       .on(
