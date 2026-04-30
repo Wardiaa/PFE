@@ -29,6 +29,12 @@ export interface SubmitResponseParams {
   answer: any;
 }
 
+export interface JoinSessionResult {
+  session: Session;
+  participantId: string;
+  participantToken: string;
+}
+
 export class SessionService {
   static async createSession({
     contextId,
@@ -139,10 +145,7 @@ export class SessionService {
     participantName,
     userId,
     isAnonymous = false,
-  }: JoinSessionParams): Promise<{
-    session: Session;
-    participantId: string;
-  } | null> {
+  }: JoinSessionParams): Promise<JoinSessionResult | null> {
     try {
       const { data: session, error: sessionError } = await supabase
         .from("sessions")
@@ -165,13 +168,22 @@ export class SessionService {
         throw new Error("This session has already ended.");
       }
 
-      const { data: context, error: contextError } = await supabase
+      const { data: context, error: _contextError } = await supabase
         .from("contexts")
         .select("id, title, game_mode, theme")
         .eq("id", session.context_id)
         .maybeSingle();
 
-      const { data: questionsRaw, error: questionsError } = await supabase
+      if (
+        context?.game_mode === "elimination" &&
+        session.status !== "WAITING"
+      ) {
+        throw new Error(
+          "You cannot join this elimination session after it has started. Participants must join before the session begins.",
+        );
+      }
+
+      const { data: questionsRaw, error: _questionsError } = await supabase
         .from("questions")
         .select(
           "id, title, description, type, points, time_limit, options, scale, labels, display_style, image_url, question_order, hide_participant_names",
@@ -197,7 +209,7 @@ export class SessionService {
           is_alive: true,
           score: 0,
         })
-        .select()
+        .select("id, token")
         .single();
 
       if (participantError || !participant) {
@@ -245,6 +257,7 @@ export class SessionService {
           gameMode: (finalContext.game_mode ?? "standard") as GameMode,
         },
         participantId: participant.id,
+        participantToken: participant.token,
       };
     } catch (error) {
       console.error("Join session error:", error);
@@ -268,13 +281,38 @@ export class SessionService {
       });
 
       if (error) {
+        if (error.code === "23505") {
+          return true;
+        }
         console.error("Failed to submit response:", error);
         return false;
       }
-
       return true;
     } catch (error) {
       console.error("Submit response error:", error);
+      return false;
+    }
+  }
+
+  static async checkExistingResponse(
+    sessionId: string,
+    participantId: string,
+    questionId: string,
+    token: string,
+  ): Promise<boolean> {
+    try {
+      const functionUrl = `${import.meta.env.VITE_SUPABASE_FUNCTIONS_URL}/check-response`;
+      const response = await fetch(functionUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, participantId, questionId, token }),
+      });
+
+      if (!response.ok) return false;
+      const data = await response.json();
+      return data.hasResponded === true;
+    } catch (err) {
+      console.error("checkExistingResponse error:", err);
       return false;
     }
   }
@@ -293,7 +331,6 @@ export class SessionService {
         console.error("Failed to update session status:", error);
         return false;
       }
-
       return true;
     } catch (error) {
       console.error("Update status error:", error);
@@ -323,7 +360,6 @@ export class SessionService {
         console.error("Failed to update current question:", error);
         return false;
       }
-
       return true;
     } catch (error) {
       console.error("Set current question error:", error);
@@ -337,17 +373,13 @@ export class SessionService {
     remainingAtPause?: number,
   ): Promise<boolean> {
     try {
-      const update: Record<string, any> = {
-        is_paused: isPaused,
-      };
-
+      const update: Record<string, any> = { is_paused: isPaused };
       if (isPaused) {
         update.timer_paused_remaining = remainingAtPause ?? null;
         update.timer_resumed_at = null;
       } else {
         update.timer_resumed_at = new Date().toISOString();
       }
-
       const { error } = await supabase
         .from("sessions")
         .update(update)
@@ -357,7 +389,6 @@ export class SessionService {
         console.error("Failed to toggle pause:", error);
         return false;
       }
-
       return true;
     } catch (error) {
       console.error("Toggle pause error:", error);
@@ -377,7 +408,6 @@ export class SessionService {
         console.error("Failed to get participants:", error);
         return [];
       }
-
       return (data || []).map((p: any) => ({
         id: p.id,
         name: p.name,
@@ -606,37 +636,27 @@ export class SessionService {
     }
   }
 
-  /**
-   * Returns the live game state for the session.
-   *
-   * IMPORTANT: This method NEVER auto-determines a winner anymore.
-   * The winner is only revealed when the host explicitly calls
-   * `determineWinner(sessionId)` and broadcasts a WINNER_REVEAL event.
-   * This avoids the bug where the WinnerCelebration overlay used to
-   * pop up as soon as the last question was *displayed* (not answered).
-   *
-   * Also fixes the previous bug where the questions table was queried
-   * with `context_id=eq.undefined` when the session lookup failed,
-   * producing a 400 (Bad Request) in the browser console.
-   */
   static async getGameState(sessionId: string): Promise<GameState> {
     try {
-      const [{ data: participants }, { data: history }, { data: session }] = await Promise.all([
-        supabase
-          .from("participants")
-          .select("id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id")
-          .eq("session_id", sessionId),
-        supabase
-          .from("elimination_log")
-          .select("*")
-          .eq("session_id", sessionId)
-          .order("eliminated_at", { ascending: true }),
-        supabase
-          .from("sessions")
-          .select("current_question_index, status, context_id")
-          .eq("id", sessionId)
-          .maybeSingle(),
-      ]);
+      const [{ data: participants }, { data: history }, { data: session }] =
+        await Promise.all([
+          supabase
+            .from("participants")
+            .select(
+              "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id",
+            )
+            .eq("session_id", sessionId),
+          supabase
+            .from("elimination_log")
+            .select("*")
+            .eq("session_id", sessionId)
+            .order("eliminated_at", { ascending: true }),
+          supabase
+            .from("sessions")
+            .select("current_question_index, status, context_id")
+            .eq("id", sessionId)
+            .maybeSingle(),
+        ]);
 
       const allParticipants = (participants || []).map((p: any) => ({
         id: p.id,
@@ -653,18 +673,20 @@ export class SessionService {
       const alive = allParticipants.filter((p) => p.isAlive === true);
       const eliminated = allParticipants.filter((p) => p.isAlive === false);
 
-      const eliminationHistory: EliminationEvent[] = (history || []).map((row: any) => ({
-        participantId: row.participant_id,
-        participantName: row.participant_name,
-        questionId: row.question_id,
-        roundNumber: row.round_number,
-        eliminatedAt: new Date(row.eliminated_at),
-      }));
+      const eliminationHistory: EliminationEvent[] = (history || []).map(
+        (row: any) => ({
+          participantId: row.participant_id,
+          participantName: row.participant_name,
+          questionId: row.question_id,
+          roundNumber: row.round_number,
+          eliminatedAt: new Date(row.eliminated_at),
+        }),
+      );
 
       return {
         alive,
         eliminated,
-        winner: null, // ← never auto-set; host must explicitly reveal the winner
+        winner: null,
         totalPlayers: allParticipants.length,
         currentRound: (session?.current_question_index ?? -1) + 1,
         history: eliminationHistory,
@@ -682,33 +704,14 @@ export class SessionService {
     }
   }
 
-  /**
-   * Determines the winner of an elimination session.
-   *
-   * Rules:
-   *   1. The winner must have answered ALL questions correctly
-   *      (i.e. they are still alive — wrong answers eliminate the
-   *      player and missed answers also eliminate the player).
-   *   2. If multiple participants are still alive after the last
-   *      question, the tie-breaker is the EARLIEST correct response
-   *      submitted on the LAST question.
-   *   3. If a tie still remains, fall back to the highest score.
-   *   4. If no one is still alive, fall back to the eliminated
-   *      participant with the highest score.
-   *
-   * The host calls this when clicking the "Show Winner" button.
-   */
   static async determineWinner(sessionId: string): Promise<Participant | null> {
     try {
-      // 1) Load session + the questions belonging to its context.
       const { data: session } = await supabase
         .from("sessions")
         .select("context_id, current_question_index")
         .eq("id", sessionId)
         .maybeSingle();
 
-      // Guard against the session being missing or context_id undefined,
-      // which previously caused: GET …/questions?select=id&context_id=eq.undefined → 400
       if (!session?.context_id) {
         console.warn("[determineWinner] session/context_id missing for", sessionId);
         return null;
@@ -723,11 +726,11 @@ export class SessionService {
       if (!questions || questions.length === 0) return null;
       const lastQuestionId = questions[questions.length - 1].id;
 
-      // 2) Load alive participants — by definition they answered every
-      //    question correctly (wrong / missed answers eliminate them).
       const { data: aliveRows } = await supabase
         .from("participants")
-        .select("id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id")
+        .select(
+          "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id",
+        )
         .eq("session_id", sessionId)
         .eq("is_alive", true);
 
@@ -748,7 +751,6 @@ export class SessionService {
       if (alive.length === 1) return alive[0];
 
       if (alive.length > 1) {
-        // 3) Tie-breaker: earliest correct response on the last question.
         const aliveIds = alive.map((p) => p.id);
         const { data: lastResponses } = await supabase
           .from("responses")
@@ -765,17 +767,18 @@ export class SessionService {
           if (winner) return winner;
         }
 
-        // Fallback: highest score, then earliest joined.
         return [...alive].sort((a, b) => {
-          if ((b.score ?? 0) !== (a.score ?? 0)) return (b.score ?? 0) - (a.score ?? 0);
+          if ((b.score ?? 0) !== (a.score ?? 0))
+            return (b.score ?? 0) - (a.score ?? 0);
           return a.joinedAt.getTime() - b.joinedAt.getTime();
         })[0];
       }
 
-      // 4) No one alive — fall back to highest-scoring eliminated player.
       const { data: elimRows } = await supabase
         .from("participants")
-        .select("id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id")
+        .select(
+          "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id",
+        )
         .eq("session_id", sessionId)
         .eq("is_alive", false)
         .order("score", { ascending: false })
@@ -801,41 +804,49 @@ export class SessionService {
     eliminated: EliminationEvent | null;
     newScore: number | null;
   }> {
-    // Save the response with isCorrect flag
-    const { error: responseError } = await supabase.from("responses").insert({
-      session_id: args.sessionId,
-      participant_id: args.participantId,
-      question_id: args.questionId,
-      answer: { 
-        optionId: args.chosenOptionId,
-        isCorrect: args.isCorrect,
-        pointsEarned: args.isCorrect ? args.pointsIfCorrect : 0
-      },
-      is_correct: args.isCorrect,
-      points_earned: args.isCorrect ? args.pointsIfCorrect : 0,
-      submitted_at: new Date().toISOString(),
-    });
+    try {
+      const { error: responseError } = await supabase.from("responses").insert({
+        session_id: args.sessionId,
+        participant_id: args.participantId,
+        question_id: args.questionId,
+        answer: {
+          optionId: args.chosenOptionId,
+          isCorrect: args.isCorrect,
+          pointsEarned: args.isCorrect ? args.pointsIfCorrect : 0,
+        },
+        is_correct: args.isCorrect,
+        points_earned: args.isCorrect ? args.pointsIfCorrect : 0,
+        submitted_at: new Date().toISOString(),
+      });
 
-    if (responseError) {
-      console.error("[submitEliminationAnswer] Response insert failed:", responseError);
+      if (responseError && responseError.code !== "23505") {
+        console.error("[submitEliminationAnswer] Response insert failed:", responseError);
+      }
+
+      if (responseError?.code === "23505") {
+        return { correct: args.isCorrect, eliminated: null, newScore: null };
+      }
+
+      if (args.isCorrect) {
+        const newScore = await SessionService.incrementScore(
+          args.participantId,
+          args.pointsIfCorrect,
+        );
+        return { correct: true, eliminated: null, newScore };
+      }
+
+      const eliminated = await SessionService.eliminateParticipant({
+        sessionId: args.sessionId,
+        participantId: args.participantId,
+        questionId: args.questionId,
+        roundNumber: args.roundNumber,
+      });
+
+      return { correct: false, eliminated, newScore: null };
+    } catch (error) {
+      console.error("submitEliminationAnswer error:", error);
+      return { correct: false, eliminated: null, newScore: null };
     }
-
-    if (args.isCorrect) {
-      const newScore = await SessionService.incrementScore(
-        args.participantId,
-        args.pointsIfCorrect,
-      );
-      return { correct: true, eliminated: null, newScore };
-    }
-
-    const eliminated = await SessionService.eliminateParticipant({
-      sessionId: args.sessionId,
-      participantId: args.participantId,
-      questionId: args.questionId,
-      roundNumber: args.roundNumber,
-    });
-
-    return { correct: false, eliminated, newScore: null };
   }
 
   static async getEliminationHistory(
@@ -849,7 +860,6 @@ export class SessionService {
         .order("eliminated_at", { ascending: true });
 
       if (error || !data) return [];
-
       return data.map((row: any) => ({
         participantId: row.participant_id,
         participantName: row.participant_name,
