@@ -394,6 +394,7 @@ const AudienceParticipation: React.FC = () => {
       timeLimit: number | null,
       startedAt?: string,
       useElapsed: boolean = false,
+      hasAlreadyResponded: boolean = false,
     ) => {
       const limit = timeLimit == null || timeLimit <= 0 ? null : timeLimit;
       let remaining = limit ?? 0;
@@ -426,8 +427,16 @@ const AudienceParticipation: React.FC = () => {
       // dismiss it so the participant drops into spectator mode for the
       // new question.
       setShowEliminationOverlay(false);
-      setSessionState("question");
-      sessionStateRef.current = "question";
+      
+      // If the participant has already answered this question, put them
+      // in spectator mode instead of showing the response form
+      if (hasAlreadyResponded) {
+        setSessionState("submitted");
+        sessionStateRef.current = "submitted";
+      } else {
+        setSessionState("question");
+        sessionStateRef.current = "question";
+      }
       if (limit !== null && remaining > 0) startLocalCountdown();
     },
     [startLocalCountdown, clearAnswerRevealTimeout],
@@ -443,6 +452,18 @@ const AudienceParticipation: React.FC = () => {
     ) => {
       if (!participantSessionRef.current) return;
 
+      // Check if participant has already answered this question
+      let hasAlreadyResponded = false;
+      try {
+        hasAlreadyResponded = await SessionService.checkExistingResponse(
+          participantSessionRef.current.session.id,
+          participantSessionRef.current.participantId,
+          questionId
+        );
+      } catch (err) {
+        console.error('Failed to check existing response:', err);
+      }
+
       const cachedQ =
         participantSessionRef.current.session.presentation.questions.find(
           (q) => q.id === questionId,
@@ -454,6 +475,7 @@ const AudienceParticipation: React.FC = () => {
           cachedQ.timeLimit ?? timeLimit ?? null,
           startedAt,
           useElapsed,
+          hasAlreadyResponded,
         );
         return;
       }
@@ -491,6 +513,7 @@ const AudienceParticipation: React.FC = () => {
           questionData.time_limit ?? timeLimit ?? null,
           startedAt,
           useElapsed,
+          hasAlreadyResponded,
         );
       } catch (err) {
         console.error("Load question error:", err);
@@ -984,6 +1007,18 @@ const AudienceParticipation: React.FC = () => {
             timeLimit,
           );
 
+          // Check if participant has already answered this question
+          let hasAlreadyResponded = false;
+          try {
+            hasAlreadyResponded = await SessionService.checkExistingResponse(
+              result.session.id,
+              result.participantId,
+              currentQ.id,
+            );
+          } catch (err) {
+            console.error('Failed to check existing response:', err);
+          }
+
           setCurrentQuestion(currentQ);
           currentQuestionRef.current = currentQ;
           setTimerTotal(timeLimit ?? 0);
@@ -996,8 +1031,8 @@ const AudienceParticipation: React.FC = () => {
           setShowCorrectAnswerFeedback(false);
           setSubmittedOptionId(null);
           setShowAnswerReveal(false);
-          setSessionState("question");
-          sessionStateRef.current = "question";
+          setSessionState(hasAlreadyResponded ? "submitted" : "question");
+          sessionStateRef.current = hasAlreadyResponded ? "submitted" : "question";
           if (
             timeLimit !== null &&
             !paused &&
@@ -1071,22 +1106,6 @@ const AudienceParticipation: React.FC = () => {
       const chosenOptionId: string | undefined = response?.optionId;
       if (!chosenOptionId) return;
 
-      // Check if participant has already answered this question
-      const hasExistingResponse = await SessionService.checkExistingResponse(
-        ps.session.id,
-        ps.participantId,
-        q.id,
-      );
-
-      if (hasExistingResponse) {
-        toast({
-          title: "Réponse déjà enregistrée",
-          description: "Vous avez déjà répondu à cette question.",
-          variant: "destructive",
-        });
-        return;
-      }
-
       const chosenOption = (q.options ?? []).find(
         (o: any) => o.id === chosenOptionId,
       ) as any;
@@ -1155,22 +1174,6 @@ const AudienceParticipation: React.FC = () => {
     }
 
     try {
-      // Check if participant has already answered this question
-      const hasExistingResponse = await SessionService.checkExistingResponse(
-        ps.session.id,
-        ps.participantId,
-        q.id,
-      );
-
-      if (hasExistingResponse) {
-        toast({
-          title: "Réponse déjà enregistrée",
-          description: "Vous avez déjà répondu à cette question.",
-          variant: "destructive",
-        });
-        return;
-      }
-
       const success = await SessionService.submitResponse({
         sessionId: ps.session.id,
         participantId: ps.participantId,

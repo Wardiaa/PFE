@@ -172,7 +172,10 @@ export class SessionService {
         .maybeSingle();
 
       // In elimination mode, participants can only join before the session starts
-      if (context?.game_mode === "elimination" && session.status !== "WAITING") {
+      if (
+        context?.game_mode === "elimination" &&
+        session.status !== "WAITING"
+      ) {
         throw new Error(
           "You cannot join this elimination session after it has started. Participants must join before the session begins.",
         );
