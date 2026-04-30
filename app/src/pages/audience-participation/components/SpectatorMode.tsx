@@ -33,7 +33,7 @@ interface Props {
   eliminatedAtRound: number;
   onLeave: () => void;
   /**
-   * When true, the red "Vous avez été éliminé à la manche X" banner is not
+   * When true, the red "Vous avez été éliminé à la question X" banner is not
    * rendered. Use this while the round timer is still running so the
    * participant doesn't learn their fate before the round closes.
    * Defaults to false (banner shown — original behaviour).
@@ -91,7 +91,7 @@ export function SpectatorMode({
               </div>
               <div>
                 <p className="cpl-display text-base sm:text-lg">
-                  Vous avez été éliminé à la manche {eliminatedAtRound}
+                  Vous avez été éliminé à la question {eliminatedAtRound}
                 </p>
                 <p className="text-sm text-[color:var(--cpl-text-muted)]">
                   Vous pouvez continuer à regarder la partie.
@@ -112,7 +112,7 @@ export function SpectatorMode({
         {currentQuestion ? (
           <div className="cpl-card p-6 sm:p-8 mb-6">
             <div className="text-xs uppercase tracking-widest text-[color:var(--cpl-text-dim)] mb-2">
-              Question en cours · Manche {gameState.currentRound}
+              Question en cours · Q {gameState.currentRound}
             </div>
             <h2 className="cpl-display text-xl sm:text-2xl text-white mb-4">
               {currentQuestion.text}
@@ -192,7 +192,7 @@ export function SpectatorMode({
               {showAnswerReveal
                 ? "Réponse correcte révélée…"
                 : hideEliminationBanner
-                ? "Réponse enregistrée — en attente de la fin de la manche…"
+                ? "Réponse enregistrée — en attente de la fin du timer…"
                 : "Mode spectateur — vous ne pouvez pas répondre."}
             </p>
           </div>

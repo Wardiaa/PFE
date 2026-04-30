@@ -313,17 +313,12 @@ const HostSession: React.FC = () => {
       }
 
       if (msg.type === SESSION_EVENTS.PLAYER_ELIMINATED) {
-        const ev = msg.payload as unknown as EliminationEvent;
         const sess = sessionRef.current;
         if (sess) {
           SessionService.getGameState(sess.id).then((newState) => {
             setGameState(newState);
           });
         }
-        toast({
-          title: "Joueur éliminé",
-          description: `${ev.participantName} — manche ${ev.roundNumber}`,
-        });
         return;
       }
 

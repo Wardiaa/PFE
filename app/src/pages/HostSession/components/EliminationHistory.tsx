@@ -74,7 +74,7 @@ export function EliminationHistory({ sessionId, gameState, pollIntervalMs = 4000
                   {e.participantName}
                 </div>
                 <div className="text-muted-foreground">
-                  Manche {e.roundNumber} ·{" "}
+                  Question {e.roundNumber} ·{" "}
                   {new Date(e.eliminatedAt).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",

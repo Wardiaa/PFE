@@ -73,7 +73,7 @@ function Pod({
           </div>
           <div className="text-xs text-[color:var(--cpl-text-muted)]">
             {variant === "eliminated"
-              ? `Éliminé · manche ${participant.eliminatedAtRound ?? "?"}`
+              ? `Éliminé · Question ${participant.eliminatedAtRound ?? "?"}`
               : `${participant.score} pts${rank ? ` · #${rank}` : ""}`}
           </div>
         </div>
@@ -134,7 +134,7 @@ export function LiveLeaderboard({
             {aliveCount}/{totalCount}
           </div>
           <div className="text-[10px] uppercase tracking-widest text-[color:var(--cpl-text-dim)]">
-            Manche {currentRound}
+            Question {currentRound}
           </div>
         </div>
       </button>

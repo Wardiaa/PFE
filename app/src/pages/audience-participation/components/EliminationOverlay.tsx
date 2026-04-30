@@ -26,7 +26,7 @@ export function EliminationOverlay({ show, roundNumber, onStay, onLeave }: Props
         <div className="cpl-eliminated-stamp">ÉLIMINÉ</div>
 
         <p className="mt-8 text-xl text-[color:var(--cpl-text-muted)] cpl-display">
-          Manche {roundNumber} · Vous êtes éliminé
+          Question {roundNumber} · Vous êtes éliminé
         </p>
         <p className="mt-2 text-sm text-[color:var(--cpl-text-dim)]">
           Voulez-vous rester pour voir la suite ou quitter la session ?
