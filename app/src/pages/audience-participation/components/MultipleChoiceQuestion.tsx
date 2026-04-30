@@ -41,13 +41,15 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({ questio
     }
   };
 
-  const handleSubmit = (): void => {
+  const handleSubmit = async (): Promise<void> => {
     if (selectedOption === null) return;
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      onSubmit({ optionId: selectedOption });
-    }, 500);
+    try {
+      await Promise.resolve(onSubmit({ optionId: selectedOption }));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

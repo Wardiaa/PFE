@@ -279,6 +279,32 @@ export class SessionService {
     }
   }
 
+  static async checkExistingResponse(
+    sessionId: string,
+    participantId: string,
+    questionId: string,
+  ): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .from("responses")
+        .select("id")
+        .eq("session_id", sessionId)
+        .eq("participant_id", participantId)
+        .eq("question_id", questionId)
+        .limit(1);
+
+      if (error) {
+        console.error("Failed to check existing response:", error);
+        return false;
+      }
+
+      return data && data.length > 0 ? true : false;
+    } catch (error) {
+      console.error("Check existing response error:", error);
+      return false;
+    }
+  }
+
   static async updateSessionStatus(
     sessionId: string,
     status: "WAITING" | "ACTIVE" | "PAUSED" | "ENDED",
@@ -527,7 +553,10 @@ export class SessionService {
         .single();
 
       if (participantError || !participant) {
-        console.error("[eliminateParticipant] Failed to get participant:", participantError);
+        console.error(
+          "[eliminateParticipant] Failed to get participant:",
+          participantError,
+        );
         return null;
       }
 
@@ -621,22 +650,25 @@ export class SessionService {
    */
   static async getGameState(sessionId: string): Promise<GameState> {
     try {
-      const [{ data: participants }, { data: history }, { data: session }] = await Promise.all([
-        supabase
-          .from("participants")
-          .select("id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id")
-          .eq("session_id", sessionId),
-        supabase
-          .from("elimination_log")
-          .select("*")
-          .eq("session_id", sessionId)
-          .order("eliminated_at", { ascending: true }),
-        supabase
-          .from("sessions")
-          .select("current_question_index, status, context_id")
-          .eq("id", sessionId)
-          .maybeSingle(),
-      ]);
+      const [{ data: participants }, { data: history }, { data: session }] =
+        await Promise.all([
+          supabase
+            .from("participants")
+            .select(
+              "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id",
+            )
+            .eq("session_id", sessionId),
+          supabase
+            .from("elimination_log")
+            .select("*")
+            .eq("session_id", sessionId)
+            .order("eliminated_at", { ascending: true }),
+          supabase
+            .from("sessions")
+            .select("current_question_index, status, context_id")
+            .eq("id", sessionId)
+            .maybeSingle(),
+        ]);
 
       const allParticipants = (participants || []).map((p: any) => ({
         id: p.id,
@@ -653,13 +685,15 @@ export class SessionService {
       const alive = allParticipants.filter((p) => p.isAlive === true);
       const eliminated = allParticipants.filter((p) => p.isAlive === false);
 
-      const eliminationHistory: EliminationEvent[] = (history || []).map((row: any) => ({
-        participantId: row.participant_id,
-        participantName: row.participant_name,
-        questionId: row.question_id,
-        roundNumber: row.round_number,
-        eliminatedAt: new Date(row.eliminated_at),
-      }));
+      const eliminationHistory: EliminationEvent[] = (history || []).map(
+        (row: any) => ({
+          participantId: row.participant_id,
+          participantName: row.participant_name,
+          questionId: row.question_id,
+          roundNumber: row.round_number,
+          eliminatedAt: new Date(row.eliminated_at),
+        }),
+      );
 
       return {
         alive,
@@ -710,7 +744,10 @@ export class SessionService {
       // Guard against the session being missing or context_id undefined,
       // which previously caused: GET …/questions?select=id&context_id=eq.undefined → 400
       if (!session?.context_id) {
-        console.warn("[determineWinner] session/context_id missing for", sessionId);
+        console.warn(
+          "[determineWinner] session/context_id missing for",
+          sessionId,
+        );
         return null;
       }
 
@@ -727,7 +764,9 @@ export class SessionService {
       //    question correctly (wrong / missed answers eliminate them).
       const { data: aliveRows } = await supabase
         .from("participants")
-        .select("id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id")
+        .select(
+          "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id",
+        )
         .eq("session_id", sessionId)
         .eq("is_alive", true);
 
@@ -767,7 +806,8 @@ export class SessionService {
 
         // Fallback: highest score, then earliest joined.
         return [...alive].sort((a, b) => {
-          if ((b.score ?? 0) !== (a.score ?? 0)) return (b.score ?? 0) - (a.score ?? 0);
+          if ((b.score ?? 0) !== (a.score ?? 0))
+            return (b.score ?? 0) - (a.score ?? 0);
           return a.joinedAt.getTime() - b.joinedAt.getTime();
         })[0];
       }
@@ -775,7 +815,9 @@ export class SessionService {
       // 4) No one alive — fall back to highest-scoring eliminated player.
       const { data: elimRows } = await supabase
         .from("participants")
-        .select("id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id")
+        .select(
+          "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id",
+        )
         .eq("session_id", sessionId)
         .eq("is_alive", false)
         .order("score", { ascending: false })
@@ -806,10 +848,10 @@ export class SessionService {
       session_id: args.sessionId,
       participant_id: args.participantId,
       question_id: args.questionId,
-      answer: { 
+      answer: {
         optionId: args.chosenOptionId,
         isCorrect: args.isCorrect,
-        pointsEarned: args.isCorrect ? args.pointsIfCorrect : 0
+        pointsEarned: args.isCorrect ? args.pointsIfCorrect : 0,
       },
       is_correct: args.isCorrect,
       points_earned: args.isCorrect ? args.pointsIfCorrect : 0,
@@ -817,7 +859,10 @@ export class SessionService {
     });
 
     if (responseError) {
-      console.error("[submitEliminationAnswer] Response insert failed:", responseError);
+      console.error(
+        "[submitEliminationAnswer] Response insert failed:",
+        responseError,
+      );
     }
 
     if (args.isCorrect) {

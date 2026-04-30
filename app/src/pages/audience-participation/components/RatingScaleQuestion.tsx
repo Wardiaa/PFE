@@ -53,12 +53,14 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
     }
   };
 
-  const handleSubmit = (): void => {
+  const handleSubmit = async (): Promise<void> => {
     if (selectedRating === null) return;
     setIsSubmitting(true);
-    setTimeout(() => {
-      onSubmit({ rating: selectedRating });
-    }, 500);
+    try {
+      await Promise.resolve(onSubmit({ rating: selectedRating }));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getRatingColor = (rating: number): string => {

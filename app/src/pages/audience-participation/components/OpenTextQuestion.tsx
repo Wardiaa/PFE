@@ -25,13 +25,15 @@ const OpenTextQuestion: React.FC<OpenTextQuestionProps> = ({ question, onSubmit 
   const maxLength = question?.maxLength || 500;
   const remainingChars = maxLength - response?.length;
 
-  const handleSubmit = (): void => {
+  const handleSubmit = async (): Promise<void> => {
     if (!response?.trim()) return;
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      onSubmit({ text: response?.trim() });
-    }, 500);
+    try {
+      await Promise.resolve(onSubmit({ text: response?.trim() }));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {

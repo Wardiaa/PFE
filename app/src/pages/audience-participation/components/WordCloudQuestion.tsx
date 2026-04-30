@@ -25,13 +25,15 @@ const WordCloudQuestion: React.FC<WordCloudQuestionProps> = ({ question, onSubmi
   const wordArray = words?.trim()?.split(/\s+/)?.filter(word => word?.length > 0);
   const remainingWords = maxWords - wordArray?.length;
 
-  const handleSubmit = (): void => {
+  const handleSubmit = async (): Promise<void> => {
     if (wordArray?.length === 0) return;
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      onSubmit({ words: wordArray });
-    }, 500);
+    try {
+      await Promise.resolve(onSubmit({ words: wordArray }));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
