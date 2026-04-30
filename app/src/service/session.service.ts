@@ -165,13 +165,20 @@ export class SessionService {
         throw new Error("This session has already ended.");
       }
 
-      const { data: context, error: contextError } = await supabase
+      const { data: context, error: _contextError } = await supabase
         .from("contexts")
         .select("id, title, game_mode, theme")
         .eq("id", session.context_id)
         .maybeSingle();
 
-      const { data: questionsRaw, error: questionsError } = await supabase
+      // In elimination mode, participants can only join before the session starts
+      if (context?.game_mode === "elimination" && session.status !== "WAITING") {
+        throw new Error(
+          "You cannot join this elimination session after it has started. Participants must join before the session begins.",
+        );
+      }
+
+      const { data: questionsRaw, error: _questionsError } = await supabase
         .from("questions")
         .select(
           "id, title, description, type, points, time_limit, options, scale, labels, display_style, image_url, question_order, hide_participant_names",
