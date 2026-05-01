@@ -22,6 +22,8 @@ interface Step2Props {
   onCategoryChange: (value: string) => void;
   onTagsChange: (tags: string[]) => void;
   onCoverImageChange: (imageUrl: string | null) => void;
+  // ── NEW: game mode toggle callback ───────────────────────────────────────
+  onGameModeChange?: (mode: "standard" | "elimination") => void;
 }
 
 const DEFAULT_COVER_IMAGES = [
@@ -57,6 +59,34 @@ function ComingSoon({
   );
 }
 
+// ── MentiToggle – same style as in QuestionSidePanel ───────────────────────
+const MentiToggle = ({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) => (
+  <button
+    onClick={() => !disabled && onChange(!checked)}
+    disabled={disabled}
+    className={cn(
+      "w-9 h-5 rounded-full transition-all relative flex items-center px-0.5",
+      checked ? "bg-[#6366F1]" : "bg-slate-200",
+      disabled && "opacity-40 cursor-not-allowed",
+    )}
+  >
+    <div
+      className={cn(
+        "w-4 h-4 bg-white rounded-full shadow transition-transform",
+        checked ? "translate-x-4" : "translate-x-0",
+      )}
+    />
+  </button>
+);
+
 export function Step2({
   context,
   selectedTemplate,
@@ -66,6 +96,7 @@ export function Step2({
   onCategoryChange,
   onTagsChange,
   onCoverImageChange,
+  onGameModeChange, // <-- NEW
 }: Step2Props) {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-white">
@@ -194,6 +225,26 @@ export function Step2({
                   </div>
                 </div>
               </div>
+
+              {/* Game Mode Toggle ── */}
+              {onGameModeChange && (
+                <div className="space-y-2 mt-4">
+                  <Label className="text-xs sm:text-sm">Game Mode</Label>
+                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-slate-800">Elimination Mode</span>                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Wrong answer = eliminated. Last player standing wins.
+                      </p>
+                    </div>
+                    <MentiToggle
+                      checked={context.gameMode === "elimination"}
+                      onChange={(val) => onGameModeChange(val ? "elimination" : "standard")}
+                    />
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* ── Visual Identity — disabled (Coming Soon) ───────────── */}

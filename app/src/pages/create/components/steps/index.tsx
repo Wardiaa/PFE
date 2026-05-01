@@ -15,13 +15,13 @@ interface StepsProps {
   currentQuestionIndex: number;
   setCurrentQuestionIndex: (index: number) => void;
   selectedQuestions: number[];
-  leftPanelTab: 'types' | 'bulk';
-  setLeftPanelTab: (tab: 'types' | 'bulk') => void;
-  activeTab: 'workspace' | 'preview';
-  setActiveTab: (tab: 'workspace' | 'preview') => void;
+  leftPanelTab: "types" | "bulk";
+  setLeftPanelTab: (tab: "types" | "bulk") => void;
+  activeTab: "workspace" | "preview";
+  setActiveTab: (tab: "workspace" | "preview") => void;
   activeDragId: string | null;
   setActiveDragId: (id: string | null) => void;
-  saveStatus: 'idle' | 'saving' | 'saved';
+  saveStatus: "idle" | "saving" | "saved";
   lastSaved: Date | null;
   hasUnsavedChanges: boolean;
   historyIndex: number;
@@ -47,7 +47,7 @@ interface StepsProps {
   onBulkUpdate: (questions: Question[]) => void;
   onSelectAllQuestions: () => void;
   onClearSelection: () => void;
-  onReorderSelectedQuestions: (direction: 'up' | 'down' | 'top' | 'bottom') => void;
+  onReorderSelectedQuestions: (direction: "up" | "down" | "top" | "bottom") => void;
   onDuplicateCurrentQuestion: () => void;
   onDeleteCurrentQuestion: () => void;
   onQuickAction: (action: string) => void;
@@ -56,6 +56,8 @@ interface StepsProps {
   onRedo: () => void;
   onHandleCreate: () => void;
   onSaveDraft: () => void;
+  // ── NEW: game mode toggle callback ───────────────────────────────────────
+  onGameModeChange?: (mode: "standard" | "elimination") => void;
 }
 
 export function renderStep({
@@ -107,6 +109,7 @@ export function renderStep({
   onRedo,
   onHandleCreate,
   onSaveDraft,
+  onGameModeChange, // <-- NEW
 }: StepsProps) {
   switch (step) {
     case 1:
@@ -131,6 +134,7 @@ export function renderStep({
           onCategoryChange={onCategoryChange}
           onTagsChange={onTagsChange}
           onCoverImageChange={onCoverImageChange}
+          onGameModeChange={onGameModeChange} // <-- NEW
         />
       );
 

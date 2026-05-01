@@ -207,7 +207,7 @@ const AudienceParticipation: React.FC = () => {
   }, [isElimination]);
 
   const themeId: string = contextMeta.themeId || "default";
-  const themeClass = themeId === "cent-pour-cent-logique" ? "cpl-theme" : "";
+  const themeClass = (isElimination || themeId === "cent-pour-cent-logique") ? "cpl-theme" : "";
 
   const clearAnswerRevealTimeout = useCallback(() => {
     if (answerRevealTimeoutRef.current !== undefined) {
@@ -551,6 +551,16 @@ const AudienceParticipation: React.FC = () => {
           setTimerRemaining(remaining);
           timerRemainingRef.current = remaining;
           if (remaining > 0 && questionActiveRef.current) startLocalCountdown();
+          break;
+        }
+
+        //handle host forcing close for no‑timer questions ──
+        case SESSION_EVENTS.FORCE_QUESTION_CLOSE: {
+          if (!questionClosedRef.current) {
+            setQuestionClosed(true);
+            questionClosedRef.current = true;
+            stopLocalCountdown(); // just in case
+          }
           break;
         }
 

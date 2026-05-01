@@ -61,6 +61,7 @@ export default function EnhancedCreate() {
     handleManualSave,
     handleUndo,
     handleRedo,
+    handleGameModeChange,
   } = useQuizBuilder();
 
   const currentStep = renderStep({
@@ -112,6 +113,7 @@ export default function EnhancedCreate() {
     onRedo: handleRedo,
     onHandleCreate: handleCreate,
     onSaveDraft: handleSaveDraft,
+    onGameModeChange: handleGameModeChange,
   });
 
   const currentQuestion = context.questions[currentQuestionIndex] || null;

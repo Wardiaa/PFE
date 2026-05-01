@@ -2,43 +2,69 @@
 // Compact side-panel widget for the presenter (host) view. Shows every
 // elimination in order: who, on which round, at what time. Pulls from the
 // `elimination_log` table via SessionService.getEliminationHistory().
+//
+// FIX: history now ALWAYS comes from the DB via polling, regardless of whether
+// `gameState` is supplied. Previously, passing `gameState` caused the component
+// to read from the frozen `displayedGameState.history` snapshot, which is only
+// refreshed at timer-end or when the host clicks "Next Question". This meant
+// eliminations on no-timer questions were invisible until the host manually
+// advanced — the DB had the record, but the UI was reading the stale snapshot.
+//
+// `gameState` is now used ONLY for the alive-count badge (top-right), which is
+// fine to come from the frozen state. All history items come from live DB polls.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Skull, Users, History } from "lucide-react";
 import { SessionService } from "../../../service/session.service";
 import type { EliminationEvent, GameState } from "../../../lib/presentation.types";
 
 interface Props {
   sessionId: string;
-  /** Optional — if you already have the live game state, pass it; otherwise we poll. */
+  /**
+   * Optional live or frozen game state. Used ONLY to display the alive-count
+   * badge (aliveCount / totalCount). History is always fetched from the DB.
+   */
   gameState?: GameState;
-  /** Optional — how often to refresh (ms). Defaults to 4000. Ignored if gameState is provided. */
+  /** How often to poll the DB for new eliminations (ms). Defaults to 2000. */
   pollIntervalMs?: number;
 }
 
-export function EliminationHistory({ sessionId, gameState, pollIntervalMs = 4000 }: Props) {
-  const [history, setHistory] = useState<EliminationEvent[]>(
-    gameState?.history ?? [],
-  );
+export function EliminationHistory({ sessionId, gameState, pollIntervalMs = 2000 }: Props) {
+  const [history, setHistory] = useState<EliminationEvent[]>([]);
+  // Keep a stable ref to the interval so we can clear it cleanly.
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (gameState?.history) {
-      setHistory(gameState.history);
-      return;
-    }
     let alive = true;
+
     const tick = async () => {
       const h = await SessionService.getEliminationHistory(sessionId);
       if (alive) setHistory(h);
     };
+
+    // Fetch immediately on mount and whenever sessionId changes.
     tick();
-    const id = setInterval(tick, pollIntervalMs);
+
+    // Then poll on the given interval. Using a short default (2 s) so an
+    // elimination shows up within a couple of seconds of the participant
+    // answering wrongly, even on no-timer questions where the host has not
+    // yet clicked "Next Question".
+    intervalRef.current = setInterval(tick, pollIntervalMs);
+
     return () => {
       alive = false;
-      clearInterval(id);
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
-  }, [sessionId, gameState, pollIntervalMs]);
+  }, [sessionId, pollIntervalMs]);
+  // Note: `gameState` is intentionally NOT in the dependency array here.
+  // History always comes from the DB; gameState is only read for the badge below.
 
+  // These can come from either the live or the frozen game state — both are fine
+  // for display purposes. The live state (if available) gives a more accurate
+  // count, but the frozen state is also acceptable.
   const aliveCount = gameState?.alive.length;
   const totalCount = gameState?.totalPlayers;
 

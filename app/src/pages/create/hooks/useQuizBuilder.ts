@@ -11,6 +11,7 @@
 //     stores `themeId` inside `theme` (existing column — no schema change).
 //  6. deriveContextType returns "GAME" for any template whose id contains
 //     "logique" or "elimination" so it lands in the right bucket.
+//  7. Added handleGameModeChange to allow toggling elimination mode manually.
 //
 // Everything else is byte-for-byte identical to your original file.
 
@@ -22,7 +23,8 @@ import { supabase } from "../../../lib/supabase";
 import { templates } from "../../../lib/templates";
 import { getDefaultQuestion } from "../../../lib/question-types";
 import { QUESTION_TYPE_DETAILS } from "../../../lib/question-types";
-import type { ContextData, HistoryAction, Question } from "../types";
+import type { ContextData, HistoryAction, Question, SessionThemeId } from "../types";
+import type { GameMode } from "../../../lib/presentation.types";
 
 // ---------------------------------------------------------------------------
 // Reducer
@@ -672,6 +674,21 @@ export function useQuizBuilder() {
     markUnsaved();
   };
 
+  // ── NEW: Manual game mode toggle ─────────────────────────────────────────
+  const handleGameModeChange = (mode: "standard" | "elimination") => {
+    dispatch({ type: "SET_GAME_MODE", payload: mode });
+    // FIX: dispatch SET_THEME alongside SET_THEME_ID so the value is reliably
+    // written to the DB. saveToSupabase uses:
+    //   const persistedTheme = context.themeId || context.theme || "default"
+    // Without SET_THEME, context.theme stayed "default" for non-CPL contexts
+    // set to elimination mode, and the audience page never got cpl-theme CSS
+    // variables (white background / missing colours bug).
+    const derivedThemeId = mode === "elimination" ? "cent-pour-cent-logique" : "default";
+    dispatch({ type: "SET_THEME_ID", payload: derivedThemeId });
+    dispatch({ type: "SET_THEME", payload: derivedThemeId });
+    markUnsaved();
+  };
+
   // ── Template helpers ───────────────────────────────────────────────────────
   const handleTemplateSelect = (templateId: string) => {
     const template = templates.find((t) => t.id === templateId);
@@ -1161,6 +1178,7 @@ export function useQuizBuilder() {
     handleTagsChange,
     handleCoverImageChange,
     handleSettingsChange,
+    handleGameModeChange,
     toggleQuestionSelection,
     handleTemplateSelect,
     handleTemplateCustomize,

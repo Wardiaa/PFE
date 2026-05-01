@@ -15,6 +15,7 @@
  *   GAME_END           { winner }
  *   ANSWER_RECEIVED    { participantId, questionId, correct }
  *   WINNER_REVEAL      { winner }   ← NEW: broadcast when host clicks "Show Winner"
+ *   FORCE_QUESTION_CLOSE {}         ← NEW: for no‑timer questions, host forces round end
  */
 
 import { useEffect, useRef, useCallback, useState } from "react";
@@ -57,6 +58,8 @@ export const SESSION_EVENTS = {
   WINNER_REVEAL: "WINNER_REVEAL",
   // late-joiner support
   REQUEST_GAME_STATE: "REQUEST_GAME_STATE",
+  // ── NEW: force round end for no‑timer questions ──
+  FORCE_QUESTION_CLOSE: "FORCE_QUESTION_CLOSE",
 } as const;
 
 export function useSessionSocket({

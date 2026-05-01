@@ -1,6 +1,4 @@
 // Step4.tsx — entire page disabled with a "Coming soon" overlay so the
-// professor can see the planned UI but can't interact with anything that
-// isn't actually wired up yet.
 import { Slider } from "../../../../components/ui/slider";
 import { Globe, Lock, Copy, Check, Settings, Music, Bell, Users, Clock } from "lucide-react";
 import type { ContextData } from "../../types";

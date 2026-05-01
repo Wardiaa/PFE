@@ -187,13 +187,7 @@ const HostSession: React.FC = () => {
   // started. Used to compute "how many got eliminated during this round"
   // for the round-end overlay below.
   const roundStartEliminatedCountRef = useRef<number>(0);
-
-  // When non-null, the round-end overlay is shown with this number.
-  const [roundEliminationCount, setRoundEliminationCount] = useState<
-    number | null
-  >(null);
-  // Round number captured at the moment the overlay is triggered, so the
-  // overlay keeps showing the correct round even if state advances.
+  const [roundEliminationCount, setRoundEliminationCount] = useState<number | null>(null);
   const [overlayRoundNumber, setOverlayRoundNumber] = useState<number>(0);
 
   // ── Winner reveal (host-controlled) ───────────────────────────────────────
@@ -207,8 +201,6 @@ const HostSession: React.FC = () => {
   // ── Derived values ────────────────────────────────────────────────────────
   const isElimination = contextMeta.gameMode === "elimination";
   const themeId = contextMeta.themeId;
-
-  // ── Survivor / eliminated counters ────────────────────────────────────────
   const survivorsCount = isElimination ? gameState.alive.length : 0;
   const eliminatedCount = isElimination ? gameState.eliminated.length : 0;
 
@@ -224,6 +216,9 @@ const HostSession: React.FC = () => {
   const gameStateRef = useRef<GameState>(gameState);
   const isEliminationRef = useRef<boolean>(false);
   const sendMessageRef = useRef<(msg: any) => void>(() => {});
+
+  // ── NEW: ref for the current question's time limit (to detect no-timer) ──
+  const currentQuestionTimeLimitRef = useRef<number | null | undefined>(null);
 
   const mapQuestionType = (dbType: string): Question["type"] => {
     const mapping: Record<string, Question["type"]> = {
@@ -242,6 +237,11 @@ const HostSession: React.FC = () => {
     currentQuestionIndex >= 0
       ? session?.presentation?.questions?.[currentQuestionIndex]
       : undefined;
+
+  // Keep ref in sync
+  useEffect(() => {
+    currentQuestionTimeLimitRef.current = currentQuestion?.timeLimit;
+  }, [currentQuestion]);
 
   const currentResponses: QuestionResponses = currentQuestion
     ? responses[currentQuestion.id] || {}
@@ -283,7 +283,6 @@ const HostSession: React.FC = () => {
   useEffect(() => { hideParticipantNamesRef.current = hideParticipantNames; }, [hideParticipantNames]);
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
   useEffect(() => { isEliminationRef.current = isElimination; }, [isElimination]);
-
 
   // ── Fullscreen change listener ───────────────────────────────────────────
   useEffect(() => {
@@ -1075,6 +1074,15 @@ const HostSession: React.FC = () => {
     setShowResults((prev) => !prev);
   };
 
+  // ── NEW: wrapped toggle to force close when no timer and elimination mode ──
+  const handleToggleResultsWithNoTimer = (): void => {
+    handleToggleQuestionResults();
+    // If this is an elimination question with no time limit, tell audience to close now
+    if (isElimination && currentQuestionTimeLimitRef.current === null) {
+      sendMessage({ type: SESSION_EVENTS.FORCE_QUESTION_CLOSE, payload: {} });
+    }
+  };
+
   const handleToggleCorrectAnswer = (): void => {
     setShowCorrectAnswer((prev) => !prev);
   };
@@ -1602,7 +1610,7 @@ const HostSession: React.FC = () => {
         onPause={handlePause}
         onRestart={handleRestart}
         onEnd={handleEnd}
-        onToggleQuestionResults={handleToggleQuestionResults}
+        onToggleQuestionResults={handleToggleResultsWithNoTimer} // ← changed
         isShowingResults={showResults}
         showCorrectAnswer={showCorrectAnswer}
         onToggleCorrectAnswer={handleToggleCorrectAnswer}
@@ -1675,13 +1683,7 @@ const HostSession: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/*
-        Winner overlay (host side).
-        Shown ONLY after the host clicks the "Show Winner" button — i.e.
-        once `revealedWinner` is set. Previously this was driven by
-        `gameState.winner`, which auto-popped as soon as the last question
-        was displayed.
-      */}
+      {/* Winner overlay (host side) */}
       {isElimination && revealedWinner && (
         <div className="fixed inset-0 z-[150] bg-black/85 backdrop-blur-sm flex items-center justify-center p-6">
           <motion.div
@@ -1732,13 +1734,7 @@ const HostSession: React.FC = () => {
         <QrFullscreenModal code={session.code} onClose={() => setShowQrModal(false)} />
       )}
 
-      {/*
-        Round-end elimination overlay. Pops the moment the timer hits 0
-        (with a short delay so server-side eliminations propagate), shows
-        the count of players eliminated during the round that just ended,
-        and is dismissed by the host with the X button or by clicking the
-        backdrop.
-      */}
+      {/* Round-end elimination overlay */}
       {isElimination && (
         <RoundEliminationsOverlay
           count={roundEliminationCount}
