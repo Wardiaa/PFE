@@ -1,6 +1,12 @@
 // src/pages/audience-participation/index.tsx
 // COMPLETE FILE — original behavior preserved + token-based existing response check.
 // Prevents re-submission when host goes back to already answered question.
+//
+// FIX: When timer ends on any question, eliminated participants (spectators) now
+// always see the spectator answer-reveal view — never the "bonne réponse" screen.
+// The `isEliminatedRef.current` check is evaluated BEFORE the `sessionState ===
+// "submitted"` check so that going back to a previously-answered question cannot
+// accidentally show the wrong feedback to an already-eliminated player.
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -629,6 +635,22 @@ const AudienceParticipation: React.FC = () => {
     enabled: !!participantSession,
   });
 
+  // ── Timer-end effect: determine what to show when a question closes ────────
+  //
+  // IMPORTANT — ordering of checks:
+  //
+  // 1. `isEliminatedRef.current` is checked FIRST so that a participant who is
+  //    already in spectator mode always sees the answer-reveal view, regardless
+  //    of `sessionState`. Without this, navigating back to a previously-answered
+  //    question sets sessionState = "submitted" (hasAlreadyResponded = true) and
+  //    the old code would hit the "submitted" branch first, incorrectly showing
+  //    "Bonne réponse ! Préparez-vous…" to an already-eliminated player.
+  //
+  // 2. `sessionStateRef.current === "submitted"` is checked SECOND — only
+  //    reached by active (non-eliminated) players who answered correctly.
+  //
+  // 3. The final async block handles auto-elimination for players who never
+  //    submitted an answer before the timer expired.
   useEffect(() => {
     if (!questionClosed) return;
     if (!isElimination) return;
@@ -638,15 +660,19 @@ const AudienceParticipation: React.FC = () => {
     const ps = participantSession;
     const q = currentQuestion;
 
-    if (sessionStateRef.current === "submitted") {
-      setShowCorrectAnswerFeedback(true);
-      return;
-    }
-
+    // ── CHECK 1: Already-eliminated spectator ─────────────────────────────
+    // Must come before the "submitted" check. When the host goes back to a
+    // question the participant previously answered wrong, loadQuestion sets
+    // sessionState = "submitted" (hasAlreadyResponded = true). Without this
+    // guard being first, the participant would wrongly see "Bonne réponse".
     if (isEliminatedRef.current) {
       const liveRoundNumber =
         currentQuestionRef.current?.number ?? gameState.currentRound ?? 0;
-      if (eliminatedAtRound === liveRoundNumber) {
+
+      if (eliminatedAtRound === liveRoundNumber && sessionStateRef.current !== "submitted") {
+        // First-time elimination on this question (sessionState is still
+        // "question" because they just answered wrong — not a revisit).
+        // Show the answer reveal briefly, then transition to the overlay.
         setShowAnswerReveal(true);
         clearAnswerRevealTimeout();
         answerRevealTimeoutRef.current = window.setTimeout(() => {
@@ -655,11 +681,22 @@ const AudienceParticipation: React.FC = () => {
           answerRevealTimeoutRef.current = undefined;
         }, ANSWER_REVEAL_DURATION_MS);
       } else {
+        // Established spectator — either watching a different question OR
+        // the host went back to the question where they were eliminated
+        // (sessionState = "submitted" because hasAlreadyResponded = true).
+        // Just reveal the correct answer indefinitely — no overlay, no timer.
         setShowAnswerReveal(true);
       }
       return;
     }
 
+    // ── CHECK 2: Active player who submitted a correct answer ──────────────
+    if (sessionStateRef.current === "submitted") {
+      setShowCorrectAnswerFeedback(true);
+      return;
+    }
+
+    // ── CHECK 3: Active player who never submitted — auto-eliminate ────────
     const roundNumber =
       currentQuestionRef.current?.number ?? gameState.currentRound ?? 0;
     (async () => {
@@ -1367,20 +1404,30 @@ const AudienceParticipation: React.FC = () => {
     const liveRoundNumber =
       currentQuestion?.number ?? gameState.currentRound ?? 0;
 
+    // True only for NON-eliminated players who submitted correctly and are
+    // waiting for the round timer to finish before seeing "Bonne réponse".
     const hasJustSubmittedAndWaiting =
-      sessionState === "submitted" && !showCorrectAnswerFeedback;
+      !isEliminated && sessionState === "submitted" && !showCorrectAnswerFeedback;
 
+    // True only during the very first elimination window — the player JUST
+    // answered wrong this round, the timer is still running, and we haven't
+    // confirmed their elimination to them yet. Does NOT apply when the host
+    // revisits a previous question (sessionState would be "submitted" there).
     const eliminatedThisRoundWaiting =
-      isEliminated && !questionClosed && eliminatedAtRound === liveRoundNumber;
+      isEliminated &&
+      !questionClosed &&
+      eliminatedAtRound === liveRoundNumber &&
+      sessionState !== "submitted";
 
     const isEliminatedSpectator =
       isEliminated && !showEliminationOverlay && !showCorrectAnswerFeedback;
 
     if (hasJustSubmittedAndWaiting || isEliminatedSpectator) {
-      const hideBanner =
-        hasJustSubmittedAndWaiting ||
-        eliminatedThisRoundWaiting ||
-        showAnswerReveal;
+      // The elimination banner is hidden only while we are still waiting to
+      // reveal the participant's fate for the first time (timer still running,
+      // first-time elimination). In every other case — including watching the
+      // answer reveal on a revisited question — the banner stays visible.
+      const hideBanner = hasJustSubmittedAndWaiting || eliminatedThisRoundWaiting;
       return (
         <div className={themeClass + " min-h-screen"}>
           <SpectatorMode
