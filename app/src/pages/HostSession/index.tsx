@@ -1232,8 +1232,7 @@ const HostSession: React.FC = () => {
           <div className="max-w-6xl w-full mx-auto flex-1 flex flex-col">
             {isElimination && (
               <div className="mb-4 sm:mb-6 rounded-xl border border-yellow-400/40 bg-yellow-400/10 px-4 py-3 flex items-center justify-center gap-2 text-sm sm:text-base font-semibold backdrop-blur-sm">
-                <AppIcon name="Crown" size={18} className="text-yellow-300" />
-                <span>Mode élimination activé — 100% Logique</span>
+                <span>Mode élimination activé</span>
               </div>
             )}
 
