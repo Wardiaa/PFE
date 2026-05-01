@@ -209,6 +209,7 @@ useEffect(() => {
     toast({
       title: 'Link Copied',
       description: 'Share this link to view results',
+      duration: 2000,
     });
   };
 

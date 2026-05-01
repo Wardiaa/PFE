@@ -7,6 +7,8 @@
 // The `isEliminatedRef.current` check is evaluated BEFORE the `sessionState ===
 // "submitted"` check so that going back to a previously-answered question cannot
 // accidentally show the wrong feedback to an already-eliminated player.
+//
+// MOD: "Time's Up!" toast duration set to 2 seconds (2000ms) for better UX.
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -338,10 +340,11 @@ const AudienceParticipation: React.FC = () => {
         questionActiveRef.current = false;
         setQuestionClosed(true);
         questionClosedRef.current = true;
+        // Toast with 2 seconds duration
         toastRef.current({
           title: "Time's Up!",
           description: "The time for this question has expired.",
-          variant: "destructive",
+          duration: 2000, // Auto-dismiss after 2 seconds
         });
       } else {
         timerRemainingRef.current = next;
@@ -981,7 +984,7 @@ const AudienceParticipation: React.FC = () => {
 
       toast({
         title: "Joined Successfully",
-        description: `Welcome to "${result.session.presentation.title}"`,
+        duration: 2000,
       });
     } catch (err: any) {
       console.error("Join error:", err);

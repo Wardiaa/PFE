@@ -1089,6 +1089,7 @@ const HostSession: React.FC = () => {
     toast({
       title: "Link Copied!",
       description: "Share this link with participants to join",
+      duration: 2000,
     });
   };
 

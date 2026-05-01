@@ -52,6 +52,7 @@ export function QuickActionsPanel({
     toast({
       title: "Question added",
       description: `Added ${type.replace('_', ' ').toLowerCase()} question`,
+      duration: 1000,
     });
   };
 
@@ -61,6 +62,7 @@ export function QuickActionsPanel({
       toast({
         title: "Time limit updated",
         description: `Set to ${seconds} seconds`,
+        duration: 1000,
       });
     }
   };
@@ -71,6 +73,7 @@ export function QuickActionsPanel({
       toast({
         title: "Points updated",
         description: `Set to ${points} points`,
+        duration: 1000,
       });
     }
   };
@@ -98,6 +101,7 @@ export function QuickActionsPanel({
         toast({
           title: "Question reset",
           description: "Reset to default values",
+          duration: 1000,
         });
         break;
     }

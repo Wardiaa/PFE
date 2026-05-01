@@ -79,10 +79,6 @@ export function TemplateCustomizationDialog({
     onCustomize(options);
     onOpenChange(false);
     
-    toast({
-      title: "Template customized",
-      description: "Your template has been configured with your preferences",
-    });
   };
 
   if (!template) return null;
