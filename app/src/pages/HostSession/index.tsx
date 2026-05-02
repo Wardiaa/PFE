@@ -23,6 +23,7 @@ import PauseOverlay from "./components/PauseOverlay";
 import EndSessionModal from "./components/EndSessionModal";
 import { EliminationHistory } from "./components/EliminationHistory";
 import { RoundEliminationsOverlay } from "./components/RoundEliminationsOverlay";
+import { GameOverOverlay } from "../audience-participation/components/GameOverOverlay";
 import { SessionService } from "../../service/session.service.ts";
 import "../../styles/cent-pour-cent-logique.css";
 import type {
@@ -196,6 +197,8 @@ const HostSession: React.FC = () => {
   // question. We store the revealed winner locally and broadcast it so the
   // audience can render their own WinnerCelebration screen.
   const [revealedWinner, setRevealedWinner] = useState<Participant | null>(null);
+  const [isGameOver, setIsGameOver] = useState<boolean>(false);
+  const isGameOverRef = useRef<boolean>(false);
   const [isRevealingWinner, setIsRevealingWinner] = useState<boolean>(false);
 
   // ── Derived values ────────────────────────────────────────────────────────
@@ -353,6 +356,17 @@ const HostSession: React.FC = () => {
   });
 
   useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
+
+  // ── Fin de partie: all players eliminated, no winner ──────────────────────
+  useEffect(() => {
+    if (!isElimination || isGameOverRef.current || revealedWinner) return;
+    if (gameState.alive.length === 0 && gameState.totalPlayers > 0) {
+      isGameOverRef.current = true;
+      setIsGameOver(true);
+      // Broadcast to all audience participants so they show the overlay.
+      sendMessage({ type: "GAME_OVER", payload: {} });
+    }
+  }, [isElimination, revealedWinner, gameState.alive.length, gameState.totalPlayers, sendMessage]);
 
   // ── Timer interval ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -940,6 +954,21 @@ const HostSession: React.FC = () => {
    * the tie-breaker), broadcasts a WINNER_REVEAL event so the audience can
    * render their own celebration overlay, and then ends the session.
    */
+  /**
+   * Called when the host clicks "Terminer" on the Fin de Partie overlay.
+   * Ends the session in the backend and navigates to the results page.
+   */
+  const handleGameOver = async (): Promise<void> => {
+    if (!session) return;
+    try {
+      sendMessage({ type: SESSION_EVENTS.SESSION_END, payload: {} });
+      await SessionService.updateSessionStatus(session.id, "ENDED");
+      navigate(`/results/${session.id}`);
+    } catch (err: any) {
+      console.error("handleGameOver error:", err);
+    }
+  };
+
   const handleShowWinner = async (): Promise<void> => {
     if (!session || !isElimination) return;
     if (isRevealingWinner) return;
@@ -1684,6 +1713,11 @@ const HostSession: React.FC = () => {
       </AnimatePresence>
 
       {/* Winner overlay (host side) */}
+      {/* ── Fin de Partie overlay (all players eliminated) ───────────────── */}
+      {isElimination && isGameOver && !revealedWinner && (
+        <GameOverOverlay visible isHost onEnd={handleGameOver} />
+      )}
+
       {isElimination && revealedWinner && (
         <div className="fixed inset-0 z-[150] bg-black/85 backdrop-blur-sm flex items-center justify-center p-6">
           <motion.div

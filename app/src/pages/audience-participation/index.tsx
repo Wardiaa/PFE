@@ -38,6 +38,7 @@ import { EliminationOverlay } from "./components/EliminationOverlay";
 import { SpectatorMode } from "./components/SpectatorMode";
 import { LiveLeaderboard } from "./components/LiveLeaderboard";
 import { WinnerCelebration } from "./components/WinnerCelebration";
+import { GameOverOverlay } from "./components/GameOverOverlay";
 import { CentPourCentBackground } from "./components/CentPourCentBackground";
 import { SessionService } from "../../service/session.service.ts";
 import "../../styles/cent-pour-cent-logique.css";
@@ -140,6 +141,7 @@ const AudienceParticipation: React.FC = () => {
   const [revealedWinner, setRevealedWinner] = useState<Participant | null>(
     null,
   );
+  const [isGameOver, setIsGameOver] = useState<boolean>(false);
   const [submittedOptionId, setSubmittedOptionId] = useState<string | null>(
     null,
   );
@@ -626,6 +628,11 @@ const AudienceParticipation: React.FC = () => {
             setShowAnswerReveal(false);
             setShowEliminationOverlay(false);
           }
+          break;
+        }
+
+        case "GAME_OVER": {
+          setIsGameOver(true);
           break;
         }
 
@@ -1401,6 +1408,22 @@ const AudienceParticipation: React.FC = () => {
       </div>
     );
   };
+
+    // Detect Fin de Partie: all players eliminated, no winner
+  useEffect(() => {
+    if (!isElimination || revealedWinner || isGameOver) return;
+    if (gameState.alive.length === 0 && gameState.totalPlayers > 0) {
+      setIsGameOver(true);
+    }
+  }, [isElimination, revealedWinner, isGameOver, gameState.alive.length, gameState.totalPlayers]);
+
+  if (isElimination && isGameOver && !revealedWinner) {
+    return (
+      <div className={themeClass}>
+        <GameOverOverlay visible onQuit={() => navigate("/audience-participation")} />
+      </div>
+    );
+  }
 
   if (isElimination && revealedWinner) {
     return (
