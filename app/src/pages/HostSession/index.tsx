@@ -358,15 +358,18 @@ const HostSession: React.FC = () => {
   useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
 
   // ── Fin de partie: all players eliminated, no winner ──────────────────────
+  // Gate on showResults so the overlay waits until the round is officially
+  // over (timer hit 0 or host manually closed) — not the instant the last
+  // participant submits a wrong answer mid-question.
   useEffect(() => {
     if (!isElimination || isGameOverRef.current || revealedWinner) return;
+    if (!showResults) return;
     if (gameState.alive.length === 0 && gameState.totalPlayers > 0) {
       isGameOverRef.current = true;
       setIsGameOver(true);
-      // Broadcast to all audience participants so they show the overlay.
       sendMessage({ type: "GAME_OVER", payload: {} });
     }
-  }, [isElimination, revealedWinner, gameState.alive.length, gameState.totalPlayers, sendMessage]);
+  }, [isElimination, revealedWinner, showResults, gameState.alive.length, gameState.totalPlayers, sendMessage]);
 
   // ── Timer interval ───────────────────────────────────────────────────────
   useEffect(() => {

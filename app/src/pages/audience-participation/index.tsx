@@ -1172,6 +1172,7 @@ const AudienceParticipation: React.FC = () => {
     setSubmittedOptionId(null);
     setShowAnswerReveal(false);
     setRevealedWinner(null);
+    setIsGameOver(false);
   };
 
   const handleRetry = () => {
@@ -1409,18 +1410,24 @@ const AudienceParticipation: React.FC = () => {
     );
   };
 
-    // Detect Fin de Partie: all players eliminated, no winner
+  // Detect Fin de Partie: all players eliminated, no winner.
+  // Gate on questionClosed so the overlay only appears once the round is
+  // officially over (timer expired or FORCE_QUESTION_CLOSE received), not
+  // the instant the last participant submits a wrong answer mid-question.
+  // The socket GAME_OVER event (sent by the host after showResults flips)
+  // is the primary trigger; this useEffect is a polling-based fallback.
   useEffect(() => {
     if (!isElimination || revealedWinner || isGameOver) return;
+    if (!questionClosed) return;
     if (gameState.alive.length === 0 && gameState.totalPlayers > 0) {
       setIsGameOver(true);
     }
-  }, [isElimination, revealedWinner, isGameOver, gameState.alive.length, gameState.totalPlayers]);
+  }, [isElimination, revealedWinner, isGameOver, questionClosed, gameState.alive.length, gameState.totalPlayers]);
 
   if (isElimination && isGameOver && !revealedWinner) {
     return (
       <div className={themeClass}>
-        <GameOverOverlay visible onQuit={() => navigate("/audience-participation")} />
+        <GameOverOverlay visible onQuit={() => { window.location.href = "/audience-participation"; }} />
       </div>
     );
   }
