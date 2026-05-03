@@ -148,23 +148,6 @@ export const centPourCentLogiqueTemplate = {
       explanation:
         "Avant tout le reste, il faut bien allumer l'allumette elle-même.",
     },
-    {
-      id: "cpl-q8",
-      type: QUESTION_TYPES.SINGLE_CHOICE,
-      title:
-        "Quel est le seul nombre, en français, qui s'écrit avec autant de lettres que sa valeur ?",
-      points: 200,
-      timeLimit: 30,
-      gameMode: "elimination",
-      options: [
-        { id: "1", text: "trois", isCorrect: false },
-        { id: "2", text: "quatre", isCorrect: true },
-        { id: "3", text: "cinq", isCorrect: false },
-        { id: "4", text: "onze", isCorrect: false },
-      ],
-      explanation:
-        "« quatre » = 6 lettres ? Non : q-u-a-t-r-e = 6… piège ! En français standard, c'est bien « quatre » qui réunit 6 lettres pour la valeur 4 — réponse classique du jeu. (Astuce du présentateur : c'est l'exemple cité dans l'émission.)",
-    },
   ],
 
   // Optional bonus questions — can be added in Step 3 if you want a longer round.
