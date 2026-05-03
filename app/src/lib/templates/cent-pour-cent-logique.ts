@@ -15,7 +15,7 @@ export const centPourCentLogiqueTemplate = {
   color: "bg-gradient-to-br from-[#0a1742] via-[#1b2a8a] to-[#7a1ab4]",
   category: "Game Show",
   popularity: 100,
-  isPopular: true,
+  isPopular: false,
   isNew: true,
 
   // Tells the rest of the app to use the elimination flow + the show theme.
