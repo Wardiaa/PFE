@@ -148,11 +148,6 @@ const WordCloudQuestion: React.FC<WordCloudQuestionProps> = ({ question, onSubmi
         >
           Submit Words
         </Button>
-
-        <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <AppIcon name="Users" size={16} color="var(--color-muted-foreground)" />
-          <span>{question?.responseCount} participants have responded</span>
-        </div>
       </div>
     </div>
   );
