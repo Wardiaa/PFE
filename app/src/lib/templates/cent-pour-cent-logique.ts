@@ -14,7 +14,6 @@ export const centPourCentLogiqueTemplate = {
   icon: Crown,
   color: "bg-gradient-to-br from-[#0a1742] via-[#1b2a8a] to-[#7a1ab4]",
   category: "Game Show",
-  popularity: 100,
   isPopular: false,
   isNew: true,
 
