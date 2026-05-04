@@ -13,6 +13,14 @@
 //     "logique" or "elimination" so it lands in the right bucket.
 //  7. Added handleGameModeChange to allow toggling elimination mode manually.
 //
+// SCALING additions (drop-in for Scaling question type support):
+//  A. DbQuestionType union now includes "SCALING".
+//  B. toDbQuestionType maps "scaling" / "SCALING" → "SCALING" instead of
+//     falling through to the "MULTIPLE_CHOICE" default.
+//  C. toDbQuestion now sends `statements` to the DB on INSERT.
+//  D. The UPDATE loop for existing questions also sends `statements`.
+//  E. Edit-load mapping reads `statements` back from the DB row.
+//
 // Everything else is byte-for-byte identical to your original file.
 
 import { useState, useEffect, useCallback, useReducer, useRef } from "react";
@@ -126,7 +134,7 @@ function deriveContextType(templateId: string | null): SupabaseContextType {
 // ---------------------------------------------------------------------------
 // Map local question type strings → DB enum values
 // DB enum: MULTIPLE_CHOICE | SINGLE_CHOICE | TRUE_FALSE | OPEN_TEXT |
-//          POLL | RATING | WORD_CLOUD | IMAGE_CHOICE
+//          POLL | RATING | WORD_CLOUD | IMAGE_CHOICE | SCALING
 // ---------------------------------------------------------------------------
 type DbQuestionType =
   | "MULTIPLE_CHOICE"
@@ -136,7 +144,9 @@ type DbQuestionType =
   | "POLL"
   | "RATING"
   | "WORD_CLOUD"
-  | "IMAGE_CHOICE";
+  | "IMAGE_CHOICE"
+  // FIX A: add SCALING so the type-system knows it's a valid DB value
+  | "SCALING";
 
 function toDbQuestionType(localType: string): DbQuestionType {
   const map: Record<string, DbQuestionType> = {
@@ -148,6 +158,11 @@ function toDbQuestionType(localType: string): DbQuestionType {
     RATING: "RATING",
     WORD_CLOUD: "WORD_CLOUD",
     IMAGE_CHOICE: "IMAGE_CHOICE",
+    // FIX B: map scaling (both cases) → SCALING instead of falling through
+    // to the "MULTIPLE_CHOICE" default, which caused the wrong type to be
+    // saved and the question to render as multiple-choice on edit.
+    SCALING: "SCALING",
+    scaling: "SCALING",
     // local aliases
     QUIZ: "MULTIPLE_CHOICE",
     OPEN: "OPEN_TEXT",
@@ -184,6 +199,8 @@ function toDbQuestion(q: Question, contextId: string, questionOrder: number) {
     theme: q.theme || null,
     show_results_instantly: q.showResultsInstantly ?? false,
     hide_participant_names: q.hideParticipantNames ?? false,
+    // FIX C: persist statements so Scaling questions survive a save/reload
+    statements: (q as any).statements ?? null,
   };
 }
 
@@ -344,6 +361,8 @@ export function useQuizBuilder() {
           theme: q.theme || undefined,
           showResultsInstantly: q.show_results_instantly ?? false,
           hideParticipantNames: q.hide_participant_names ?? false,
+          // FIX E: restore statements so Scaling questions load correctly in the editor
+          statements: q.statements ?? undefined,
         }));
         dispatch({ type: "SET_QUESTIONS", payload: localQuestions });
 
@@ -804,6 +823,8 @@ export function useQuizBuilder() {
             theme: q.theme || null,
             show_results_instantly: q.showResultsInstantly ?? false,
             hide_participant_names: q.hideParticipantNames ?? false,
+            // FIX D: send statements on UPDATE so edits to Scaling questions are saved
+            statements: (q as any).statements ?? null,
           })
           .eq("id", q.id);
         if (error) throw new Error(error.message);

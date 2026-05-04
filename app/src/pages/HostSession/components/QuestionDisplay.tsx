@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import AppIcon from "../../../components/AppIcon";
+import ScalingQuestionDisplay from "./ScalingQuestionDisplay";
 import type {
   Question,
   QuestionResponses,
@@ -8,6 +9,7 @@ import type {
   RatingResponses,
   OpenTextResponses,
   WordCloudResponses,
+  ScalingResponses,
 } from "../../../lib/presentation.types";
 
 interface QuestionDisplayProps {
@@ -20,8 +22,6 @@ interface QuestionDisplayProps {
 }
 
 // ── Compact participant names chip list ──────────────────────────────────────
-// Shows up to MAX_VISIBLE avatar-style chips in a wrap layout.
-// Any extras are collapsed into a "+N more" chip.
 const MAX_VISIBLE = 8;
 
 interface ParticipantChipsProps {
@@ -42,9 +42,7 @@ const ParticipantChips: React.FC<ParticipantChipsProps> = ({ names }) => {
           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium"
           title={name}
         >
-          <span
-            className="w-4 h-4 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[9px] font-bold flex-shrink-0"
-          >
+          <span className="w-4 h-4 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[9px] font-bold flex-shrink-0">
             {name.charAt(0).toUpperCase()}
           </span>
           <span className="max-w-[5rem] sm:max-w-[6rem] truncate">{name}</span>
@@ -70,7 +68,6 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
 }) => {
   const questionImage = (question as any).image || (question as any).imageUrl;
 
-  // Check if an option has only an image and no text
   const isImageOnlyOption = (option: any): boolean => {
     const hasImage = !!option.imageUrl || !!option.image;
     const hasNoText = !option.text || option.text.trim() === '';
@@ -78,8 +75,12 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
   };
 
   const renderQuestionContent = () => {
-    switch (question.type) {
+    // Normalize to lowercase so raw DB values ("SCALING", "RATING", etc.) also match.
+    switch ((question.type as string).toLowerCase()) {
       case "multiple-choice":
+      case "single_choice":
+      case "true_false":
+      case "poll":
         return renderMultipleChoice(
           question,
           responses as MultipleChoiceResponses,
@@ -87,9 +88,13 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
       case "rating":
         return renderRating(responses as RatingResponses);
       case "open-text":
+      case "open_text":
         return renderOpenText(responses as OpenTextResponses);
       case "word-cloud":
+      case "word_cloud":
         return renderWordCloud(responses as WordCloudResponses);
+      case "scaling":
+        return renderScaling(responses as ScalingResponses);
       default:
         return null;
     }
@@ -120,7 +125,6 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
           const isCorrect = showCorrectAnswer && option.isCorrect;
           const imageOnly = isImageOnlyOption(option);
 
-          // Names that chose this option
           const respondentNames: string[] =
             !hideParticipantNames && responses.individualResponses
               ? responses.individualResponses
@@ -145,22 +149,17 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
               `}
             >
               {imageOnly ? (
-                // Image-only option - full width image with floating elements
                 <div className="relative">
                   <img
                     src={optionImage}
                     alt=""
                     className="w-full h-auto object-contain max-h-48"
                   />
-                  
-                  {/* Floating letter badge - top left */}
                   <div className="absolute top-2 left-2 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/90 flex items-center justify-center shadow-md">
                     <span className="text-sm sm:text-lg font-bold text-white">
                       {String.fromCharCode(65 + index)}
                     </span>
                   </div>
-                  
-                  {/* Correct answer badge - top right */}
                   {isCorrect && (
                     <div className="absolute top-2 right-2">
                       <AppIcon
@@ -170,8 +169,6 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                       />
                     </div>
                   )}
-
-                  {/* Results section - below the image */}
                   {showResults && (
                     <div className="p-3 sm:p-4 md:p-5">
                       <div className="flex items-center justify-between mb-1.5">
@@ -191,8 +188,6 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                           style={{ width: `${percentage}%` }}
                         />
                       </div>
-
-                      {/* Participant name chips */}
                       {!hideParticipantNames && respondentNames.length > 0 && (
                         <ParticipantChips names={respondentNames} />
                       )}
@@ -200,9 +195,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                   )}
                 </div>
               ) : (
-                // Text option (may also have an image)
                 <>
-                  {/* Option header row with letter */}
                   <div className="flex items-center gap-2 sm:gap-3 mb-2">
                     <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                       <span className="text-base sm:text-lg font-semibold text-primary">
@@ -221,7 +214,6 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                     )}
                   </div>
 
-                  {/* Option image (if present) */}
                   {optionImage && (
                     <div className="mt-3 ml-10 sm:ml-13 overflow-hidden rounded-lg border border-border bg-muted/30 flex justify-center">
                       <img
@@ -232,7 +224,6 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                     </div>
                   )}
 
-                  {/* Results bar + participant name chips */}
                   {showResults && (
                     <div className="ml-10 sm:ml-13 mt-2">
                       <div className="flex items-center justify-between mb-1.5">
@@ -252,8 +243,6 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                           style={{ width: `${percentage}%` }}
                         />
                       </div>
-
-                      {/* Compact participant name chips */}
                       {!hideParticipantNames && respondentNames.length > 0 && (
                         <ParticipantChips names={respondentNames} />
                       )}
@@ -273,7 +262,6 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
 
     return (
       <div className="space-y-4 md:space-y-6">
-        {/* Rating boxes */}
         <div className="flex justify-center gap-2 sm:gap-3 md:gap-4 mb-4 md:mb-6 flex-wrap sm:flex-nowrap">
           {ratings.map((rating) => {
             const count = Number(responses[rating]) || 0;
@@ -524,6 +512,20 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
     );
   };
 
+  // ── Scaling renderer (delegates to ScalingQuestionDisplay) ─────────────────
+  const renderScaling = (responses: ScalingResponses) => {
+    const statements = (question as any).statements ?? [];
+    return (
+      <ScalingQuestionDisplay
+        statements={statements}
+        responses={responses}
+        showResults={showResults}
+        scale={(question as any).scale}
+        labels={(question as any).labels}
+      />
+    );
+  };
+
   return (
     <div className="w-full">
       <div className="mb-5 sm:mb-6 md:mb-8 lg:mb-10">
@@ -545,11 +547,11 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
         )}
 
         {questionImage && (
-          <div className="mt-4 sm:mt-6 ml-10 sm:ml-13 md:ml-16 overflow-hidden rounded-xl border border-border bg-muted/30 flex justify-center">
+          <div className="mt-4 sm:mt-5 md:mt-6 ml-10 sm:ml-13 md:ml-16 overflow-hidden rounded-xl border border-border bg-muted/30 flex justify-center p-2 sm:p-3">
             <img
               src={questionImage}
               alt="Question visual"
-              className="w-auto max-w-full max-h-40 sm:max-h-52 md:max-h-60 lg:max-h-72 object-contain"
+              className="block w-auto max-w-full h-auto max-h-[280px] sm:max-h-[320px] md:max-h-[380px] object-contain mx-auto rounded-lg"
             />
           </div>
         )}

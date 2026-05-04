@@ -31,6 +31,8 @@ import {
   PawPrint,
   Clock,
   Upload,
+  SlidersHorizontal,
+  GripVertical,
 } from "lucide-react";
 
 // Local interactivity settings state
@@ -55,7 +57,6 @@ interface QuestionSidePanelProps {
   inline?: boolean;
 }
 
-// Track upload progress per option
 interface UploadState {
   isUploading: boolean;
   progress: number;
@@ -179,7 +180,6 @@ const MentiToggle = ({
   </button>
 );
 
-// ── ComingSoon wrapper ─────────────────────────────────────────────────────
 function ComingSoon({
   children,
   label = "Coming soon",
@@ -331,38 +331,22 @@ export function QuestionSidePanel({
     updates: Partial<NonNullable<Question["options"]>[number]>,
   ) => {
     if (!currentQuestion?.options) return;
-
     const newOptions = [...currentQuestion.options];
-    newOptions[optionIndex] = {
-      ...newOptions[optionIndex],
-      ...updates,
-    };
-
+    newOptions[optionIndex] = { ...newOptions[optionIndex], ...updates };
     onUpdateQuestion({ options: newOptions });
   };
 
   const removeOptionImage = (optionIndex: number) => {
     if (!currentQuestion?.options) return;
-
     const newOptions = [...currentQuestion.options];
-    newOptions[optionIndex] = {
-      ...newOptions[optionIndex],
-      imageUrl: null,
-    };
-
+    newOptions[optionIndex] = { ...newOptions[optionIndex], imageUrl: null };
     onUpdateQuestion({ options: newOptions });
   };
 
   const setUploadingState = (optionIndex: number, state: Partial<UploadState>) => {
     setUploadStates((prev) => {
       const existing = prev[optionIndex] || { isUploading: false, progress: 0, error: null };
-      return {
-        ...prev,
-        [optionIndex]: {
-          ...existing,
-          ...state,
-        },
-      };
+      return { ...prev, [optionIndex]: { ...existing, ...state } };
     });
   };
 
@@ -386,26 +370,21 @@ export function QuestionSidePanel({
   ) => {
     const file = event.currentTarget.files?.[0];
     if (!file) return;
-
-    // Reset the input value after reading the file
     const input = event.currentTarget;
-    
     setUploadingState(optionIndex, { isUploading: true, progress: 0, error: null });
 
     const validation = validateImageFile(file);
     if (!validation.valid) {
-      setUploadingState(optionIndex, { 
-        isUploading: false, 
-        progress: 0, 
-        error: validation.error || "Invalid image file" 
+      setUploadingState(optionIndex, {
+        isUploading: false,
+        progress: 0,
+        error: validation.error || "Invalid image file",
       });
-      // Clear the input value
       if (input) input.value = '';
       return;
     }
 
     const clearProgressInterval = simulateUploadProgress(optionIndex);
-
     try {
       const uploadedUrl = await uploadImageToCloudinary(file);
       const optimizedUrl = optimizeImageUrl(uploadedUrl, {
@@ -414,22 +393,19 @@ export function QuestionSidePanel({
         quality: "auto",
         format: "auto",
       });
-
       setUploadingState(optionIndex, { progress: 100 });
-      
       setTimeout(() => {
         updateOption(optionIndex, { imageUrl: optimizedUrl });
         setUploadingState(optionIndex, { isUploading: false, progress: 0, error: null });
       }, 200);
     } catch (error) {
-      setUploadingState(optionIndex, { 
-        isUploading: false, 
-        progress: 0, 
-        error: error instanceof Error ? error.message : "Failed to upload image" 
+      setUploadingState(optionIndex, {
+        isUploading: false,
+        progress: 0,
+        error: error instanceof Error ? error.message : "Failed to upload image",
       });
     } finally {
       clearProgressInterval();
-      // Clear the input value so the same file can be uploaded again if needed
       if (input) input.value = '';
     }
   };
@@ -438,18 +414,41 @@ export function QuestionSidePanel({
     fileInputRefs.current[optionIndex]?.click();
   };
 
-  // Edit Panel - New UI Style
+  // ── Scaling statements helpers ─────────────────────────────────────────────
+  const getStatements = (): Array<{ id: string; text: string }> => {
+    return (currentQuestion as any)?.statements ?? [];
+  };
+
+  const updateStatement = (idx: number, text: string) => {
+    const stmts = getStatements();
+    const updated = stmts.map((s, i) => (i === idx ? { ...s, text } : s));
+    onUpdateQuestion({ statements: updated } as any);
+  };
+
+  const addStatement = () => {
+    const stmts = getStatements();
+    const newId = `${currentQuestion?.id ?? "q"}-s${Date.now()}`;
+    onUpdateQuestion({ statements: [...stmts, { id: newId, text: "" }] } as any);
+  };
+
+  const removeStatement = (idx: number) => {
+    const stmts = getStatements();
+    onUpdateQuestion({ statements: stmts.filter((_, i) => i !== idx) } as any);
+  };
+
+  const updateLabel = (key: "min" | "max", value: string) => {
+    const current = (currentQuestion as any)?.labels ?? {};
+    onUpdateQuestion({ labels: { ...current, [key]: value } } as any);
+  };
+
+  // ── Edit Panel ─────────────────────────────────────────────────────────────
   const renderEditPanel = () => {
     if (!currentQuestion) {
       return (
         <div className="text-center py-20">
           <BarChart2 className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-          <p className="text-sm font-semibold text-slate-400">
-            No question selected
-          </p>
-          <p className="text-xs text-slate-300 mt-1">
-            Select a question to edit
-          </p>
+          <p className="text-sm font-semibold text-slate-400">No question selected</p>
+          <p className="text-xs text-slate-300 mt-1">Select a question to edit</p>
         </div>
       );
     }
@@ -460,27 +459,33 @@ export function QuestionSidePanel({
       currentQuestion.type === "MULTIPLE_CHOICE" ||
       currentQuestion.type === "POLL";
 
+    const isScalingType =
+      currentQuestion.type === "scaling" ||
+      (currentQuestion as any).type === "SCALING";
+
     return (
       <div className="space-y-6">
-        {/* Header with Back Arrow and Question Type */}
+        {/* Header */}
         <div className="flex items-center gap-3">
           <button className="p-1 hover:bg-slate-100 rounded-lg">
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
           <h2 className="text-lg font-medium text-slate-800">
-            {currentQuestion.type === "multiple-choice"
+            {isScalingType
+              ? "Scales"
+              : currentQuestion.type === "multiple-choice"
               ? "Multiple Choice"
               : currentQuestion.type === "open-text"
-                ? "Open Text"
-                : currentQuestion.type === "word-cloud"
-                  ? "Word Cloud"
-                  : currentQuestion.type === "rating-scale"
-                    ? "Rating Scale"
-                    : "Question"}
+              ? "Open Text"
+              : currentQuestion.type === "word-cloud"
+              ? "Word Cloud"
+              : currentQuestion.type === "rating-scale"
+              ? "Rating Scale"
+              : "Question"}
           </h2>
         </div>
 
-        {/* Question Title Input */}
+        {/* Question Title */}
         <div className="space-y-2">
           <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
             Question
@@ -494,7 +499,7 @@ export function QuestionSidePanel({
           />
         </div>
 
-        {/* Description Input */}
+        {/* Description */}
         <div className="space-y-2">
           <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
             Description (optional)
@@ -507,7 +512,101 @@ export function QuestionSidePanel({
           />
         </div>
 
-        {/* Options Section (for choice types) */}
+        {/* ── Scaling: statements editor ──────────────────────────────────── */}
+        {isScalingType && (
+          <div className="space-y-4">
+            {/* Statements */}
+            <div className="space-y-3">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-teal-600" />
+                Statements
+              </label>
+
+              <div className="space-y-2">
+                {getStatements().map((stmt, idx) => (
+                  <div
+                    key={stmt.id}
+                    className="flex items-center gap-2 group"
+                  >
+                    <GripVertical className="w-4 h-4 text-slate-300 shrink-0" />
+
+                    <div className="flex-1 flex items-center gap-2 bg-[#F1F3F5] rounded-xl px-3 py-2.5 border border-transparent focus-within:border-slate-200 transition-all">
+                      <div className="w-5 h-5 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[10px] font-bold shrink-0">
+                        {idx + 1}
+                      </div>
+                      <input
+                        type="text"
+                        value={stmt.text}
+                        onChange={(e) => updateStatement(idx, e.target.value)}
+                        className="bg-transparent border-none outline-none text-sm w-full font-medium"
+                        placeholder={`Statement ${idx + 1}`}
+                      />
+                    </div>
+
+                    <button
+                      onClick={() => removeStatement(idx)}
+                      className="text-slate-300 hover:text-rose-500 shrink-0 transition-colors"
+                      title="Remove statement"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={addStatement}
+                className="w-full py-3 bg-[#F1F3F5] hover:bg-[#E9ECEF] rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-2 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add statement
+              </button>
+            </div>
+
+            {/* Scale labels */}
+            <div className="space-y-3">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Scale Labels
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <span className="text-[11px] text-slate-500 font-medium">Min label</span>
+                  <input
+                    type="text"
+                    value={(currentQuestion as any)?.labels?.min ?? "Strongly disagree"}
+                    onChange={(e) => updateLabel("min", e.target.value)}
+                    className="w-full px-3 py-2 bg-[#F1F3F5] rounded-xl border border-transparent focus:border-slate-200 outline-none text-xs font-medium"
+                    placeholder="Strongly disagree"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[11px] text-slate-500 font-medium">Max label</span>
+                  <input
+                    type="text"
+                    value={(currentQuestion as any)?.labels?.max ?? "Strongly agree"}
+                    onChange={(e) => updateLabel("max", e.target.value)}
+                    className="w-full px-3 py-2 bg-[#F1F3F5] rounded-xl border border-transparent focus:border-slate-200 outline-none text-xs font-medium"
+                    placeholder="Strongly agree"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-slate-400 px-1">
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <div
+                      key={n}
+                      className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-500"
+                    >
+                      {n}
+                    </div>
+                  ))}
+                </div>
+                <span className="text-slate-300 text-[10px]">Fixed 1–5 scale</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Choice type options */}
         {isChoiceType && (
           <div className="space-y-3">
             <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -516,65 +615,47 @@ export function QuestionSidePanel({
             <div className="space-y-2">
               {currentQuestion.options?.map((opt, idx) => {
                 const uploadState = uploadStates[idx] || { isUploading: false, progress: 0, error: null };
-                
+
                 return (
                   <div key={opt.id} className="space-y-2">
                     <div className="flex items-center gap-2 group">
                       <button
                         onClick={() => {
                           const newOpts = [...(currentQuestion.options || [])];
-                          newOpts[idx] = {
-                            ...newOpts[idx],
-                            isCorrect: !newOpts[idx].isCorrect,
-                          };
+                          newOpts[idx] = { ...newOpts[idx], isCorrect: !newOpts[idx].isCorrect };
                           onUpdateQuestion({ options: newOpts });
                         }}
                         className={cn(
                           "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors shrink-0",
-                          opt.isCorrect
-                            ? "bg-[#6366F1] border-[#6366F1]"
-                            : "border-slate-200",
+                          opt.isCorrect ? "bg-[#6366F1] border-[#6366F1]" : "border-slate-200",
                         )}
                       >
-                        {opt.isCorrect && (
-                          <Check className="w-3 h-3 text-white" />
-                        )}
+                        {opt.isCorrect && <Check className="w-3 h-3 text-white" />}
                       </button>
 
                       <div className="flex-1 flex items-center gap-2 bg-[#F1F3F5] rounded-xl px-3 py-2.5 border border-transparent focus-within:border-slate-200 transition-all">
                         <div
                           className={cn(
                             "w-4 h-4 rounded-full shrink-0",
-                            idx === 0
-                              ? "bg-blue-500"
-                              : idx === 1
-                                ? "bg-rose-400"
-                                : idx === 2
-                                  ? "bg-indigo-900"
-                                  : "bg-emerald-500",
+                            idx === 0 ? "bg-blue-500"
+                              : idx === 1 ? "bg-rose-400"
+                              : idx === 2 ? "bg-indigo-900"
+                              : "bg-emerald-500",
                           )}
                         />
-
                         <input
                           type="text"
                           value={opt.text}
-                          onChange={(e) =>
-                            updateOption(idx, { text: e.target.value })
-                          }
+                          onChange={(e) => updateOption(idx, { text: e.target.value })}
                           className="bg-transparent border-none outline-none text-sm w-full font-medium"
                           placeholder={"Option " + (idx + 1)}
                         />
-
                         <button
                           type="button"
                           onClick={() => triggerFileInput(idx)}
                           disabled={uploadState.isUploading}
                           className="w-8 h-8 shrink-0 rounded-lg bg-white border border-slate-200 flex items-center justify-center hover:border-[#6366F1] hover:text-[#6366F1] transition-colors disabled:opacity-60 disabled:cursor-not-allowed relative"
-                          title={
-                            opt.imageUrl
-                              ? "Change option image"
-                              : "Upload option image"
-                          }
+                          title={opt.imageUrl ? "Change option image" : "Upload option image"}
                         >
                           {uploadState.isUploading ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin text-[#6366F1]" />
@@ -583,9 +664,7 @@ export function QuestionSidePanel({
                           )}
                         </button>
                         <input
-                          ref={(el) => {
-                            fileInputRefs.current[idx] = el;
-                          }}
+                          ref={(el) => { fileInputRefs.current[idx] = el; }}
                           type="file"
                           accept="image/*"
                           className="hidden"
@@ -596,9 +675,7 @@ export function QuestionSidePanel({
 
                       <button
                         onClick={() => {
-                          const newOpts = (currentQuestion.options || []).filter(
-                            (_, i) => i !== idx,
-                          );
+                          const newOpts = (currentQuestion.options || []).filter((_, i) => i !== idx);
                           onUpdateQuestion({ options: newOpts });
                         }}
                         className="text-slate-400 hover:text-rose-500 shrink-0"
@@ -607,7 +684,6 @@ export function QuestionSidePanel({
                       </button>
                     </div>
 
-                    {/* Upload Progress Bar */}
                     {uploadState.isUploading && uploadState.progress > 0 && uploadState.progress < 100 && (
                       <div className="ml-7">
                         <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
@@ -623,7 +699,6 @@ export function QuestionSidePanel({
                       </div>
                     )}
 
-                    {/* Upload Error */}
                     {uploadState.error && (
                       <p className="ml-7 text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
                         {uploadState.error}
@@ -632,11 +707,7 @@ export function QuestionSidePanel({
 
                     {opt.imageUrl && !uploadState.isUploading && (
                       <div className="ml-7 relative w-full max-w-[220px] overflow-hidden rounded-xl border border-slate-200 bg-white">
-                        <img
-                          src={opt.imageUrl}
-                          alt=""
-                          className="w-full h-28 object-contain"
-                        />
+                        <img src={opt.imageUrl} alt="" className="w-full h-28 object-contain" />
                         <button
                           type="button"
                           onClick={() => removeOptionImage(idx)}
@@ -656,11 +727,7 @@ export function QuestionSidePanel({
               onClick={() => {
                 const newOpts = [...(currentQuestion.options || [])];
                 const newId = `${currentQuestion.id}-${Date.now()}`;
-                newOpts.push({
-                  id: newId,
-                  text: `Option ${newOpts.length + 1}`,
-                  isCorrect: false,
-                });
+                newOpts.push({ id: newId, text: `Option ${newOpts.length + 1}`, isCorrect: false });
                 onUpdateQuestion({ options: newOpts });
               }}
               className="w-full py-3 bg-[#F1F3F5] hover:bg-[#E9ECEF] rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-2 transition-colors"
@@ -670,6 +737,7 @@ export function QuestionSidePanel({
           </div>
         )}
 
+        {/* Question Image */}
         <div className="space-y-2">
           <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
             Question Image
@@ -711,7 +779,7 @@ export function QuestionSidePanel({
     );
   };
 
-  // ── Comments Panel — Coming Soon stub ────────────────────────────────────
+  // ── Comments Panel ─────────────────────────────────────────────────────────
   const renderCommentsPanel = () => (
     <div className="flex flex-col items-center justify-center py-20 text-center px-6">
       <div className="relative w-16 h-16 mb-5">
@@ -724,9 +792,7 @@ export function QuestionSidePanel({
         <Clock className="w-2.5 h-2.5" />
         Coming soon
       </div>
-      <h3 className="text-base font-bold text-slate-800 mb-1.5">
-        Collaborator comments
-      </h3>
+      <h3 className="text-base font-bold text-slate-800 mb-1.5">Collaborator comments</h3>
       <p className="text-xs text-slate-500 max-w-[240px] leading-relaxed">
         Leave notes for your team or yourself on each question. This is still
         being built and will be available in a future release.
@@ -734,26 +800,21 @@ export function QuestionSidePanel({
     </div>
   );
 
-  // Interactivity Panel
+  // ── Interactivity Panel ────────────────────────────────────────────────────
   const renderInteractivityPanel = () => {
     const q = currentQuestion;
     if (!q) {
       return (
         <div className="text-center py-20">
           <Pointer className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-          <p className="text-sm font-semibold text-slate-400">
-            No question selected
-          </p>
-          <p className="text-xs text-slate-300 mt-1">
-            Select a question to configure interactivity
-          </p>
+          <p className="text-sm font-semibold text-slate-400">No question selected</p>
+          <p className="text-xs text-slate-300 mt-1">Select a question to configure interactivity</p>
         </div>
       );
     }
 
     return (
       <div className="space-y-6">
-        {/* Timer Section — works */}
         <section className="space-y-3">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-800">Time limit</h3>
@@ -766,9 +827,7 @@ export function QuestionSidePanel({
                 onClick={() => onUpdateQuestion({ timeLimit: s })}
                 className={cn(
                   "py-2 rounded-lg text-xs font-bold transition-all",
-                  q.timeLimit === s
-                    ? "bg-[#6366F1] text-white"
-                    : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200",
+                  q.timeLimit === s ? "bg-[#6366F1] text-white" : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200",
                 )}
               >
                 {s}s
@@ -778,23 +837,19 @@ export function QuestionSidePanel({
               onClick={() => onUpdateQuestion({ timeLimit: null })}
               className={cn(
                 "py-2 rounded-lg text-xs font-bold transition-all",
-                q.timeLimit == null
-                  ? "bg-[#6366F1] text-white"
-                  : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200",
+                q.timeLimit == null ? "bg-[#6366F1] text-white" : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200",
               )}
             >
               No timer
             </button>
           </div>
           <p className="text-[11px] text-slate-500">
-            Choose “No timer” when participants should have unlimited time to
-            answer this question.
+            Choose "No timer" when participants should have unlimited time to answer this question.
           </p>
         </section>
 
         <div className="h-px bg-slate-100" />
 
-        {/* Points Section — works */}
         <section className="space-y-3">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-800">Points</h3>
@@ -807,9 +862,7 @@ export function QuestionSidePanel({
                 onClick={() => onUpdateQuestion({ points: p })}
                 className={cn(
                   "py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1",
-                  q.points === p
-                    ? "bg-amber-500 text-white"
-                    : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200",
+                  q.points === p ? "bg-amber-500 text-white" : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200",
                 )}
               >
                 <Star className="w-3 h-3" />
@@ -821,27 +874,19 @@ export function QuestionSidePanel({
 
         <div className="h-px bg-slate-100" />
 
-        {/* Participant Names — works */}
         <section className="space-y-3">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-slate-800">
-              Participant names
-            </h3>
+            <h3 className="text-sm font-bold text-slate-800">Participant names</h3>
             <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold uppercase">
               Pro
             </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-600">
-              Hide participant names{" "}
-            </span>
+            <span className="text-xs text-slate-600">Hide participant names</span>
             <MentiToggle
               checked={interactivitySettings.hideParticipantNames}
               onChange={(val) => {
-                setInteractivitySettings((prev) => ({
-                  ...prev,
-                  hideParticipantNames: val,
-                }));
+                setInteractivitySettings((prev) => ({ ...prev, hideParticipantNames: val }));
                 onUpdateQuestion({ hideParticipantNames: val });
               }}
             />
@@ -850,7 +895,6 @@ export function QuestionSidePanel({
 
         <div className="h-px bg-slate-100" />
 
-        {/* ── Reactions — Coming Soon ──────────────────────────────── */}
         <ComingSoon>
           <section className="space-y-3">
             <div className="flex items-center gap-2">
@@ -858,34 +902,26 @@ export function QuestionSidePanel({
               <HelpCircle className="w-3.5 h-3.5 text-slate-300" />
             </div>
             <div className="flex gap-1.5">
-              {[PawPrint, Heart, HelpCircle, ThumbsUp, ThumbsDown].map(
-                (Icon, i) => (
-                  <button
-                    key={i}
-                    className={cn(
-                      "w-9 h-9 rounded-lg border flex items-center justify-center transition-all",
-                      i === 3
-                        ? "border-[#6366F1] bg-indigo-50/50"
-                        : "border-slate-200 bg-white hover:border-slate-300",
-                    )}
-                  >
-                    <Icon
-                      className={cn(
-                        "w-4 h-4",
-                        i === 3 ? "text-slate-800" : "text-slate-800",
-                      )}
-                      fill={i === 3 ? "currentColor" : "none"}
-                    />
-                  </button>
-                ),
-              )}
+              {[PawPrint, Heart, HelpCircle, ThumbsUp, ThumbsDown].map((Icon, i) => (
+                <button
+                  key={i}
+                  className={cn(
+                    "w-9 h-9 rounded-lg border flex items-center justify-center transition-all",
+                    i === 3 ? "border-[#6366F1] bg-indigo-50/50" : "border-slate-200 bg-white hover:border-slate-300",
+                  )}
+                >
+                  <Icon
+                    className={cn("w-4 h-4", i === 3 ? "text-slate-800" : "text-slate-800")}
+                    fill={i === 3 ? "currentColor" : "none"}
+                  />
+                </button>
+              ))}
             </div>
           </section>
         </ComingSoon>
 
         <div className="h-px bg-slate-100" />
 
-        {/* ── Q&A — Coming Soon ────────────────────────────────────── */}
         <ComingSoon>
           <section className="space-y-3">
             <div className="flex items-center gap-2">
@@ -895,19 +931,11 @@ export function QuestionSidePanel({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-slate-600">Enable Q&A</span>
-                <MentiToggle
-                  checked={interactivitySettings.qaEnabled}
-                  onChange={() => {}}
-                />
+                <MentiToggle checked={interactivitySettings.qaEnabled} onChange={() => {}} />
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-600 leading-tight">
-                  Questions are visible to everyone
-                </span>
-                <MentiToggle
-                  checked={interactivitySettings.qaVisibleToAll}
-                  onChange={() => {}}
-                />
+                <span className="text-xs text-slate-600 leading-tight">Questions are visible to everyone</span>
+                <MentiToggle checked={interactivitySettings.qaVisibleToAll} onChange={() => {}} />
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
@@ -916,10 +944,7 @@ export function QuestionSidePanel({
                     <Star className="w-2.5 h-2.5 text-emerald-700 fill-current" />
                   </div>
                 </div>
-                <MentiToggle
-                  checked={interactivitySettings.qaModeration}
-                  onChange={() => {}}
-                />
+                <MentiToggle checked={interactivitySettings.qaModeration} onChange={() => {}} />
               </div>
             </div>
           </section>
@@ -927,31 +952,23 @@ export function QuestionSidePanel({
 
         <div className="h-px bg-slate-100" />
 
-        {/* ── Settings ─────────────────────────────────────────────── */}
         <section className="space-y-3">
           <h3 className="text-sm font-bold text-slate-800">Settings</h3>
           <div className="space-y-2.5">
-            {/* Show results instantly — works */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <BarChart2 className="w-3.5 h-3.5 text-slate-400" />
-                <span className="text-xs text-slate-600">
-                  Show results instantly
-                </span>
+                <span className="text-xs text-slate-600">Show results instantly</span>
               </div>
               <MentiToggle
                 checked={interactivitySettings.showResultsInstantly}
                 onChange={(val) => {
-                  setInteractivitySettings((prev) => ({
-                    ...prev,
-                    showResultsInstantly: val,
-                  }));
+                  setInteractivitySettings((prev) => ({ ...prev, showResultsInstantly: val }));
                   onUpdateQuestion({ showResultsInstantly: val });
                 }}
               />
             </div>
 
-            {/* Lock question — works */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {q.locked ? (
@@ -967,7 +984,6 @@ export function QuestionSidePanel({
               />
             </div>
 
-            {/* Coming-soon advanced rows */}
             <ComingSoon label="Soon">
               <div className="space-y-2.5 pt-1">
                 <div className="flex items-center justify-between">
@@ -977,13 +993,10 @@ export function QuestionSidePanel({
                   </div>
                   <MentiToggle checked={false} onChange={() => {}} />
                 </div>
-
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <BarChart2 className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="text-xs text-slate-600">
-                      Shuffle options
-                    </span>
+                    <span className="text-xs text-slate-600">Shuffle options</span>
                   </div>
                   <MentiToggle checked={false} onChange={() => {}} />
                 </div>
@@ -995,18 +1008,14 @@ export function QuestionSidePanel({
     );
   };
 
-  // Themes Panel
+  // ── Themes Panel ───────────────────────────────────────────────────────────
   const renderThemesPanel = () => {
     if (!currentQuestion) {
       return (
         <div className="text-center py-20">
           <PaintRoller className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-          <p className="text-sm font-semibold text-slate-400">
-            No question selected
-          </p>
-          <p className="text-xs text-slate-300 mt-1">
-            Select a question to apply a theme
-          </p>
+          <p className="text-sm font-semibold text-slate-400">No question selected</p>
+          <p className="text-xs text-slate-300 mt-1">Select a question to apply a theme</p>
         </div>
       );
     }
@@ -1015,15 +1024,11 @@ export function QuestionSidePanel({
       <ComingSoon>
         <div className="space-y-5">
           <div>
-            <p className="text-sm font-bold text-slate-800 mb-1">
-              Question Theme
-            </p>
+            <p className="text-sm font-bold text-slate-800 mb-1">Question Theme</p>
             <p className="text-xs text-slate-400">
-              Choose a visual style for this question. It will appear in the
-              participant preview.
+              Choose a visual style for this question. It will appear in the participant preview.
             </p>
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             {QUESTION_THEMES.map((theme) => (
               <ThemePreviewCard
@@ -1035,7 +1040,6 @@ export function QuestionSidePanel({
               />
             ))}
           </div>
-
           {selectedThemeId !== "default" && (
             <button
               onClick={() => handleThemeSelect("default")}
@@ -1052,27 +1056,20 @@ export function QuestionSidePanel({
 
   const renderPanelContent = () => {
     switch (activeMenu) {
-      case "edit":
-        return renderEditPanel();
-      case "comments":
-        return renderCommentsPanel();
-      case "interactivity":
-        return renderInteractivityPanel();
-      case "themes":
-        return renderThemesPanel();
-      default:
-        return null;
+      case "edit":       return renderEditPanel();
+      case "comments":   return renderCommentsPanel();
+      case "interactivity": return renderInteractivityPanel();
+      case "themes":     return renderThemesPanel();
+      default:           return null;
     }
   };
 
-  const panelTitle =
-    menuItems.find((m) => m.id === activeMenu)?.label ?? "Edit";
+  const panelTitle = menuItems.find((m) => m.id === activeMenu)?.label ?? "Edit";
 
-  // ── INLINE mode (mobile bottom sheet) ────────────────────────────────────
+  // ── INLINE mode ───────────────────────────────────────────────────────────
   if (inline) {
     return (
       <div className="flex flex-col">
-        {/* Horizontal tab bar */}
         <div className="flex border-b border-slate-100 bg-white sticky top-0 z-10">
           {menuItems.map((item) => {
             const Icon = item.icon;
@@ -1083,9 +1080,7 @@ export function QuestionSidePanel({
                 onClick={() => setActiveMenu(item.id)}
                 className={cn(
                   "flex-1 flex flex-col items-center gap-1 py-3 text-[10px] font-bold border-b-2 transition-all",
-                  isActive
-                    ? "border-[#6366F1] text-[#6366F1]"
-                    : "border-transparent text-slate-400",
+                  isActive ? "border-[#6366F1] text-[#6366F1]" : "border-transparent text-slate-400",
                 )}
               >
                 <Icon className="w-4 h-4" />
@@ -1094,16 +1089,12 @@ export function QuestionSidePanel({
             );
           })}
         </div>
-
-        {/* Panel content — scrolls naturally inside the bottom sheet */}
-        <div className="px-4 py-4 pb-8">
-          {renderPanelContent()}
-        </div>
+        <div className="px-4 py-4 pb-8">{renderPanelContent()}</div>
       </div>
     );
   }
 
-  // ── DESKTOP mode (absolute side panel) ───────────────────────────────────
+  // ── DESKTOP mode ──────────────────────────────────────────────────────────
   return (
     <div className="absolute right-0 top-0 h-full flex z-30 bg-white">
       <AnimatePresence>

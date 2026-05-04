@@ -4,6 +4,7 @@ import type {
   Session,
   Participant,
   Question,
+  QuestionType,
   QuestionResponses,
   EliminationEvent,
   GameState,
@@ -62,7 +63,8 @@ export class SessionService {
             display_style,
             image_url,
             question_order,
-            hide_participant_names
+            hide_participant_names,
+            statements
           )
         `,
         )
@@ -110,6 +112,7 @@ export class SessionService {
           description: q.description || undefined,
           timeLimit: q.time_limit,
           options: q.options,
+          statements: q.statements || undefined,
           scale: q.scale,
           labels: q.labels,
           points: q.points,
@@ -186,7 +189,7 @@ export class SessionService {
       const { data: questionsRaw, error: _questionsError } = await supabase
         .from("questions")
         .select(
-          "id, title, description, type, points, time_limit, options, scale, labels, display_style, image_url, question_order, hide_participant_names",
+          "id, title, description, type, points, time_limit, options, scale, labels, display_style, image_url, question_order, hide_participant_names, statements",
         )
         .eq("context_id", session.context_id)
         .order("question_order", { ascending: true });
@@ -227,6 +230,7 @@ export class SessionService {
           description: q.description || undefined,
           timeLimit: q.time_limit,
           options: q.options,
+          statements: q.statements || undefined,
           scale: q.scale,
           labels: q.labels,
           points: q.points,
@@ -456,7 +460,52 @@ export class SessionService {
         const participantName = response.participants?.name;
 
         if (typeof answer === "object") {
-          if (answer.optionId) {
+          // ── Scaling answers ──────────────────────────────────────────────
+          if (answer.scalingAnswers && typeof answer.scalingAnswers === "object") {
+            if (!aggregated.statements) aggregated.statements = {};
+            aggregated.total = (aggregated.total || 0) + 1;
+
+            const statementAnswers = answer.scalingAnswers as Record<string, number | null>;
+
+            Object.entries(statementAnswers).forEach(([statementId, value]) => {
+              if (value === null) return; // skipped — don't count in distribution
+
+              if (!aggregated.statements[statementId]) {
+                aggregated.statements[statementId] = {
+                  distribution: {},
+                  average: "0",
+                  total: 0,
+                };
+              }
+
+              const stmt = aggregated.statements[statementId];
+              stmt.distribution[value] = (stmt.distribution[value] || 0) + 1;
+              stmt.total += 1;
+
+              // Recalculate average
+              let sum = 0;
+              let count = 0;
+              Object.entries(stmt.distribution).forEach(([rating, cnt]) => {
+                sum += parseInt(rating, 10) * (cnt as number);
+                count += cnt as number;
+              });
+              stmt.average = count > 0 ? (sum / count).toFixed(1) : "0";
+            });
+
+            if (!hideParticipantNames && participantName) {
+              aggregated.individualResponses = aggregated.individualResponses || [];
+              Object.entries(statementAnswers).forEach(([statementId, value]) => {
+                aggregated.individualResponses.push({
+                  statementId,
+                  value,
+                  participantName,
+                  timestamp: new Date(),
+                });
+              });
+            }
+
+          // ── Choice answers ───────────────────────────────────────────────
+          } else if (answer.optionId) {
             aggregated[answer.optionId] =
               (aggregated[answer.optionId] || 0) + 1;
 
@@ -469,6 +518,8 @@ export class SessionService {
                 : participantName,
               timestamp: new Date(),
             });
+
+          // ── Rating answers ───────────────────────────────────────────────
           } else if (answer.rating !== undefined) {
             const rating = answer.rating;
             aggregated[rating] = (aggregated[rating] || 0) + 1;
@@ -501,6 +552,8 @@ export class SessionService {
             if (count > 0) {
               aggregated.average = (sum / count).toFixed(1);
             }
+
+          // ── Open text answers ────────────────────────────────────────────
           } else if (answer.text) {
             aggregated.count = (aggregated.count || 0) + 1;
             aggregated.recent = aggregated.recent || [];
@@ -512,6 +565,8 @@ export class SessionService {
                 : participantName,
             });
             aggregated.recent = aggregated.recent.slice(0, 10);
+
+          // ── Word cloud answers ───────────────────────────────────────────
           } else if (answer.words && Array.isArray(answer.words)) {
             aggregated.words = aggregated.words || {};
             answer.words.forEach((word: string) => {
@@ -706,89 +761,44 @@ export class SessionService {
 
   static async determineWinner(sessionId: string): Promise<Participant | null> {
     try {
-      const { data: session } = await supabase
-        .from("sessions")
-        .select("context_id, current_question_index")
-        .eq("id", sessionId)
+      const { data, error } = await supabase
+        .from("participants")
+        .select("*")
+        .eq("session_id", sessionId)
+        .eq("is_alive", true)
+        .order("score", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
-      if (!session?.context_id) {
-        console.warn("[determineWinner] session/context_id missing for", sessionId);
-        return null;
-      }
+      if (error || !data) return null;
 
-      const { data: questions } = await supabase
-        .from("questions")
-        .select("id, question_order")
-        .eq("context_id", session.context_id)
-        .order("question_order", { ascending: true });
-
-      if (!questions || questions.length === 0) return null;
-      const lastQuestionId = questions[questions.length - 1].id;
-
-      const { data: aliveRows } = await supabase
-        .from("participants")
-        .select(
-          "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id",
-        )
-        .eq("session_id", sessionId)
-        .eq("is_alive", true);
-
-      const toParticipant = (p: any): Participant => ({
-        id: p.id,
-        name: p.name,
-        score: p.score ?? 0,
-        avatar: p.avatar_url ?? undefined,
-        isAnonymous: p.is_anonymous,
-        joinedAt: new Date(p.joined_at),
-        isAlive: p.is_alive === true,
-        eliminatedAtRound: p.eliminated_at_round ?? null,
-        eliminatedAtQuestionId: p.eliminated_at_question_id ?? null,
-      });
-
-      const alive = (aliveRows || []).map(toParticipant);
-
-      if (alive.length === 1) return alive[0];
-
-      if (alive.length > 1) {
-        const aliveIds = alive.map((p) => p.id);
-        const { data: lastResponses } = await supabase
-          .from("responses")
-          .select("participant_id, submitted_at")
-          .eq("session_id", sessionId)
-          .eq("question_id", lastQuestionId)
-          .eq("is_correct", true)
-          .in("participant_id", aliveIds)
-          .order("submitted_at", { ascending: true });
-
-        if (lastResponses && lastResponses.length > 0) {
-          const earliestId = lastResponses[0].participant_id;
-          const winner = alive.find((p) => p.id === earliestId);
-          if (winner) return winner;
-        }
-
-        return [...alive].sort((a, b) => {
-          if ((b.score ?? 0) !== (a.score ?? 0))
-            return (b.score ?? 0) - (a.score ?? 0);
-          return a.joinedAt.getTime() - b.joinedAt.getTime();
-        })[0];
-      }
-
-      const { data: elimRows } = await supabase
-        .from("participants")
-        .select(
-          "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id",
-        )
-        .eq("session_id", sessionId)
-        .eq("is_alive", false)
-        .order("score", { ascending: false })
-        .limit(1);
-
-      return elimRows?.[0] ? toParticipant(elimRows[0]) : null;
+      return {
+        id: data.id,
+        name: data.name,
+        score: data.score ?? 0,
+        avatar: data.avatar_url ?? undefined,
+        isAnonymous: data.is_anonymous,
+        joinedAt: new Date(data.joined_at),
+        isAlive: true,
+      };
     } catch (error) {
       console.error("determineWinner error:", error);
       return null;
     }
+  }
+
+  static mapQuestionType(dbType: string): QuestionType {
+    const mapping: Record<string, QuestionType> = {
+      MULTIPLE_CHOICE: "multiple-choice",
+      SINGLE_CHOICE: "multiple-choice",
+      TRUE_FALSE: "multiple-choice",
+      POLL: "multiple-choice",
+      RATING: "rating",
+      OPEN_TEXT: "open-text",
+      WORD_CLOUD: "word-cloud",
+      SCALING: "scaling",
+    };
+    return mapping[dbType] ?? "multiple-choice";
   }
 
   static async submitEliminationAnswer(args: {
@@ -799,90 +809,37 @@ export class SessionService {
     chosenOptionId: string;
     isCorrect: boolean;
     pointsIfCorrect: number;
-  }): Promise<{
-    correct: boolean;
-    eliminated: EliminationEvent | null;
-    newScore: number | null;
-  }> {
+  }): Promise<{ correct: boolean; eliminated: EliminationEvent | null }> {
     try {
-      const { error: responseError } = await supabase.from("responses").insert({
-        session_id: args.sessionId,
-        participant_id: args.participantId,
-        question_id: args.questionId,
-        answer: {
-          optionId: args.chosenOptionId,
-          isCorrect: args.isCorrect,
-          pointsEarned: args.isCorrect ? args.pointsIfCorrect : 0,
-        },
-        is_correct: args.isCorrect,
-        points_earned: args.isCorrect ? args.pointsIfCorrect : 0,
-        submitted_at: new Date().toISOString(),
+      const submitOk = await this.submitResponse({
+        sessionId: args.sessionId,
+        participantId: args.participantId,
+        questionId: args.questionId,
+        answer: { optionId: args.chosenOptionId },
       });
 
-      if (responseError && responseError.code !== "23505") {
-        console.error("[submitEliminationAnswer] Response insert failed:", responseError);
-      }
-
-      if (responseError?.code === "23505") {
-        return { correct: args.isCorrect, eliminated: null, newScore: null };
+      if (!submitOk) {
+        return { correct: false, eliminated: null };
       }
 
       if (args.isCorrect) {
-        const newScore = await SessionService.incrementScore(
-          args.participantId,
-          args.pointsIfCorrect,
-        );
-        return { correct: true, eliminated: null, newScore };
+        if (args.pointsIfCorrect > 0) {
+          await this.incrementScore(args.participantId, args.pointsIfCorrect);
+        }
+        return { correct: true, eliminated: null };
       }
 
-      const eliminated = await SessionService.eliminateParticipant({
+      const eliminated = await this.eliminateParticipant({
         sessionId: args.sessionId,
         participantId: args.participantId,
         questionId: args.questionId,
         roundNumber: args.roundNumber,
       });
 
-      return { correct: false, eliminated, newScore: null };
+      return { correct: false, eliminated };
     } catch (error) {
       console.error("submitEliminationAnswer error:", error);
-      return { correct: false, eliminated: null, newScore: null };
+      return { correct: false, eliminated: null };
     }
-  }
-
-  static async getEliminationHistory(
-    sessionId: string,
-  ): Promise<EliminationEvent[]> {
-    try {
-      const { data, error } = await supabase
-        .from("elimination_log")
-        .select("*")
-        .eq("session_id", sessionId)
-        .order("eliminated_at", { ascending: true });
-
-      if (error || !data) return [];
-      return data.map((row: any) => ({
-        participantId: row.participant_id,
-        participantName: row.participant_name,
-        questionId: row.question_id,
-        roundNumber: row.round_number,
-        eliminatedAt: new Date(row.eliminated_at),
-      }));
-    } catch (error) {
-      console.error("getEliminationHistory error:", error);
-      return [];
-    }
-  }
-
-  private static mapQuestionType(dbType: string): Question["type"] {
-    const mapping: Record<string, Question["type"]> = {
-      MULTIPLE_CHOICE: "multiple-choice",
-      SINGLE_CHOICE: "multiple-choice",
-      TRUE_FALSE: "multiple-choice",
-      POLL: "multiple-choice",
-      RATING: "rating",
-      OPEN_TEXT: "open-text",
-      WORD_CLOUD: "word-cloud",
-    };
-    return mapping[dbType] || "multiple-choice";
   }
 }

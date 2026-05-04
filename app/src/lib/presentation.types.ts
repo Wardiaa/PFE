@@ -1,12 +1,12 @@
-// presentation.types.ts — UPDATED for 100% Logique elimination mode.
-// Adds GameMode + per-participant elimination state + new event payload types.
-// Existing fields are unchanged so non-elimination sessions keep working.
+// presentation.types.ts — Updated to include SCALING question type.
+// All existing fields are unchanged so non-scaling sessions keep working.
 
 export type QuestionType =
   | "multiple-choice"
   | "rating"
   | "open-text"
-  | "word-cloud";
+  | "word-cloud"
+  | "scaling";
 
 export type DisplayStyle = "numbers" | "stars" | "hearts" | "smileys";
 
@@ -30,6 +30,12 @@ export interface Labels {
   max?: string;
 }
 
+/** A single statement inside a Scaling question. */
+export interface ScalingStatement {
+  id: string;
+  text: string;
+}
+
 export interface Question {
   id: string;
   number: number;
@@ -38,6 +44,8 @@ export interface Question {
   description?: string;
   timeLimit?: number;
   options?: QuestionOption[];
+  /** Used by Scaling questions — list of statements to rate. */
+  statements?: ScalingStatement[];
   scale?: Scale;
   labels?: Labels;
   points?: number;
@@ -112,6 +120,14 @@ export interface IndividualWordResponse {
   timestamp: Date;
 }
 
+/** A single participant's answer for one statement in a Scaling question. */
+export interface IndividualScalingResponse {
+  statementId: string;
+  value: number | null; // null = skipped
+  participantName?: string;
+  timestamp: Date;
+}
+
 export interface WordCloudWord {
   text: string;
   count: number;
@@ -145,11 +161,29 @@ export interface WordCloudResponses {
   individualWords?: IndividualWordResponse[];
 }
 
+/** Per-statement aggregated result inside ScalingResponses. */
+export interface ScalingStatementResult {
+  /** How many people chose each value: { 1: 3, 2: 5, 3: 12, 4: 8, 5: 2 } */
+  distribution: Record<number, number>;
+  average: string;
+  total: number;
+}
+
+/** Aggregated responses for a Scaling question. */
+export interface ScalingResponses {
+  /** Keyed by statement id. */
+  statements: Record<string, ScalingStatementResult>;
+  /** Total number of respondents (may differ per statement if skip is used). */
+  total: number;
+  individualResponses?: IndividualScalingResponse[];
+}
+
 export type QuestionResponses =
   | MultipleChoiceResponses
   | RatingResponses
   | OpenTextResponses
-  | WordCloudResponses;
+  | WordCloudResponses
+  | ScalingResponses;
 
 /* ============================================================================
  * Elimination / game-show types

@@ -1,16 +1,14 @@
-// question-types.ts - COMPLETE WITH ALL TYPES AVAILABLE
+// question-types.ts - COMPLETE WITH ALL TYPES AVAILABLE (includes SCALING)
 import { 
   CheckSquare, 
   AlignLeft, 
   BarChart2, 
   Star, 
   Image as ImageIcon,
-  Type,
   List,
   Trophy,
-  HelpCircle,
   Cloud,
-  MessageSquare
+  SlidersHorizontal,
 } from "lucide-react";
 
 export const QUESTION_TYPES = {
@@ -22,6 +20,7 @@ export const QUESTION_TYPES = {
   RATING: "RATING",
   IMAGE_CHOICE: "IMAGE_CHOICE",
   WORD_CLOUD: "WORD_CLOUD",
+  SCALING: "SCALING",
 } as const;
 
 // Mapping for UI-friendly IDs
@@ -30,6 +29,7 @@ export const UI_QUESTION_TYPES = {
   'open-text': QUESTION_TYPES.OPEN_TEXT,
   'word-cloud': QUESTION_TYPES.WORD_CLOUD,
   'rating-scale': QUESTION_TYPES.RATING,
+  'scales': QUESTION_TYPES.SCALING,
 } as const;
 
 export const QUESTION_TYPE_DETAILS = [
@@ -107,7 +107,17 @@ export const QUESTION_TYPE_DETAILS = [
     available: true,
     comingSoon: false,
     uiId: 'word-cloud'
-  }
+  },
+  {
+    id: QUESTION_TYPES.SCALING,
+    name: "Scales",
+    icon: SlidersHorizontal,
+    color: "text-teal-500 bg-teal-50",
+    description: "Rate multiple statements on a scale",
+    available: true,
+    comingSoon: false,
+    uiId: 'scales'
+  },
 ];
 
 export const getDefaultQuestion = (type: string, id: string) => {
@@ -119,21 +129,25 @@ export const getDefaultQuestion = (type: string, id: string) => {
   if (type === 'open-text') actualType = QUESTION_TYPES.OPEN_TEXT;
   if (type === 'word-cloud') actualType = QUESTION_TYPES.WORD_CLOUD;
   if (type === 'rating-scale') actualType = QUESTION_TYPES.RATING;
+  if (type === 'scales') actualType = QUESTION_TYPES.SCALING;
 
   const base = {
     id,
-    type: actualType, // Store the actual type constant
-    uiType: type, // Also store the UI type for display
+    type: actualType,
+    uiType: type,
     title: type === 'multiple-choice' ? "New Multiple Choice Question" :
            type === 'open-text' ? "New Open Text Question" :
            type === 'word-cloud' ? "New Word Cloud Question" :
-           type === 'rating-scale' ? "New Rating Scale Question" : "New Question",
+           type === 'rating-scale' ? "New Rating Scale Question" :
+           type === 'scales' ? "Rate the following statements" : "New Question",
     description: "",
     points: type === 'word-cloud' ? 5 : 
             type === 'rating-scale' ? 10 :
-            type === 'open-text' ? 10 : 10,
+            type === 'open-text' ? 10 :
+            type === 'scales' ? 0 : 10,
     timeLimit: type === 'word-cloud' ? 30 :
-               type === 'open-text' ? 60 : 30,
+               type === 'open-text' ? 60 :
+               type === 'scales' ? 60 : 30,
     isVisible: true, 
     locked: false, 
   };
@@ -201,6 +215,21 @@ export const getDefaultQuestion = (type: string, id: string) => {
         description: "Type your answer in the space below",
         points: 10,
         timeLimit: 60,
+      };
+    case QUESTION_TYPES.SCALING:
+      return {
+        ...base,
+        title: "Rate the following statements",
+        description: "Move the sliders to express how much you agree with each statement",
+        points: 0,
+        timeLimit: 60,
+        statements: [
+          { id: `${id}-s1`, text: "Statement 1" },
+          { id: `${id}-s2`, text: "Statement 2" },
+          { id: `${id}-s3`, text: "Statement 3" },
+        ],
+        scale: { min: 1, max: 5 },
+        labels: { min: "Strongly disagree", max: "Strongly agree" },
       };
     default:
       return {

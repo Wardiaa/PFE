@@ -232,6 +232,7 @@ const HostSession: React.FC = () => {
       RATING: "rating",
       OPEN_TEXT: "open-text",
       WORD_CLOUD: "word-cloud",
+      SCALING: "scaling",
     };
     return mapping[dbType] || "multiple-choice";
   };
@@ -493,7 +494,8 @@ const HostSession: React.FC = () => {
               questions (
                 id, title, description, type, points, time_limit,
                 options, scale, labels, display_style, image_url, question_order,
-                show_results_instantly, hide_participant_names
+                show_results_instantly, hide_participant_names,
+                statements
               )
             `,
             )
@@ -519,6 +521,7 @@ const HostSession: React.FC = () => {
               description: q.description,
               timeLimit: q.time_limit,
               options: q.options,
+              statements: q.statements,
               scale: q.scale,
               labels: q.labels,
               points: q.points,
