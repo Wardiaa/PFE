@@ -1,4 +1,5 @@
 // src/lib/session.service.ts
+// Updated: added RANKING type support in mapQuestionType + getQuestionResponses aggregation.
 import { supabase } from "../lib/supabase";
 import type {
   Session,
@@ -504,6 +505,42 @@ export class SessionService {
               });
             }
 
+          // ── Ranking answers ──────────────────────────────────────────────
+          } else if (answer.rankingOrder && Array.isArray(answer.rankingOrder)) {
+            if (!aggregated.items) aggregated.items = {};
+            aggregated.total = (aggregated.total || 0) + 1;
+
+            const rankingOrder = answer.rankingOrder as string[];
+            const n = rankingOrder.length;
+
+            rankingOrder.forEach((itemId: string, zeroBasedIdx: number) => {
+              if (!aggregated.items[itemId]) {
+                aggregated.items[itemId] = {
+                  bordaScore: 0,
+                  rankDistribution: {},
+                  total: 0,
+                };
+              }
+
+              const item = aggregated.items[itemId];
+              const oneBasedRank = zeroBasedIdx + 1;
+              // Borda count: item ranked 1st gets N points, last gets 1 point
+              const bordaPoints = n - zeroBasedIdx;
+              item.bordaScore += bordaPoints;
+              item.total += 1;
+              item.rankDistribution[oneBasedRank] =
+                (item.rankDistribution[oneBasedRank] || 0) + 1;
+            });
+
+            if (!hideParticipantNames && participantName) {
+              aggregated.individualResponses = aggregated.individualResponses || [];
+              aggregated.individualResponses.push({
+                rankingOrder,
+                participantName,
+                timestamp: new Date(),
+              });
+            }
+
           // ── Choice answers ───────────────────────────────────────────────
           } else if (answer.optionId) {
             aggregated[answer.optionId] =
@@ -787,6 +824,7 @@ export class SessionService {
     }
   }
 
+  // ── UPDATED: mapQuestionType now includes RANKING ──────────────────────────
   static mapQuestionType(dbType: string): QuestionType {
     const mapping: Record<string, QuestionType> = {
       MULTIPLE_CHOICE: "multiple-choice",
@@ -797,6 +835,7 @@ export class SessionService {
       OPEN_TEXT: "open-text",
       WORD_CLOUD: "word-cloud",
       SCALING: "scaling",
+      RANKING: "ranking",
     };
     return mapping[dbType] ?? "multiple-choice";
   }

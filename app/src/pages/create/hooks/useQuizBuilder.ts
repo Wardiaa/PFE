@@ -1,27 +1,12 @@
-// useQuizBuilder.ts — COMPLETE FILE WITH 100% Logique INTEGRATION
+// useQuizBuilder.ts — COMPLETE FILE WITH RANKING + SCALING + 100% Logique INTEGRATION
 //
-// What changed vs your original:
-//  1. ContextData now carries `gameMode` + `themeId` (top-level, not in settings).
-//  2. Reducer handles new actions SET_GAME_MODE and SET_THEME_ID.
-//  3. INITIAL_STATE / DB load / draft restore / undo/redo all carry them.
-//  4. handleTemplateCustomize copies template.gameMode / template.themeId
-//     into the working context (so the new "100% Logique" template
-//     activates the elimination flow + the game-show theme).
-//  5. saveToSupabase persists the new `game_mode` column on contexts and
-//     stores `themeId` inside `theme` (existing column — no schema change).
-//  6. deriveContextType returns "GAME" for any template whose id contains
-//     "logique" or "elimination" so it lands in the right bucket.
-//  7. Added handleGameModeChange to allow toggling elimination mode manually.
-//
-// SCALING additions (drop-in for Scaling question type support):
-//  A. DbQuestionType union now includes "SCALING".
-//  B. toDbQuestionType maps "scaling" / "SCALING" → "SCALING" instead of
-//     falling through to the "MULTIPLE_CHOICE" default.
-//  C. toDbQuestion now sends `statements` to the DB on INSERT.
-//  D. The UPDATE loop for existing questions also sends `statements`.
-//  E. Edit-load mapping reads `statements` back from the DB row.
-//
-// Everything else is byte-for-byte identical to your original file.
+// This version includes:
+//  - creator_id (not user_id) for contexts
+//  - proper rollback on INSERT failure
+//  - ranking question support (DbQuestionType includes RANKING)
+//  - scaling statements persistence
+//  - original deletion logic (forceDeleteIds + orphan cleanup)
+//  - no unused applyQuestionSettings function
 
 import { useState, useEffect, useCallback, useReducer, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -58,7 +43,6 @@ function historyReducer(
       return { ...state, tags: action.payload };
     case "SET_COVER_IMAGE":
       return { ...state, coverImage: action.payload };
-    // ── NEW: 100% Logique support ─────────────────────────────────────────
     case "SET_GAME_MODE":
       return { ...state, gameMode: action.payload };
     case "SET_THEME_ID":
@@ -110,20 +94,18 @@ const INITIAL_STATE: ContextData = {
   coverImage: null,
   questions: [],
   settings: DEFAULT_SETTINGS,
-  // ── NEW ─────────────────────────────────────────────────────────────────
   gameMode: "standard",
   themeId: "default",
 };
 
 // ---------------------------------------------------------------------------
-// Context type — stored as separate useState to avoid touching existing types
+// Context type
 // ---------------------------------------------------------------------------
 type SupabaseContextType = "QUIZ" | "POLL" | "VOTE" | "GAME";
 
 function deriveContextType(templateId: string | null): SupabaseContextType {
   if (!templateId) return "QUIZ";
   const lower = templateId.toLowerCase();
-  // 100% Logique elimination → GAME bucket
   if (lower.includes("logique") || lower.includes("elimination")) return "GAME";
   if (lower.includes("poll")) return "POLL";
   if (lower.includes("vote")) return "VOTE";
@@ -134,7 +116,7 @@ function deriveContextType(templateId: string | null): SupabaseContextType {
 // ---------------------------------------------------------------------------
 // Map local question type strings → DB enum values
 // DB enum: MULTIPLE_CHOICE | SINGLE_CHOICE | TRUE_FALSE | OPEN_TEXT |
-//          POLL | RATING | WORD_CLOUD | IMAGE_CHOICE | SCALING
+//          POLL | RATING | WORD_CLOUD | IMAGE_CHOICE | SCALING | RANKING
 // ---------------------------------------------------------------------------
 type DbQuestionType =
   | "MULTIPLE_CHOICE"
@@ -145,8 +127,8 @@ type DbQuestionType =
   | "RATING"
   | "WORD_CLOUD"
   | "IMAGE_CHOICE"
-  // FIX A: add SCALING so the type-system knows it's a valid DB value
-  | "SCALING";
+  | "SCALING"
+  | "RANKING";
 
 function toDbQuestionType(localType: string): DbQuestionType {
   const map: Record<string, DbQuestionType> = {
@@ -158,11 +140,11 @@ function toDbQuestionType(localType: string): DbQuestionType {
     RATING: "RATING",
     WORD_CLOUD: "WORD_CLOUD",
     IMAGE_CHOICE: "IMAGE_CHOICE",
-    // FIX B: map scaling (both cases) → SCALING instead of falling through
-    // to the "MULTIPLE_CHOICE" default, which caused the wrong type to be
-    // saved and the question to render as multiple-choice on edit.
     SCALING: "SCALING",
     scaling: "SCALING",
+    // RANKING support
+    RANKING: "RANKING",
+    ranking: "RANKING",
     // local aliases
     QUIZ: "MULTIPLE_CHOICE",
     OPEN: "OPEN_TEXT",
@@ -178,7 +160,6 @@ function toDbQuestionType(localType: string): DbQuestionType {
 
 // ---------------------------------------------------------------------------
 // Map a local Question → DB row for the `questions` table
-// There is NO correct_answer column — answers live inside options JSONB
 // ---------------------------------------------------------------------------
 function toDbQuestion(q: Question, contextId: string, questionOrder: number) {
   return {
@@ -199,14 +180,12 @@ function toDbQuestion(q: Question, contextId: string, questionOrder: number) {
     theme: q.theme || null,
     show_results_instantly: q.showResultsInstantly ?? false,
     hide_participant_names: q.hideParticipantNames ?? false,
-    // FIX C: persist statements so Scaling questions survive a save/reload
     statements: (q as any).statements ?? null,
   };
 }
 
 // ---------------------------------------------------------------------------
 // Returns true if the string looks like a real Postgres UUID (from the DB).
-// Temp IDs created locally start with "q" followed by digits (e.g. "q1704123456").
 // ---------------------------------------------------------------------------
 function isDbUUID(id: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -223,7 +202,6 @@ export function useQuizBuilder() {
   const { toast } = useToast();
   const { user } = useAuth();
 
-  // Store step in sessionStorage to persist across tab visibility changes
   const getStoredStep = () => {
     const stored = sessionStorage.getItem("quiz-builder-step");
     if (stored) {
@@ -236,29 +214,17 @@ export function useQuizBuilder() {
   const [step, setStepState] = useState(getStoredStep);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [contextType, setContextType] = useState<SupabaseContextType>("QUIZ");
-
-  // Track the Supabase row ID once a draft has been saved (or when editing).
-  // Used to UPDATE rather than INSERT on subsequent saves (no duplicate drafts).
   const [draftContextId, setDraftContextId] = useState<string | null>(null);
-
-  // True while loading an existing context for editing (?edit=<id>)
   const [isLoadingEdit, setIsLoadingEdit] = useState(false);
-  // Track if edit has been loaded to prevent resetting step
   const [editLoaded, setEditLoaded] = useState(false);
-
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedQuestions, setSelectedQuestions] = useState<number[]>([]);
-  const [showTemplateCustomization, setShowTemplateCustomization] =
-    useState(false);
+  const [showTemplateCustomization, setShowTemplateCustomization] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
-    "idle",
-  );
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"workspace" | "preview">(
-    "workspace",
-  );
+  const [activeTab, setActiveTab] = useState<"workspace" | "preview">("workspace");
   const [leftPanelTab, setLeftPanelTab] = useState<"types" | "bulk">("types");
   const [isPublishing, setIsPublishing] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -267,23 +233,16 @@ export function useQuizBuilder() {
   const [history, setHistory] = useState<ContextData[]>([INITIAL_STATE]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
-  // ── Delete confirmation state ─────────────────────────────────────────────
-  const [pendingDeleteQuestion, setPendingDeleteQuestion] =
-    useState<Question | null>(null);
-
-  // forceDeleteIds: DB question UUIDs the user confirmed deleting. On save,
-  // their responses are deleted first so the FK constraint is satisfied.
+  const [pendingDeleteQuestion, setPendingDeleteQuestion] = useState<Question | null>(null);
   const [forceDeleteIds, setForceDeleteIds] = useState<string[]>([]);
 
   const showEditingControls = step >= 2;
 
-  // Custom setStep that also persists to sessionStorage
   const setStep = useCallback((newStep: number) => {
     setStepState(newStep);
     sessionStorage.setItem("quiz-builder-step", newStep.toString());
   }, []);
 
-  // ── Load existing context for editing (?edit=<id>) ───────────────────────
   const editId = searchParams.get("edit");
 
   useEffect(() => {
@@ -329,24 +288,14 @@ export function useQuizBuilder() {
           dispatch({ type: "SET_SETTINGS", payload: ctx.settings });
         }
 
-        // ── NEW: hydrate gameMode + themeId from DB ───────────────────────
-        // game_mode is a real DB column (added by the migration).
-        // themeId is stored in the existing `theme` column for portability.
-        const dbGameMode =
-          (ctx as any).game_mode === "elimination" ? "elimination" : "standard";
+        const dbGameMode = (ctx as any).game_mode === "elimination" ? "elimination" : "standard";
         dispatch({ type: "SET_GAME_MODE", payload: dbGameMode });
-        dispatch({
-          type: "SET_THEME_ID",
-          payload: (ctx as any).theme || "default",
-        });
+        dispatch({ type: "SET_THEME_ID", payload: (ctx as any).theme || "default" });
 
-        // Map DB question rows → local Question shape, keeping the real DB UUID as id
         const localQuestions: Question[] = (questions ?? []).map((q: any) => ({
           id: q.id,
           type: q.type,
           title: q.title,
-          // Question.text is required by the local type. The DB stores the
-          // prompt in `title`, so mirror it into `text` for the editor.
           text: q.title ?? "",
           description: q.description || "",
           options: q.options ?? [],
@@ -361,7 +310,6 @@ export function useQuizBuilder() {
           theme: q.theme || undefined,
           showResultsInstantly: q.show_results_instantly ?? false,
           hideParticipantNames: q.hide_participant_names ?? false,
-          // FIX E: restore statements so Scaling questions load correctly in the editor
           statements: q.statements ?? undefined,
         }));
         dispatch({ type: "SET_QUESTIONS", payload: localQuestions });
@@ -399,7 +347,6 @@ export function useQuizBuilder() {
     })();
   }, [user, editId, editLoaded, setStep, toast]);
 
-  // ── Restore local draft on mount (skipped when editing an existing context) ──
   useEffect(() => {
     if (editId) return;
 
@@ -407,27 +354,14 @@ export function useQuizBuilder() {
     if (draft) {
       try {
         const parsed = JSON.parse(draft);
-        dispatch({
-          type: "SET_TITLE",
-          payload: parsed.title || "Untitled Quiz",
-        });
-        dispatch({
-          type: "SET_DESCRIPTION",
-          payload: parsed.description || "",
-        });
+        dispatch({ type: "SET_TITLE", payload: parsed.title || "Untitled Quiz" });
+        dispatch({ type: "SET_DESCRIPTION", payload: parsed.description || "" });
         dispatch({ type: "SET_THEME", payload: parsed.theme || "default" });
         dispatch({ type: "SET_QUESTIONS", payload: parsed.questions || [] });
-        dispatch({
-          type: "SET_SETTINGS",
-          payload: parsed.settings || DEFAULT_SETTINGS,
-        });
+        dispatch({ type: "SET_SETTINGS", payload: parsed.settings || DEFAULT_SETTINGS });
         dispatch({ type: "SET_CATEGORY", payload: parsed.category || "" });
         dispatch({ type: "SET_TAGS", payload: parsed.tags || [] });
-        dispatch({
-          type: "SET_COVER_IMAGE",
-          payload: parsed.coverImage || null,
-        });
-        // ── NEW ─────────────────────────────────────────────────────────────
+        dispatch({ type: "SET_COVER_IMAGE", payload: parsed.coverImage || null });
         if (parsed.gameMode) {
           dispatch({ type: "SET_GAME_MODE", payload: parsed.gameMode });
         }
@@ -445,7 +379,6 @@ export function useQuizBuilder() {
     }
   }, [editId, toast]);
 
-  // ── Auto-save to localStorage every 30 s ──────────────────────────────────
   useEffect(() => {
     if (!hasUnsavedChanges) return;
     const interval = setInterval(() => saveToLocalStorage(), 30000);
@@ -460,10 +393,7 @@ export function useQuizBuilder() {
     if (!hasUnsavedChanges) return;
     setSaveStatus("saving");
     setTimeout(() => {
-      localStorage.setItem(
-        "quiz-draft",
-        JSON.stringify({ ...context, contextType }),
-      );
+      localStorage.setItem("quiz-draft", JSON.stringify({ ...context, contextType }));
       setLastSaved(new Date());
       setSaveStatus("saved");
       setHasUnsavedChanges(false);
@@ -479,9 +409,6 @@ export function useQuizBuilder() {
     });
   };
 
-  // FIX: Accept an optional explicit snapshot so callers that already know the
-  // next state (e.g. after dispatch) can pass it in, avoiding a stale-closure
-  // capture of `context` before the reducer has flushed the update.
   const addToHistory = useCallback(
     (_actionType: string, snapshot?: ContextData) => {
       const newHistory = history.slice(0, historyIndex + 1);
@@ -504,15 +431,10 @@ export function useQuizBuilder() {
       dispatch({ type: "SET_CATEGORY", payload: prev.category });
       dispatch({ type: "SET_TAGS", payload: prev.tags });
       dispatch({ type: "SET_COVER_IMAGE", payload: prev.coverImage || null });
-      // ── NEW ─────────────────────────────────────────────────────────────
       dispatch({ type: "SET_GAME_MODE", payload: prev.gameMode ?? "standard" });
       dispatch({ type: "SET_THEME_ID", payload: prev.themeId ?? "default" });
       setHistoryIndex(historyIndex - 1);
-      toast({
-        title: "Undo",
-        description: "Last action undone",
-        duration: 1500,
-      });
+      toast({ title: "Undo", description: "Last action undone", duration: 1500 });
     }
   };
 
@@ -527,7 +449,6 @@ export function useQuizBuilder() {
       dispatch({ type: "SET_CATEGORY", payload: next.category });
       dispatch({ type: "SET_TAGS", payload: next.tags });
       dispatch({ type: "SET_COVER_IMAGE", payload: next.coverImage || null });
-      // ── NEW ─────────────────────────────────────────────────────────────
       dispatch({ type: "SET_GAME_MODE", payload: next.gameMode ?? "standard" });
       dispatch({ type: "SET_THEME_ID", payload: next.themeId ?? "default" });
       setHistoryIndex(historyIndex + 1);
@@ -535,12 +456,7 @@ export function useQuizBuilder() {
     }
   };
 
-  // FIX: Use refs so the keyboard event listener always calls the current
-  // version of each handler — prevents stale closures over `context` when
-  // Ctrl+S, Ctrl+Z, or Ctrl+Y is pressed after a mutation (e.g. delete).
-  const handleBackgroundSaveRef = useRef<(() => Promise<void>) | undefined>(
-    undefined,
-  );
+  const handleBackgroundSaveRef = useRef<(() => Promise<void>) | undefined>(undefined);
   const handleUndoRef = useRef<(() => void) | undefined>(undefined);
   const handleRedoRef = useRef<(() => void) | undefined>(undefined);
 
@@ -577,8 +493,6 @@ export function useQuizBuilder() {
       return;
     }
     const raw = getDefaultQuestion(type, `q${Date.now()}`);
-    // The local Question type requires `text`. getDefaultQuestion only sets
-    // `title`, so mirror it here to keep TS happy and the editor in sync.
     const newQuestion: Question = {
       ...(raw as any),
       text: (raw as any).text ?? (raw as any).title ?? "",
@@ -602,17 +516,13 @@ export function useQuizBuilder() {
     });
   };
 
-  // ── Delete with confirmation ───────────────────────────────────────────────
   const deleteQuestion = (id: string) => {
     const question = context.questions.find((q) => q.id === id);
     if (question) setPendingDeleteQuestion(question);
   };
 
   const handleDeleteCurrentQuestion = () => {
-    if (
-      currentQuestionIndex >= 0 &&
-      context.questions[currentQuestionIndex]
-    ) {
+    if (currentQuestionIndex >= 0 && context.questions[currentQuestionIndex]) {
       setPendingDeleteQuestion(context.questions[currentQuestionIndex]);
     }
   };
@@ -625,9 +535,7 @@ export function useQuizBuilder() {
     dispatch({ type: "SET_QUESTIONS", payload: newQ });
 
     if (isDbUUID(q.id)) {
-      setForceDeleteIds((prev) =>
-        prev.includes(q.id) ? prev : [...prev, q.id],
-      );
+      setForceDeleteIds((prev) => (prev.includes(q.id) ? prev : [...prev, q.id]));
     }
 
     if (context.questions[currentQuestionIndex]?.id === q.id) {
@@ -645,13 +553,7 @@ export function useQuizBuilder() {
       description: "Question has been removed",
       duration: 1500,
     });
-  }, [
-    pendingDeleteQuestion,
-    context,
-    currentQuestionIndex,
-    addToHistory,
-    toast,
-  ]);
+  }, [pendingDeleteQuestion, context, currentQuestionIndex, addToHistory, toast]);
 
   const cancelDeleteQuestion = useCallback(() => {
     setPendingDeleteQuestion(null);
@@ -668,8 +570,6 @@ export function useQuizBuilder() {
   };
   const handleThemeChange = (value: string) => {
     dispatch({ type: "SET_THEME", payload: value });
-    // Keep themeId in sync with the underlying `theme` field — the live
-    // session reads `themeId` to know which CSS class to apply.
     dispatch({ type: "SET_THEME_ID", payload: value });
     markUnsaved();
   };
@@ -693,15 +593,8 @@ export function useQuizBuilder() {
     markUnsaved();
   };
 
-  // ── NEW: Manual game mode toggle ─────────────────────────────────────────
   const handleGameModeChange = (mode: "standard" | "elimination") => {
     dispatch({ type: "SET_GAME_MODE", payload: mode });
-    // FIX: dispatch SET_THEME alongside SET_THEME_ID so the value is reliably
-    // written to the DB. saveToSupabase uses:
-    //   const persistedTheme = context.themeId || context.theme || "default"
-    // Without SET_THEME, context.theme stayed "default" for non-CPL contexts
-    // set to elimination mode, and the audience page never got cpl-theme CSS
-    // variables (white background / missing colours bug).
     const derivedThemeId = mode === "elimination" ? "cent-pour-cent-logique" : "default";
     dispatch({ type: "SET_THEME_ID", payload: derivedThemeId });
     dispatch({ type: "SET_THEME", payload: derivedThemeId });
@@ -720,7 +613,6 @@ export function useQuizBuilder() {
     } else {
       handleTitleChange("Untitled Context");
       dispatch({ type: "SET_QUESTIONS", payload: [] });
-      // Blank canvas → make sure we're back on standard mode + default theme
       dispatch({ type: "SET_GAME_MODE", payload: "standard" });
       dispatch({ type: "SET_THEME_ID", payload: "default" });
       dispatch({ type: "SET_THEME", payload: "default" });
@@ -743,16 +635,12 @@ export function useQuizBuilder() {
           ? JSON.parse(JSON.stringify(template.questions))
           : [],
     });
-    if (options.includeSettings && template.settings)
-      handleSettingsChange(template.settings);
+    if (options.includeSettings && template.settings) handleSettingsChange(template.settings);
 
-    // ── NEW: propagate gameMode + themeId from the template ───────────────
-    const tplGameMode =
-      template.gameMode === "elimination" ? "elimination" : "standard";
+    const tplGameMode = template.gameMode === "elimination" ? "elimination" : "standard";
     const tplThemeId = template.themeId ?? "default";
     dispatch({ type: "SET_GAME_MODE", payload: tplGameMode });
     dispatch({ type: "SET_THEME_ID", payload: tplThemeId });
-    // Keep the legacy `theme` field aligned so existing code still works.
     dispatch({ type: "SET_THEME", payload: tplThemeId });
 
     setStep(2);
@@ -762,13 +650,10 @@ export function useQuizBuilder() {
     });
   };
 
-  // ── Core Supabase upsert ──────────────────────────────────────────────────
+  // ── Core Supabase upsert (original logic + Ranking support) ─────────────────
   async function saveToSupabase(status: "ACTIVE" | "DRAFT"): Promise<string> {
     if (!user) throw new Error("You must be signed in to save.");
 
-    // Resolve the values we'll persist for game mode + theme. The new
-    // `game_mode` column was added by the DB migration; theme stays in the
-    // existing `theme` column so we don't need a second new column.
     const persistedGameMode: "standard" | "elimination" =
       context.gameMode === "elimination" ? "elimination" : "standard";
     const persistedTheme = context.themeId || context.theme || "default";
@@ -787,7 +672,6 @@ export function useQuizBuilder() {
           tags: context.tags ?? [],
           settings: context.settings,
           cover_image: context.coverImage || null,
-          // ── NEW DB column from the migration ────────────────────────────
           game_mode: persistedGameMode,
         })
         .eq("id", draftContextId);
@@ -801,7 +685,7 @@ export function useQuizBuilder() {
       const newLocalQuestions = localQuestions.filter((q) => !isDbUUID(q.id));
       const currentDbIds = new Set(existingDbQuestions.map((q) => q.id));
 
-      // 1. UPDATE existing questions in-place (their IDs are preserved → responses remain valid)
+      // 1. UPDATE existing questions in-place
       for (let i = 0; i < existingDbQuestions.length; i++) {
         const q = existingDbQuestions[i];
         const { error } = await supabase
@@ -823,7 +707,6 @@ export function useQuizBuilder() {
             theme: q.theme || null,
             show_results_instantly: q.showResultsInstantly ?? false,
             hide_participant_names: q.hideParticipantNames ?? false,
-            // FIX D: send statements on UPDATE so edits to Scaling questions are saved
             statements: (q as any).statements ?? null,
           })
           .eq("id", q.id);
@@ -852,9 +735,7 @@ export function useQuizBuilder() {
             tempIdToReal[q.id] ? { ...q, id: tempIdToReal[q.id] } : q,
           );
           dispatch({ type: "SET_QUESTIONS", payload: patched });
-          patched
-            .filter((q) => isDbUUID(q.id))
-            .forEach((q) => currentDbIds.add(q.id));
+          patched.filter((q) => isDbUUID(q.id)).forEach((q) => currentDbIds.add(q.id));
         }
       }
 
@@ -868,7 +749,6 @@ export function useQuizBuilder() {
 
       const allDbIds = (dbRows ?? []).map((r: any) => r.id as string);
       const removedIds = allDbIds.filter((id) => !currentDbIds.has(id));
-
       const allIdsToDelete = [...new Set([...removedIds, ...forceDeleteIds])];
 
       if (allIdsToDelete.length > 0) {
@@ -892,21 +772,20 @@ export function useQuizBuilder() {
       return draftContextId;
     }
 
-    // ── INSERT new row ────────────────────────────────────────────────────
+    // ── INSERT new row (with creator_id and rollback) ──────────────────────
     const { data: contextRow, error: ctxError } = await supabase
       .from("contexts")
       .insert({
+        creator_id: user.id,         
         title: context.title.trim(),
         description: context.description.trim() || null,
         type: contextType,
         status,
-        creator_id: user.id,
         theme: persistedTheme,
         category: context.category || null,
         tags: context.tags ?? [],
         settings: context.settings,
         cover_image: context.coverImage || null,
-        // ── NEW DB column from the migration ──────────────────────────────
         game_mode: persistedGameMode,
       })
       .select("id")
@@ -1058,8 +937,7 @@ export function useQuizBuilder() {
     );
   };
 
-  const handleSelectAllQuestions = () =>
-    setSelectedQuestions(context.questions.map((_, i) => i));
+  const handleSelectAllQuestions = () => setSelectedQuestions(context.questions.map((_, i) => i));
   const handleClearSelection = () => setSelectedQuestions([]);
 
   const handleBulkUpdate = (updatedQuestions: Question[]) => {
@@ -1094,26 +972,20 @@ export function useQuizBuilder() {
     if (currentQuestionIndex >= 0) {
       const question = context.questions[currentQuestionIndex];
       if (question.options) {
-        const shuffledOptions = [...question.options].sort(
-          () => Math.random() - 0.5,
-        );
+        const shuffledOptions = [...question.options].sort(() => Math.random() - 0.5);
         updateQuestion(question.id, { options: shuffledOptions });
       }
     }
   };
 
-  const handleReorderQuestions = (
-    direction: "up" | "down" | "top" | "bottom",
-  ) => {
+  const handleReorderQuestions = (direction: "up" | "down" | "top" | "bottom") => {
     if (selectedQuestions.length === 0) return;
     const updatedQuestions = [...context.questions];
     const sortedSelected = [...selectedQuestions].sort((a, b) => a - b);
 
     if (direction === "up" || direction === "top") {
       for (let i = 0; i < sortedSelected.length; i++) {
-        const currentIndex = updatedQuestions.findIndex(
-          (_, idx) => idx === sortedSelected[i],
-        );
+        const currentIndex = updatedQuestions.findIndex((_, idx) => idx === sortedSelected[i]);
         if (currentIndex === -1) continue;
         const [question] = updatedQuestions.splice(currentIndex, 1);
         const newIndex = direction === "up" ? Math.max(0, currentIndex - 1) : 0;
@@ -1121,9 +993,7 @@ export function useQuizBuilder() {
       }
     } else {
       for (let i = sortedSelected.length - 1; i >= 0; i--) {
-        const currentIndex = updatedQuestions.findIndex(
-          (_, idx) => idx === sortedSelected[i],
-        );
+        const currentIndex = updatedQuestions.findIndex((_, idx) => idx === sortedSelected[i]);
         if (currentIndex === -1) continue;
         const [question] = updatedQuestions.splice(currentIndex, 1);
         const newIndex =
@@ -1183,12 +1053,10 @@ export function useQuizBuilder() {
     isLoadingEdit,
     isEditMode: !!editId,
 
-    // Delete confirmation
     pendingDeleteQuestion,
     confirmDeleteQuestion,
     cancelDeleteQuestion,
 
-    // Actions
     addQuestion,
     updateQuestion,
     deleteQuestion,

@@ -1,4 +1,4 @@
-// builder/types/index.ts
+// builder/types/index.ts — Updated to include statements (Scaling) and ranking items support.
 import type { GameMode } from "../../../lib/presentation.types";
 
 export interface QuestionOption {
@@ -28,6 +28,12 @@ export interface QuestionSettings {
   animation?: string;
 }
 
+/** A single scaling statement. */
+export interface ScalingStatement {
+  id: string;
+  text: string;
+}
+
 export interface Question {
   text: string;
   id: string;
@@ -51,6 +57,8 @@ export interface Question {
   animation?: string;
   showResultsInstantly?: boolean;
   hideParticipantNames?: boolean;
+  /** Used by Scaling questions — list of statements to rate. */
+  statements?: ScalingStatement[];
 }
 
 export interface ContextData {

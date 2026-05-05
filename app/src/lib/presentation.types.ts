@@ -1,12 +1,12 @@
-// presentation.types.ts — Updated to include SCALING question type.
-// All existing fields are unchanged so non-scaling sessions keep working.
+// presentation.types.ts — Updated to include SCALING and RANKING question types.
 
 export type QuestionType =
   | "multiple-choice"
   | "rating"
   | "open-text"
   | "word-cloud"
-  | "scaling";
+  | "scaling"
+  | "ranking";
 
 export type DisplayStyle = "numbers" | "stars" | "hearts" | "smileys";
 
@@ -36,6 +36,12 @@ export interface ScalingStatement {
   text: string;
 }
 
+/** A single item inside a Ranking question. */
+export interface RankingItem {
+  id: string;
+  text: string;
+}
+
 export interface Question {
   id: string;
   number: number;
@@ -46,6 +52,8 @@ export interface Question {
   options?: QuestionOption[];
   /** Used by Scaling questions — list of statements to rate. */
   statements?: ScalingStatement[];
+  /** Used by Ranking questions — list of items to rank. Stored in options field. */
+  rankingItems?: RankingItem[];
   scale?: Scale;
   labels?: Labels;
   points?: number;
@@ -128,6 +136,13 @@ export interface IndividualScalingResponse {
   timestamp: Date;
 }
 
+/** A single participant's ranking answer. */
+export interface IndividualRankingResponse {
+  rankingOrder: string[]; // itemIds ordered from rank 1 to last
+  participantName?: string;
+  timestamp: Date;
+}
+
 export interface WordCloudWord {
   text: string;
   count: number;
@@ -178,12 +193,35 @@ export interface ScalingResponses {
   individualResponses?: IndividualScalingResponse[];
 }
 
+/** Per-item aggregated result inside RankingResponses. */
+export interface RankingItemResult {
+  /**
+   * Borda count score: each participant awards (N - position) points to each item.
+   * Higher score = more often ranked first.
+   */
+  bordaScore: number;
+  /** How many times this item was placed at each rank position. { 1: 5, 2: 3, ... } */
+  rankDistribution: Record<number, number>;
+  /** Total number of responses that included this item. */
+  total: number;
+}
+
+/** Aggregated responses for a Ranking question. */
+export interface RankingResponses {
+  /** Keyed by item id (matches options[].id). */
+  items: Record<string, RankingItemResult>;
+  /** Total number of respondents. */
+  total: number;
+  individualResponses?: IndividualRankingResponse[];
+}
+
 export type QuestionResponses =
   | MultipleChoiceResponses
   | RatingResponses
   | OpenTextResponses
   | WordCloudResponses
-  | ScalingResponses;
+  | ScalingResponses
+  | RankingResponses;
 
 /* ============================================================================
  * Elimination / game-show types

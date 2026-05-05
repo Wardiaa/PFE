@@ -1,4 +1,5 @@
 // src/pages/HostSession/index.tsx
+// Updated: mapQuestionType now includes RANKING → "ranking"
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
@@ -169,12 +170,6 @@ const HostSession: React.FC = () => {
 
   const [showEliminationPanel, setShowEliminationPanel] = useState<boolean>(false);
 
-  // ── Frozen game state for the EliminationHistory side-panel ─────────────
-  // The live `gameState` updates the instant the server reports a player
-  // elimination via realtime. To avoid spoiling the round in progress, we
-  // keep a delayed mirror that is only refreshed when the round actually
-  // ends (timer hits 0 / showResults flips on) or when a new question
-  // starts. EliminationHistory reads from this frozen snapshot.
   const [displayedGameState, setDisplayedGameState] = useState<GameState>({
     alive: [],
     eliminated: [],
@@ -184,18 +179,10 @@ const HostSession: React.FC = () => {
     history: [],
   });
 
-  // Snapshot of `gameState.eliminated.length` taken when the current round
-  // started. Used to compute "how many got eliminated during this round"
-  // for the round-end overlay below.
   const roundStartEliminatedCountRef = useRef<number>(0);
   const [roundEliminationCount, setRoundEliminationCount] = useState<number | null>(null);
   const [overlayRoundNumber, setOverlayRoundNumber] = useState<number>(0);
 
-  // ── Winner reveal (host-controlled) ───────────────────────────────────────
-  // The WinnerCelebration overlay is now opt-in: it only appears after the
-  // host clicks the "Show Winner" button below the results of the LAST
-  // question. We store the revealed winner locally and broadcast it so the
-  // audience can render their own WinnerCelebration screen.
   const [revealedWinner, setRevealedWinner] = useState<Participant | null>(null);
   const [isGameOver, setIsGameOver] = useState<boolean>(false);
   const isGameOverRef = useRef<boolean>(false);
@@ -220,9 +207,9 @@ const HostSession: React.FC = () => {
   const isEliminationRef = useRef<boolean>(false);
   const sendMessageRef = useRef<(msg: any) => void>(() => {});
 
-  // ── NEW: ref for the current question's time limit (to detect no-timer) ──
   const currentQuestionTimeLimitRef = useRef<number | null | undefined>(null);
 
+  // ── UPDATED: mapQuestionType now includes RANKING ──────────────────────────
   const mapQuestionType = (dbType: string): Question["type"] => {
     const mapping: Record<string, Question["type"]> = {
       MULTIPLE_CHOICE: "multiple-choice",
@@ -233,6 +220,7 @@ const HostSession: React.FC = () => {
       OPEN_TEXT: "open-text",
       WORD_CLOUD: "word-cloud",
       SCALING: "scaling",
+      RANKING: "ranking",
     };
     return mapping[dbType] || "multiple-choice";
   };
@@ -359,9 +347,6 @@ const HostSession: React.FC = () => {
   useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
 
   // ── Fin de partie: all players eliminated, no winner ──────────────────────
-  // Gate on showResults so the overlay waits until the round is officially
-  // over (timer hit 0 or host manually closed) — not the instant the last
-  // participant submits a wrong answer mid-question.
   useEffect(() => {
     if (!isElimination || isGameOverRef.current || revealedWinner) return;
     if (!showResults) return;
@@ -401,11 +386,6 @@ const HostSession: React.FC = () => {
             setShowResults(true);
             toast({ title: "Time's Up!", description: "Showing results..." });
 
-            // ── Round just ended: refresh the EliminationHistory snapshot
-            // and show the round-end overlay with the count of players
-            // eliminated during this round. We wait briefly so any
-            // server-side eliminations triggered by the round end have
-            // time to propagate via realtime.
             if (isEliminationRef.current) {
               window.setTimeout(() => {
                 const latest = gameStateRef.current;
@@ -446,9 +426,6 @@ const HostSession: React.FC = () => {
     }
   }, [currentQuestion?.id]);
 
-  // ── New round started: take baseline snapshot for the overlay & sync
-  // the EliminationHistory mirror so it shows the state as of round-start.
-  // Also dismiss any leftover round-end overlay from the previous round.
   useEffect(() => {
     if (currentQuestionIndex < 0) return;
     roundStartEliminatedCountRef.current = gameStateRef.current.eliminated.length;
@@ -935,16 +912,12 @@ const HostSession: React.FC = () => {
     } else {
       // Last question completed.
       if (isElimination) {
-        // In elimination mode we do NOT auto-end the session and we do NOT
-        // determine the winner here. The host must click the dedicated
-        // "Show Winner" button (rendered in the showResults panel below
-        // the last question). That button calls `handleShowWinner` which
-        // determines the winner and broadcasts WINNER_REVEAL.
-        toast({
-          title: "Dernière question terminée",
-          description: "Cliquez sur « Afficher le gagnant » pour révéler le gagnant.",
-        });
-      } else {
+        // In elimination mode we do NOT auto-end the session — the host uses
+        // the "Show Winner" button below the results panel.
+        return;
+      }
+      // Standard mode: navigate to results page.
+      if (session) {
         sendMessage({ type: "SESSION_END", payload: {} });
         await SessionService.updateSessionStatus(session.id, "ENDED");
         navigate(`/results/${session.id}`);
@@ -952,41 +925,22 @@ const HostSession: React.FC = () => {
     }
   };
 
-  /**
-   * Reveal the winner. Triggered by the "Show Winner" button shown after the
-   * last question in elimination mode. Determines the winner using the
-   * official rules (alive participant — i.e. answered every question
-   * correctly — with the earliest correct response on the last question as
-   * the tie-breaker), broadcasts a WINNER_REVEAL event so the audience can
-   * render their own celebration overlay, and then ends the session.
-   */
-  /**
-   * Called when the host clicks "Terminer" on the Fin de Partie overlay.
-   * Ends the session in the backend and navigates to the results page.
-   */
   const handleGameOver = async (): Promise<void> => {
     if (!session) return;
-    try {
-      sendMessage({ type: SESSION_EVENTS.SESSION_END, payload: {} });
-      await SessionService.updateSessionStatus(session.id, "ENDED");
-      navigate(`/results/${session.id}`);
-    } catch (err: any) {
-      console.error("handleGameOver error:", err);
-    }
+    sendMessage({ type: SESSION_EVENTS.SESSION_END, payload: {} });
+    await SessionService.updateSessionStatus(session.id, "ENDED");
+    navigate(`/results/${session.id}`);
   };
 
   const handleShowWinner = async (): Promise<void> => {
-    if (!session || !isElimination) return;
-    if (isRevealingWinner) return;
-
+    if (!session) return;
     setIsRevealingWinner(true);
     try {
       const winner = await SessionService.determineWinner(session.id);
-
       if (!winner) {
         toast({
-          title: "Aucun gagnant",
-          description: "Impossible de déterminer un gagnant pour cette session.",
+          title: "Aucun gagnant trouvé",
+          description: "Tous les joueurs ont été éliminés.",
           variant: "destructive",
         });
         return;
@@ -994,13 +948,11 @@ const HostSession: React.FC = () => {
 
       setRevealedWinner(winner);
 
-      // Broadcast to all audience participants so they show the same screen.
       sendMessage({
         type: SESSION_EVENTS.WINNER_REVEAL,
         payload: winner as unknown as Record<string, unknown>,
       });
 
-      // Mark session ended in the backend.
       sendMessage({ type: SESSION_EVENTS.SESSION_END, payload: {} });
       await SessionService.updateSessionStatus(session.id, "ENDED");
     } catch (err: any) {
@@ -1109,10 +1061,8 @@ const HostSession: React.FC = () => {
     setShowResults((prev) => !prev);
   };
 
-  // ── NEW: wrapped toggle to force close when no timer and elimination mode ──
   const handleToggleResultsWithNoTimer = (): void => {
     handleToggleQuestionResults();
-    // If this is an elimination question with no time limit, tell audience to close now
     if (isElimination && currentQuestionTimeLimitRef.current === null) {
       sendMessage({ type: SESSION_EVENTS.FORCE_QUESTION_CLOSE, payload: {} });
     }
@@ -1645,7 +1595,7 @@ const HostSession: React.FC = () => {
         onPause={handlePause}
         onRestart={handleRestart}
         onEnd={handleEnd}
-        onToggleQuestionResults={handleToggleResultsWithNoTimer} // ← changed
+        onToggleQuestionResults={handleToggleResultsWithNoTimer}
         isShowingResults={showResults}
         showCorrectAnswer={showCorrectAnswer}
         onToggleCorrectAnswer={handleToggleCorrectAnswer}
@@ -1718,8 +1668,6 @@ const HostSession: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Winner overlay (host side) */}
-      {/* ── Fin de Partie overlay (all players eliminated) ───────────────── */}
       {isElimination && isGameOver && !revealedWinner && (
         <GameOverOverlay visible isHost onEnd={handleGameOver} />
       )}
@@ -1774,7 +1722,6 @@ const HostSession: React.FC = () => {
         <QrFullscreenModal code={session.code} onClose={() => setShowQrModal(false)} />
       )}
 
-      {/* Round-end elimination overlay */}
       {isElimination && (
         <RoundEliminationsOverlay
           count={roundEliminationCount}

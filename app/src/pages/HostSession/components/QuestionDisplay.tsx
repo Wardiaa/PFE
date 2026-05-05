@@ -2,6 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import AppIcon from "../../../components/AppIcon";
 import ScalingQuestionDisplay from "./ScalingQuestionDisplay";
+import RankingQuestionDisplay from "./RankingQuestionDisplay";
 import type {
   Question,
   QuestionResponses,
@@ -10,6 +11,7 @@ import type {
   OpenTextResponses,
   WordCloudResponses,
   ScalingResponses,
+  RankingResponses,
 } from "../../../lib/presentation.types";
 
 interface QuestionDisplayProps {
@@ -75,7 +77,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
   };
 
   const renderQuestionContent = () => {
-    // Normalize to lowercase so raw DB values ("SCALING", "RATING", etc.) also match.
+    // Normalize to lowercase so raw DB values ("SCALING", "RANKING", etc.) also match.
     switch ((question.type as string).toLowerCase()) {
       case "multiple-choice":
       case "single_choice":
@@ -95,6 +97,8 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
         return renderWordCloud(responses as WordCloudResponses);
       case "scaling":
         return renderScaling(responses as ScalingResponses);
+      case "ranking":
+        return renderRanking(responses as RankingResponses);
       default:
         return null;
     }
@@ -526,6 +530,18 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
     );
   };
 
+  // ── Ranking renderer (delegates to RankingQuestionDisplay) ─────────────────
+  const renderRanking = (responses: RankingResponses) => {
+    const options = (question as any).options ?? [];
+    return (
+      <RankingQuestionDisplay
+        options={options}
+        responses={responses}
+        showResults={showResults}
+      />
+    );
+  };
+
   return (
     <div className="w-full">
       <div className="mb-5 sm:mb-6 md:mb-8 lg:mb-10">
@@ -541,19 +557,23 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
         </div>
 
         {question.description && (
-          <p className="text-sm sm:text-base md:text-lg text-muted-foreground ml-10 sm:ml-13 md:ml-16">
+          <p className="text-sm sm:text-base text-muted-foreground ml-10 sm:ml-13 md:ml-16 leading-relaxed italic">
             {question.description}
           </p>
         )}
 
         {questionImage && (
-          <div className="mt-4 sm:mt-5 md:mt-6 ml-10 sm:ml-13 md:ml-16 overflow-hidden rounded-xl border border-border bg-muted/30 flex justify-center p-2 sm:p-3">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mt-4 sm:mt-5 md:mt-6 ml-10 sm:ml-13 md:ml-16 rounded-xl overflow-hidden border border-border shadow-sm bg-muted/20"
+          >
             <img
               src={questionImage}
-              alt="Question visual"
-              className="block w-auto max-w-full h-auto max-h-[280px] sm:max-h-[320px] md:max-h-[380px] object-contain mx-auto rounded-lg"
+              alt="Question"
+              className="w-full h-auto max-h-48 sm:max-h-60 md:max-h-80 object-contain mx-auto"
             />
-          </div>
+          </motion.div>
         )}
       </div>
 

@@ -1,14 +1,15 @@
-// question-types.ts - COMPLETE WITH ALL TYPES AVAILABLE (includes SCALING)
-import { 
-  CheckSquare, 
-  AlignLeft, 
-  BarChart2, 
-  Star, 
+// question-types.ts — COMPLETE WITH ALL TYPES (includes SCALING + RANKING)
+import {
+  CheckSquare,
+  AlignLeft,
+  BarChart2,
+  Star,
   Image as ImageIcon,
   List,
   Trophy,
   Cloud,
   SlidersHorizontal,
+  ArrowUpDown,
 } from "lucide-react";
 
 export const QUESTION_TYPES = {
@@ -21,6 +22,7 @@ export const QUESTION_TYPES = {
   IMAGE_CHOICE: "IMAGE_CHOICE",
   WORD_CLOUD: "WORD_CLOUD",
   SCALING: "SCALING",
+  RANKING: "RANKING",
 } as const;
 
 // Mapping for UI-friendly IDs
@@ -30,6 +32,7 @@ export const UI_QUESTION_TYPES = {
   'word-cloud': QUESTION_TYPES.WORD_CLOUD,
   'rating-scale': QUESTION_TYPES.RATING,
   'scales': QUESTION_TYPES.SCALING,
+  'ranking': QUESTION_TYPES.RANKING,
 } as const;
 
 export const QUESTION_TYPE_DETAILS = [
@@ -118,18 +121,29 @@ export const QUESTION_TYPE_DETAILS = [
     comingSoon: false,
     uiId: 'scales'
   },
+  {
+    id: QUESTION_TYPES.RANKING,
+    name: "Ranking",
+    icon: ArrowUpDown,
+    color: "text-violet-500 bg-violet-50",
+    description: "Drag items into your preferred order",
+    available: true,
+    comingSoon: false,
+    uiId: 'ranking'
+  },
 ];
 
 export const getDefaultQuestion = (type: string, id: string) => {
   // Handle both UI IDs and constant IDs
   let actualType = type;
-  
+
   // Map UI IDs to constant IDs if needed
   if (type === 'multiple-choice') actualType = QUESTION_TYPES.SINGLE_CHOICE;
   if (type === 'open-text') actualType = QUESTION_TYPES.OPEN_TEXT;
   if (type === 'word-cloud') actualType = QUESTION_TYPES.WORD_CLOUD;
   if (type === 'rating-scale') actualType = QUESTION_TYPES.RATING;
   if (type === 'scales') actualType = QUESTION_TYPES.SCALING;
+  if (type === 'ranking') actualType = QUESTION_TYPES.RANKING;
 
   const base = {
     id,
@@ -139,17 +153,20 @@ export const getDefaultQuestion = (type: string, id: string) => {
            type === 'open-text' ? "New Open Text Question" :
            type === 'word-cloud' ? "New Word Cloud Question" :
            type === 'rating-scale' ? "New Rating Scale Question" :
-           type === 'scales' ? "Rate the following statements" : "New Question",
+           type === 'scales' ? "Rate the following statements" :
+           type === 'ranking' ? "Rank the following items" : "New Question",
     description: "",
-    points: type === 'word-cloud' ? 5 : 
+    points: type === 'word-cloud' ? 5 :
             type === 'rating-scale' ? 10 :
             type === 'open-text' ? 10 :
-            type === 'scales' ? 0 : 10,
+            type === 'scales' ? 0 :
+            type === 'ranking' ? 0 : 10,
     timeLimit: type === 'word-cloud' ? 30 :
                type === 'open-text' ? 60 :
-               type === 'scales' ? 60 : 30,
-    isVisible: true, 
-    locked: false, 
+               type === 'scales' ? 60 :
+               type === 'ranking' ? 60 : 30,
+    isVisible: true,
+    locked: false,
   };
 
   switch (actualType) {
@@ -230,6 +247,21 @@ export const getDefaultQuestion = (type: string, id: string) => {
         ],
         scale: { min: 1, max: 5 },
         labels: { min: "Strongly disagree", max: "Strongly agree" },
+      };
+    case QUESTION_TYPES.RANKING:
+      return {
+        ...base,
+        title: "Rank the following items",
+        description: "Drag the items to rank them from most to least important",
+        points: 0,
+        timeLimit: 60,
+        // Ranking items stored in options field (reusing existing DB column)
+        options: [
+          { id: `${id}-r1`, text: "Item 1", isCorrect: false },
+          { id: `${id}-r2`, text: "Item 2", isCorrect: false },
+          { id: `${id}-r3`, text: "Item 3", isCorrect: false },
+          { id: `${id}-r4`, text: "Item 4", isCorrect: false },
+        ],
       };
     default:
       return {

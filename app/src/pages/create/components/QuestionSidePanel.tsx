@@ -33,6 +33,7 @@ import {
   Upload,
   SlidersHorizontal,
   GripVertical,
+  ListOrdered,       // ✅ added for ranking
 } from "lucide-react";
 
 // Local interactivity settings state
@@ -441,6 +442,31 @@ export function QuestionSidePanel({
     onUpdateQuestion({ labels: { ...current, [key]: value } } as any);
   };
 
+  // ── Ranking item helpers (NEW) ─────────────────────────────────────────────
+  const getRankingItems = (): Array<{ id: string; text: string; isCorrect: boolean }> => {
+    return (currentQuestion as any)?.options ?? [];
+  };
+
+  const updateRankingItem = (idx: number, text: string) => {
+    const items = getRankingItems();
+    const updated = items.map((item, i) => (i === idx ? { ...item, text } : item));
+    onUpdateQuestion({ options: updated } as any);
+  };
+
+  const addRankingItem = () => {
+    const items = getRankingItems();
+    const newId = `${currentQuestion?.id ?? "q"}-r${Date.now()}`;
+    onUpdateQuestion({
+      options: [...items, { id: newId, text: "", isCorrect: false }],
+    } as any);
+  };
+
+  const removeRankingItem = (idx: number) => {
+    const items = getRankingItems();
+    if (items.length <= 2) return; // minimum 2 items
+    onUpdateQuestion({ options: items.filter((_, i) => i !== idx) } as any);
+  };
+
   // ── Edit Panel ─────────────────────────────────────────────────────────────
   const renderEditPanel = () => {
     if (!currentQuestion) {
@@ -463,6 +489,19 @@ export function QuestionSidePanel({
       currentQuestion.type === "scaling" ||
       (currentQuestion as any).type === "SCALING";
 
+    const isRankingType =
+      currentQuestion.type === "ranking" ||
+      (currentQuestion as any).type === "RANKING";
+
+    // Determine display label
+    let questionTypeLabel = "Question";
+    if (isRankingType) questionTypeLabel = "Ranking";
+    else if (isScalingType) questionTypeLabel = "Scales";
+    else if (currentQuestion.type === "multiple-choice") questionTypeLabel = "Multiple Choice";
+    else if (currentQuestion.type === "open-text") questionTypeLabel = "Open Text";
+    else if (currentQuestion.type === "word-cloud") questionTypeLabel = "Word Cloud";
+    else if (currentQuestion.type === "rating-scale") questionTypeLabel = "Rating Scale";
+
     return (
       <div className="space-y-6">
         {/* Header */}
@@ -471,17 +510,7 @@ export function QuestionSidePanel({
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
           <h2 className="text-lg font-medium text-slate-800">
-            {isScalingType
-              ? "Scales"
-              : currentQuestion.type === "multiple-choice"
-              ? "Multiple Choice"
-              : currentQuestion.type === "open-text"
-              ? "Open Text"
-              : currentQuestion.type === "word-cloud"
-              ? "Word Cloud"
-              : currentQuestion.type === "rating-scale"
-              ? "Rating Scale"
-              : "Question"}
+            {questionTypeLabel}
           </h2>
         </div>
 
@@ -511,6 +540,64 @@ export function QuestionSidePanel({
             placeholder="Add additional context or instructions..."
           />
         </div>
+
+        {/* ── Ranking: items editor (NEW) ──────────────────────────────────── */}
+        {isRankingType && (
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                <ListOrdered className="w-3.5 h-3.5 text-violet-600" />
+                Ranking Items
+              </label>
+
+              <p className="text-[11px] text-slate-400 leading-relaxed -mt-1">
+                Add 2–8 items. Participants will drag them into their preferred order.
+              </p>
+
+              <div className="space-y-2">
+                {getRankingItems().map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-2 group"
+                  >
+                    <GripVertical className="w-4 h-4 text-slate-300 shrink-0" />
+
+                    <div className="flex-1 flex items-center gap-2 bg-[#F1F3F5] rounded-xl px-3 py-2.5 border border-transparent focus-within:border-violet-200 transition-all">
+                      <div className="w-5 h-5 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-bold shrink-0">
+                        {idx + 1}
+                      </div>
+                      <input
+                        type="text"
+                        value={item.text}
+                        onChange={(e) => updateRankingItem(idx, e.target.value)}
+                        className="bg-transparent border-none outline-none text-sm w-full font-medium"
+                        placeholder={`Item ${idx + 1}`}
+                      />
+                    </div>
+
+                    <button
+                      onClick={() => removeRankingItem(idx)}
+                      disabled={getRankingItems().length <= 2}
+                      className="text-slate-300 hover:text-rose-500 shrink-0 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                      title={getRankingItems().length <= 2 ? "Minimum 2 items" : "Remove item"}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={addRankingItem}
+                disabled={getRankingItems().length >= 8}
+                className="w-full py-3 bg-[#F1F3F5] hover:bg-[#E9ECEF] rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                {getRankingItems().length >= 8 ? "Maximum 8 items" : "Add item"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── Scaling: statements editor ──────────────────────────────────── */}
         {isScalingType && (
@@ -775,11 +862,56 @@ export function QuestionSidePanel({
             )}
           </div>
         </div>
+
+        {/* Time Limit (hidden for ranking/scaling) */}
+        {!isRankingType && !isScalingType && (
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5" /> Time Limit
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={currentQuestion.timeLimit ?? 60}
+                min={0}
+                max={300}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  onUpdateQuestion({ timeLimit: isNaN(val) ? null : val });
+                }}
+                className="w-full px-4 py-2.5 bg-[#F1F3F5] rounded-xl border border-transparent focus:border-slate-200 outline-none text-sm font-medium"
+              />
+              <span className="text-xs text-slate-400 shrink-0">seconds</span>
+            </div>
+            <p className="text-[11px] text-slate-400">Set to 0 for no time limit</p>
+          </div>
+        )}
+
+        {/* Points (hidden for ranking/scaling) */}
+        {!isRankingType && !isScalingType && (
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Points
+            </label>
+            <input
+              type="number"
+              value={currentQuestion.points ?? 10}
+              min={0}
+              max={1000}
+              step={5}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                onUpdateQuestion({ points: isNaN(val) ? 0 : val });
+              }}
+              className="w-full px-4 py-2.5 bg-[#F1F3F5] rounded-xl border border-transparent focus:border-slate-200 outline-none text-sm font-medium"
+            />
+          </div>
+        )}
       </div>
     );
   };
 
-  // ── Comments Panel ─────────────────────────────────────────────────────────
+  // ── Comments Panel (unchanged from your original) ──────────────────────────
   const renderCommentsPanel = () => (
     <div className="flex flex-col items-center justify-center py-20 text-center px-6">
       <div className="relative w-16 h-16 mb-5">
@@ -800,7 +932,7 @@ export function QuestionSidePanel({
     </div>
   );
 
-  // ── Interactivity Panel ────────────────────────────────────────────────────
+  // ── Interactivity Panel (unchanged from your original) ─────────────────────
   const renderInteractivityPanel = () => {
     const q = currentQuestion;
     if (!q) {
@@ -1008,7 +1140,7 @@ export function QuestionSidePanel({
     );
   };
 
-  // ── Themes Panel ───────────────────────────────────────────────────────────
+  // ── Themes Panel (unchanged) ───────────────────────────────────────────────
   const renderThemesPanel = () => {
     if (!currentQuestion) {
       return (

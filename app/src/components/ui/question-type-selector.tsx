@@ -1,8 +1,8 @@
-// question-type-selector.tsx — Updated to include Scales question type
+// question-type-selector.tsx — Updated to include Scales + Ranking question types
 import React from "react";
 import { cn } from "../../lib/utils";
 import { Card, CardContent } from "./card";
-import { ListChecks, MessageSquare, Cloud, BarChart2, SlidersHorizontal } from "lucide-react";
+import { ListChecks, MessageSquare, Cloud, BarChart2, SlidersHorizontal, ArrowUpDown } from "lucide-react";
 
 interface QuestionType {
   id: string;
@@ -53,6 +53,13 @@ export function QuestionTypeSelector({ onSelect, selectedType }: QuestionTypeSel
       icon: SlidersHorizontal,
       description: 'Rate multiple statements on a 1–5 scale',
       color: 'bg-teal-500/20 text-teal-600'
+    },
+    {
+      id: 'ranking',
+      name: 'Ranking',
+      icon: ArrowUpDown,
+      description: 'Drag items into your preferred order',
+      color: 'bg-violet-500/20 text-violet-600'
     }
   ];
 

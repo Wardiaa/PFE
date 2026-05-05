@@ -1,11 +1,10 @@
 // src/pages/audience-participation/index.tsx
-// COMPLETE FILE — original behavior preserved + Scaling question type support.
+// Updated: added RANKING question type support.
 //
-// Changes from original:
-//  - mapQuestionType: added SCALING → "scaling"
-//  - loadQuestion: passes statements field to newQuestion
-//  - renderContent "question" case: added ScalingQuestion handler
-//  - import ScalingQuestion component
+// Changes from the SCALING version:
+//  - mapQuestionType: added RANKING → "ranking"
+//  - renderContent "question" case: added RankingQuestion handler
+//  - import RankingQuestion component
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -19,6 +18,7 @@ import OpenTextQuestion from "./components/OpenTextQuestion";
 import RatingScaleQuestion from "./components/RatingScaleQuestion";
 import WordCloudQuestion from "./components/WordCloudQuestion";
 import ScalingQuestion from "./components/ScalingQuestion.tsx";
+import RankingQuestion from "./components/RankingQuestion.tsx";
 import WaitingState from "./components/WaitingState";
 import SubmissionConfirmation from "./components/SubmissionConfirmation";
 import SessionEndedState from "./components/SessionEndedState";
@@ -268,7 +268,7 @@ const AudienceParticipation: React.FC = () => {
     return (question as any).image || (question as any).imageUrl || null;
   };
 
-  // ── mapQuestionType: includes SCALING ────────────────────────────────────
+  // ── UPDATED: mapQuestionType now includes RANKING ──────────────────────────
   const mapQuestionType = (dbType: string): Question["type"] => {
     const mapping: Record<string, Question["type"]> = {
       MULTIPLE_CHOICE: "multiple-choice",
@@ -279,6 +279,7 @@ const AudienceParticipation: React.FC = () => {
       OPEN_TEXT: "open-text",
       WORD_CLOUD: "word-cloud",
       SCALING: "scaling",
+      RANKING: "ranking",
     };
     return mapping[dbType] || "multiple-choice";
   };
@@ -336,7 +337,7 @@ const AudienceParticipation: React.FC = () => {
         remaining = Math.max(0, limit - elapsed);
       }
 
-      // Normalize DB type (e.g. "SCALING") to UI type (e.g. "scaling") so all
+      // Normalize DB type (e.g. "SCALING", "RANKING") to UI type so all
       // downstream === checks work regardless of which code path loaded the question.
       const normalizedQuestion: Question = {
         ...question,
@@ -430,7 +431,7 @@ const AudienceParticipation: React.FC = () => {
           description: questionData.description,
           timeLimit: questionData.time_limit,
           options: questionData.options,
-          // ── Scaling: pass statements field ───────────────────────────────
+          // pass statements field (Scaling) and options (Ranking uses options)
           statements: questionData.statements || undefined,
           scale: questionData.scale,
           labels: questionData.labels,
@@ -964,6 +965,19 @@ const AudienceParticipation: React.FC = () => {
                   responseCount: 0,
                 }}
                 onSubmit={(r) => handleSubmitResponse({ scalingAnswers: r.scalingAnswers })}
+              />
+            )}
+            {/* ── Ranking question ──────────────────────────────────────── */}
+            {currentQuestion.type === "ranking" && (
+              <RankingQuestion
+                question={{
+                  text: currentQuestion.text,
+                  description: currentQuestion.description,
+                  image: getQuestionImage(currentQuestion),
+                  options: (currentQuestion.options ?? []) as Array<{ id: string; text: string }>,
+                  responseCount: 0,
+                }}
+                onSubmit={(r) => handleSubmitResponse({ rankingOrder: r.rankingOrder })}
               />
             )}
           </div>
