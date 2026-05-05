@@ -123,19 +123,19 @@ const ScalingQuestionDisplay: React.FC<ScalingQuestionDisplayProps> = ({
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="mb-12 p-8 rounded-3xl border-2 border-primary/30 bg-primary/[0.03] relative overflow-hidden"
+            className="mb-12 p-14 rounded-3xl border-2 border-primary/30 bg-primary/[0.03] relative overflow-hidden"
             >
             <div className="relative z-10">
-                <div className="flex items-center gap-2 mb-3">
-                <span className="bg-primary/10 text-primary text-[11px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
+                <div className="flex items-center gap-2 mb-5">
+                <span className="bg-primary/10 text-primary text-base font-black px-5 py-2 rounded-full uppercase tracking-widest">
                     Leading Insight
                 </span>
                 </div>
-                <h4 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+                <h4 className="text-6xl font-bold tracking-tight text-foreground leading-tight">
                 "{topStatement.text}" is the highest rated.
                 </h4>
-                <p className="mt-2 text-base text-muted-foreground font-medium">
-                Average score: <span className="text-primary font-bold text-xl">{responses.statements?.[topStatement.id]?.average}</span>
+                <p className="mt-5 text-2xl text-muted-foreground font-medium">
+                Average score: <span className="text-primary font-bold text-4xl">{responses.statements?.[topStatement.id]?.average}</span>
                 </p>
             </div>
             </motion.div>

@@ -1,6 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { EyeOff, Users } from "lucide-react";
+import { EyeOff, Users, Trophy } from "lucide-react";
 import type { RankingItem, RankingResponses } from "../../../lib/presentation.types";
 
 interface RankingQuestionDisplayProps {
@@ -16,13 +16,15 @@ const BAR_COLORS = [
   "bg-[#6b76c0]",
 ];
 
-const MIN_BAR_WIDTH_PERCENT = 4; // Tiny sliver at the beginning
+const MIN_BAR_WIDTH_PERCENT = 4;
 
 const RankingQuestionDisplay: React.FC<RankingQuestionDisplayProps> = ({
   options,
   responses,
   showResults = true,
 }) => {
+  const [showHighest, setShowHighest] = useState(false);
+
   const totalRespondents = responses?.total ?? 0;
 
   const rankedItems = useMemo(() => {
@@ -39,6 +41,7 @@ const RankingQuestionDisplay: React.FC<RankingQuestionDisplayProps> = ({
   }, [rankedItems]);
 
   const isResultsHidden = !showResults;
+  const topItem = rankedItems[0];
 
   return (
     <div className="w-full max-w-5xl mx-auto px-6 py-8 font-sans">
@@ -54,12 +57,60 @@ const RankingQuestionDisplay: React.FC<RankingQuestionDisplayProps> = ({
               : "Based on Borda count ranking"}
           </p>
         </div>
-        <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2">
-          <Users className="w-4 h-4 text-slate-500" />
-          <span className="text-sm font-semibold text-slate-700 tabular-nums">{totalRespondents}</span>
-          <span className="text-xs text-slate-400">voters</span>
+
+        <div className="flex items-center gap-3">
+          {!isResultsHidden && topItem && totalRespondents > 0 && (
+            <button
+              onClick={() => setShowHighest((v) => !v)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all border ${
+                showHighest
+                  ? "bg-[#5e5fb7] text-white border-[#5e5fb7] shadow-md"
+                  : "bg-white text-[#5e5fb7] border-[#5e5fb7] hover:bg-[#5e5fb7]/10"
+              }`}
+            >
+              <Trophy className="w-4 h-4" />
+              {showHighest ? "Hide Highest" : "Show Highest Ranked"}
+            </button>
+          )}
+
+          <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2">
+            <Users className="w-4 h-4 text-slate-500" />
+            <span className="text-sm font-semibold text-slate-700 tabular-nums">{totalRespondents}</span>
+            <span className="text-xs text-slate-400">voters</span>
+          </div>
         </div>
       </div>
+
+      {/* Highest Ranked Spotlight */}
+      <AnimatePresence>
+        {showHighest && topItem && (
+          <motion.div
+            key="highest-ranked"
+            initial={{ opacity: 0, y: -16, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -16, scale: 0.96 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="mb-10 rounded-3xl bg-[#5e5fb7] text-white px-14 py-14 flex items-center gap-10 shadow-2xl"
+          >
+            <div className="flex-shrink-0 w-36 h-36 rounded-full bg-white/20 flex items-center justify-center">
+              <Trophy className="w-20 h-20 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xl font-semibold uppercase tracking-widest text-white/60 mb-3">
+                Highest Ranked
+              </p>
+              <p className="text-7xl font-bold leading-tight">
+                {topItem.item.text}
+              </p>
+              {topItem.result.bordaScore > 0 && (
+                <p className="text-2xl text-white/70 mt-4">
+                  {topItem.result.bordaScore} pts · ranked #1 by the group
+                </p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Ranking list */}
       <div className="space-y-6">
@@ -111,7 +162,7 @@ const RankingQuestionDisplay: React.FC<RankingQuestionDisplayProps> = ({
                         />
                       )}
                     </motion.div>
-                    
+
                     {!isResultsHidden && result.bordaScore > 0 && (
                       <div className="absolute right-3 top-0 h-full flex items-center">
                         <span className="text-xs font-black text-slate-400 tabular-nums">
