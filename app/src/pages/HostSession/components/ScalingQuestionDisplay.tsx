@@ -1,10 +1,6 @@
-// src/pages/HostSession/components/ScalingQuestionDisplay.tsx
-// Host-side results display for a Scaling question.
-// Shows a Mentimeter-style distribution visualization per statement.
-
-import React from "react";
-import { motion } from "framer-motion";
-import { Users, SlidersHorizontal, BarChart3 } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Users, SlidersHorizontal, TrendingUp } from "lucide-react";
 import type { ScalingStatement, ScalingResponses } from "../../../lib/presentation.types";
 
 interface ScalingQuestionDisplayProps {
@@ -15,103 +11,27 @@ interface ScalingQuestionDisplayProps {
   labels?: { min?: string; max?: string };
 }
 
-const SCALE_COLORS: Record<number, string> = {
-  1: "#ef4444",
-  2: "#f97316",
-  3: "#eab308",
-  4: "#22c55e",
-  5: "#10b981",
+// Utility to generate a smooth SVG path for the density "cloud"
+const generateSmoothPath = (data: number[], width: number, height: number) => {
+  if (data.length === 0) return "";
+  const points = data.map((val, i) => ({
+    x: (i / (data.length - 1)) * width,
+    y: height - (val * height * 0.8), // 0.8 to leave some padding at top
+  }));
+
+  let d = `M ${points[0].x} ${height}`;
+  d += ` L ${points[0].x} ${points[0].y}`;
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const curr = points[i];
+    const next = points[i + 1];
+    const controlX = (curr.x + next.x) / 2;
+    d += ` C ${controlX} ${curr.y}, ${controlX} ${next.y}, ${next.x} ${next.y}`;
+  }
+
+  d += ` L ${points[points.length - 1].x} ${height} Z`;
+  return d;
 };
-
-const BAR_BG = "#f1f5f9";
-
-function DistributionChart({
-  distribution,
-  total,
-  steps,
-  average,
-}: {
-  distribution: Record<number, number>;
-  total: number;
-  steps: number[];
-  average: string;
-}) {
-  const maxCount = Math.max(...steps.map((s) => distribution[s] ?? 0), 1);
-  const avgNum = parseFloat(average);
-  const min = steps[0];
-  const max = steps[steps.length - 1];
-  const avgPercent = max > min ? ((avgNum - min) / (max - min)) * 100 : 50;
-
-  return (
-    <div className="space-y-2">
-      {/* Bar chart */}
-      <div className="flex items-end gap-1.5 h-16">
-        {steps.map((step, idx) => {
-          const count = distribution[step] ?? 0;
-          const heightPct = (count / maxCount) * 100;
-          const color = SCALE_COLORS[step] ?? "#6366f1";
-
-          return (
-            <motion.div
-              key={step}
-              className="flex-1 flex flex-col items-center justify-end gap-1"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: idx * 0.05 }}
-            >
-              {count > 0 && (
-                <span className="text-[10px] font-bold text-foreground">{count}</span>
-              )}
-              <motion.div
-                className="w-full rounded-t-md min-h-[3px]"
-                style={{ backgroundColor: heightPct > 0 ? color : BAR_BG }}
-                initial={{ height: 0 }}
-                animate={{ height: `${Math.max(heightPct, 4)}%` }}
-                transition={{ duration: 0.5, ease: "easeOut", delay: idx * 0.05 }}
-              />
-            </motion.div>
-          );
-        })}
-      </div>
-
-      {/* Step labels */}
-      <div className="flex gap-1.5">
-        {steps.map((step) => (
-          <div key={step} className="flex-1 text-center text-[10px] font-semibold text-muted-foreground">
-            {step}
-          </div>
-        ))}
-      </div>
-
-      {/* Average slider track */}
-      <div className="relative mt-3 h-6">
-        <div className="absolute top-1/2 left-0 right-0 h-1.5 bg-muted rounded-full -translate-y-1/2 overflow-hidden">
-          <motion.div
-            className="h-full rounded-full"
-            style={{
-              background: "linear-gradient(to right, #ef4444, #f97316, #eab308, #22c55e, #10b981)",
-            }}
-            initial={{ width: 0 }}
-            animate={{ width: "100%" }}
-            transition={{ duration: 0.6 }}
-          />
-        </div>
-        {/* Average bubble */}
-        <motion.div
-          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2"
-          style={{ left: `${avgPercent}%` }}
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.4, type: "spring", stiffness: 260, damping: 20 }}
-        >
-          <div className="w-8 h-8 rounded-full bg-foreground text-background flex items-center justify-center text-xs font-black shadow-md border-2 border-background">
-            {average}
-          </div>
-        </motion.div>
-      </div>
-    </div>
-  );
-}
 
 const ScalingQuestionDisplay: React.FC<ScalingQuestionDisplayProps> = ({
   statements,
@@ -123,145 +43,182 @@ const ScalingQuestionDisplay: React.FC<ScalingQuestionDisplayProps> = ({
   const scaleMin = scale?.min ?? 1;
   const scaleMax = scale?.max ?? 5;
   const steps = Array.from({ length: scaleMax - scaleMin + 1 }, (_, i) => scaleMin + i);
+  const totalSteps = steps.length;
   const minLabel = labels?.min ?? "Strongly disagree";
   const maxLabel = labels?.max ?? "Strongly agree";
   const totalRespondents = responses?.total ?? 0;
 
+  const [hoveredStmtId, setHoveredStmtId] = useState<string | null>(null);
+
   if (!showResults) {
     return (
-      <div className="bg-card border-2 border-border rounded-xl p-6 md:p-8">
-        <div className="flex items-start gap-4 mb-6">
-          <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-teal-100 dark:bg-teal-900/20 flex items-center justify-center">
-            <SlidersHorizontal className="w-6 h-6 text-teal-600 dark:text-teal-400" />
+      <div className="max-w-5xl mx-auto px-4">
+        <div className="bg-card/50 backdrop-blur-sm border border-border rounded-3xl p-10 text-center">
+          <div className="inline-flex p-4 rounded-2xl bg-primary/10 text-primary mb-6">
+            <SlidersHorizontal className="w-8 h-8" />
           </div>
-          <div className="flex-1">
-            <p className="text-base text-muted-foreground mb-2">
-              Participants rate each statement on a scale from{" "}
-              <strong>{scaleMin}</strong> to <strong>{scaleMax}</strong>.
-            </p>
-            <div className="flex items-center gap-2 text-sm text-foreground">
-              <Users className="w-4 h-4 text-muted-foreground" />
-              <span className="font-semibold">{totalRespondents}</span>
-              <span className="text-muted-foreground">responses received</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          {statements.map((stmt, idx) => (
-            <div
-              key={stmt.id}
-              className="flex items-center gap-3 p-3 rounded-lg bg-muted/40 border border-border"
-            >
-              <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
-                {idx + 1}
+          <h3 className="text-2xl font-bold mb-2">Waiting for responses...</h3>
+          <p className="text-muted-foreground mb-8">Participants are rating {statements.length} statements.</p>
+          <div className="space-y-3 max-w-md mx-auto">
+            {statements.map((s, i) => (
+              <div key={s.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 text-left border border-border/50">
+                <span className="text-xs font-bold opacity-50">{i + 1}</span>
+                <span className="text-sm font-medium truncate">{s.text}</span>
               </div>
-              <p className="text-sm text-foreground">{stmt.text}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-6 flex items-center justify-between text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
-          <span>{minLabel}</span>
-          <div className="flex gap-1">
-            {steps.map((s) => (
-              <div
-                key={s}
-                className="w-6 h-1.5 rounded-full"
-                style={{ backgroundColor: SCALE_COLORS[s] ?? "#6366f1" }}
-              />
             ))}
           </div>
-          <span>{maxLabel}</span>
         </div>
       </div>
     );
   }
 
-  // ── Results mode ────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4">
-      {/* Summary bar */}
-      <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <BarChart3 className="w-4 h-4" />
-          <span>
-            <strong className="text-foreground">{totalRespondents}</strong> responses
-          </span>
-        </div>
-        <div className="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
-          <span>{minLabel}</span>
-          <div className="hidden sm:flex gap-1">
-            {steps.map((s) => (
-              <div
-                key={s}
-                className="w-5 h-1.5 rounded-full"
-                style={{ backgroundColor: SCALE_COLORS[s] ?? "#6366f1" }}
-              />
-            ))}
+    <div className="max-w-5xl mx-auto px-4 pb-20">
+      {/* Header Summary */}
+      <div className="flex items-center justify-between mb-12 px-2">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <TrendingUp className="w-5 h-5 text-primary" />
           </div>
-          <span>{maxLabel}</span>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.2em] font-black text-muted-foreground">Live Results</p>
+            <p className="text-sm font-bold">{totalRespondents} participants have voted</p>
+          </div>
         </div>
       </div>
 
-      {/* Per-statement cards */}
-      {statements.map((stmt, idx) => {
-        const stmtResult = responses.statements?.[stmt.id];
-        const distribution = stmtResult?.distribution ?? {};
-        const average = stmtResult?.average ?? "–";
-        const stmtTotal = stmtResult?.total ?? 0;
+      <div className="space-y-16">
+        {statements.map((stmt, idx) => {
+          const result = responses.statements?.[stmt.id];
+          const average = parseFloat(result?.average ?? "0");
+          const avgPercent = totalSteps > 1 ? ((average - scaleMin) / (scaleMax - scaleMin)) * 100 : 50;
 
-        return (
-          <motion.div
-            key={stmt.id}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.07 }}
-            className="bg-card border-2 border-border rounded-xl p-4 md:p-5"
-          >
-            {/* Statement header */}
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <div className="flex items-start gap-2.5 flex-1 min-w-0">
-                <div className="shrink-0 w-6 h-6 rounded-full bg-teal-100 dark:bg-teal-900/20 flex items-center justify-center text-xs font-bold text-teal-600 dark:text-teal-400 mt-0.5">
-                  {idx + 1}
+          // Prepare density data (normalized counts per step)
+          const densityData = useMemo(() => {
+            const counts = steps.map(stepVal => result?.distribution?.[stepVal] ?? 0);
+            const max = Math.max(...counts, 1);
+            return counts.map(v => v / max);
+          }, [result, steps]);
+
+          const counts = steps.map(stepVal => result?.distribution?.[stepVal] ?? 0);
+          const maxCountInStmt = Math.max(...counts, 1);
+          const normalizedForBubbles = counts.map(v => v / maxCountInStmt);
+
+          const isHovered = hoveredStmtId === stmt.id;
+
+          return (
+            <motion.div
+              key={stmt.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.1 }}
+              className="relative group"
+              onMouseEnter={() => setHoveredStmtId(stmt.id)}
+              onMouseLeave={() => setHoveredStmtId(null)}
+            >
+              <h4 className="text-lg md:text-xl font-semibold text-foreground mb-4 pl-1">
+                {stmt.text}
+              </h4>
+
+              <div className="relative h-24 w-full">
+                {/* 1. The Density Cloud (SVG) */}
+                <svg className="absolute inset-0 w-full h-full overflow-visible" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id={`grad-${stmt.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#818cf8" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="#818cf8" stopOpacity="0.05" />
+                    </linearGradient>
+                  </defs>
+                  <motion.path
+                    initial={{ d: generateSmoothPath(densityData.map(() => 0), 1000, 100) }}
+                    animate={{ d: generateSmoothPath(densityData, 1000, 100) }}
+                    transition={{ type: "spring", stiffness: 50, damping: 20 }}
+                    fill={`url(#grad-${stmt.id})`}
+                    className="stroke-primary/30 stroke-[1px]"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </svg>
+
+                {/* 2. Hover‑only vote count bubbles (room spread) */}
+                <div className="absolute inset-0 pointer-events-none">
+                  {steps.map((step, sIdx) => {
+                    const count = counts[sIdx];
+                    const xPos = (sIdx / (totalSteps - 1)) * 100;
+                    // y position follows the same curve calculation as SVG
+                    const yPos = 100 - (normalizedForBubbles[sIdx] * 100 * 0.8); // matches generateSmoothPath height * 0.8
+
+                    return (
+                      <AnimatePresence key={step}>
+                        {isHovered && count > 0 && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.5, y: yPos }}
+                            animate={{ opacity: 1, scale: 1, y: yPos - 20 }}
+                            exit={{ opacity: 0, scale: 0.5, y: yPos }}
+                            className="absolute"
+                            style={{ left: `${xPos}%` }}
+                          >
+                            <div className="relative -translate-x-1/2 flex flex-col items-center">
+                              <div className="bg-foreground text-background dark:bg-background dark:text-foreground px-1.5 py-0.5 rounded text-[10px] font-black shadow-md whitespace-nowrap">
+                                {count}
+                              </div>
+                              <div className="w-[1px] h-2 bg-primary/40 mt-0.5" />
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    );
+                  })}
                 </div>
-                <p className="text-sm md:text-base font-medium text-foreground leading-snug">
-                  {stmt.text}
-                </p>
-              </div>
 
-              {/* Average badge */}
-              <div className="shrink-0 flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl bg-muted/60">
-                <span className="text-xs text-muted-foreground font-medium">avg</span>
-                <span className="text-lg font-black text-foreground leading-none">{average}</span>
-              </div>
-            </div>
+                {/* 3. The Slider Track */}
+                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-muted-foreground/20 rounded-full" />
 
-            {/* Distribution chart */}
-            {stmtTotal > 0 ? (
-              <DistributionChart
-                distribution={distribution}
-                total={stmtTotal}
-                steps={steps}
-                average={average}
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
-                <SlidersHorizontal className="w-8 h-8 mb-2 opacity-30" />
-                <p className="text-xs">No responses yet</p>
-              </div>
-            )}
+                {/* 4. The Active Progress Fill */}
+                <motion.div
+                  className="absolute bottom-0 left-0 h-[3px] bg-primary rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${avgPercent}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                />
 
-            {/* Response count */}
-            <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Users className="w-3.5 h-3.5" />
-              <span>
-                {stmtTotal} {stmtTotal === 1 ? "response" : "responses"}
-              </span>
-            </div>
-          </motion.div>
-        );
-      })}
+                {/* 5. The Average Handle (The Bubble) */}
+                <motion.div
+                  className="absolute bottom-[-14px] z-10"
+                  initial={{ left: 0 }}
+                  animate={{ left: `${avgPercent}%` }}
+                  transition={{ type: "spring", stiffness: 60, damping: 15 }}
+                >
+                  <div className="relative -translate-x-1/2 flex flex-col items-center">
+                    <div className="w-10 h-10 rounded-full bg-primary border-[3px] border-white dark:border-[#1e1b4b] shadow-xl flex items-center justify-center">
+                      <span className="text-white text-xs font-black tabular-nums">
+                        {result?.average ?? "0.0"}
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* Shared Footer Labels */}
+      <div className="mt-10 pt-6 border-t border-border flex justify-between px-2">
+        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+          {minLabel}
+        </span>
+        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+          {maxLabel}
+        </span>
+      </div>
+
+      {/* Participants Badge */}
+      <div className="fixed bottom-8 right-8">
+        <div className="bg-foreground text-background px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 border border-background/20">
+          <Users className="w-4 h-4" />
+          <span className="text-sm font-black tracking-tight">{totalRespondents}</span>
+        </div>
+      </div>
     </div>
   );
 };

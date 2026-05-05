@@ -1,9 +1,7 @@
-// src/pages/audience-participation/components/ScalingQuestion.tsx
-// Audience-side Scaling question — Mentimeter-style sliders per statement.
-
 import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { SlidersHorizontal, SkipForward, Send, CheckCircle2 } from "lucide-react";
+import { motion } from "framer-motion";
+import { SlidersHorizontal, SkipForward, RotateCcw, Send, Loader2 } from "lucide-react";
+import Button from "../../../components/ui/Button2";
 
 interface ScalingStatement {
   id: string;
@@ -34,19 +32,11 @@ interface ScalingQuestionProps {
 }
 
 const SCALE_LABELS: Record<number, string> = {
-  1: "Strongly\ndisagree",
+  1: "Strongly disagree",
   2: "Disagree",
-  3: "Neither",
+  3: "Neutral",
   4: "Agree",
-  5: "Strongly\nagree",
-};
-
-const SCALE_COLORS: Record<number, string> = {
-  1: "#ef4444",
-  2: "#f97316",
-  3: "#eab308",
-  4: "#22c55e",
-  5: "#10b981",
+  5: "Strongly agree",
 };
 
 const ScalingQuestion: React.FC<ScalingQuestionProps> = ({ question, onSubmit }) => {
@@ -60,14 +50,12 @@ const ScalingQuestion: React.FC<ScalingQuestionProps> = ({ question, onSubmit })
     (_, i) => scale.min + i,
   );
 
-  // answers: null = not answered, undefined = not touched yet
   const [answers, setAnswers] = useState<Record<string, number | null>>({});
   const [skipped, setSkipped] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const minLabel = question.labels?.min ?? "Strongly disagree";
   const maxLabel = question.labels?.max ?? "Strongly agree";
-  const questionImage = question.image;
 
   const totalStatements = question.statements.length;
   const answeredCount = question.statements.filter(
@@ -110,248 +98,207 @@ const ScalingQuestion: React.FC<ScalingQuestionProps> = ({ question, onSubmit })
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
-      <div className="bg-card rounded-2xl shadow-lg border border-border overflow-hidden">
-        {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-border/60">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
-              <SlidersHorizontal className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+    <div className="w-full max-w-2xl mx-auto pb-12">
+      {/* Header Card */}
+      <div className="bg-card rounded-2xl shadow-xl border border-border overflow-hidden mb-6">
+        <div className="p-6 md:p-8">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary">
+              <SlidersHorizontal className="w-5 h-5" />
             </div>
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Scales
+            <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              Rating Scales
             </span>
           </div>
 
-          <h2 className="text-xl md:text-2xl font-bold text-foreground leading-snug">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-foreground tracking-tight leading-tight">
             {question.text}
           </h2>
 
           {question.description && (
-            <p className="mt-2 text-sm text-muted-foreground">{question.description}</p>
+            <p className="mt-3 text-muted-foreground leading-relaxed italic">
+              {question.description}
+            </p>
           )}
 
-          {questionImage && (
-            <div className="mt-4 rounded-xl border border-border bg-muted/30 flex justify-center p-2">
+          {question.image && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mt-6 rounded-2xl overflow-hidden border border-border shadow-sm bg-muted/20"
+            >
               <img
-                src={questionImage}
-                alt="Question visual"
-                className="block w-auto max-w-full h-auto max-h-48 object-contain rounded-lg"
+                src={question.image}
+                alt="Question"
+                className="w-full h-auto max-h-64 object-contain mx-auto"
               />
-            </div>
+            </motion.div>
           )}
 
-          {/* Progress bar */}
-          <div className="mt-4 flex items-center gap-3">
-            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-teal-500 rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${(answeredCount / totalStatements) * 100}%` }}
-                transition={{ duration: 0.3 }}
-              />
-            </div>
-            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-              {answeredCount}/{totalStatements}
+          {/* Progress Header */}
+          <div className="mt-8 flex items-center justify-between mb-2">
+            <span className="text-sm font-bold text-foreground">Progress</span>
+            <span className="text-xs font-medium text-muted-foreground tabular-nums">
+              {answeredCount} of {totalStatements} statements rated
             </span>
           </div>
+          <div className="h-3 w-full bg-muted rounded-full overflow-hidden border border-border/50">
+            <motion.div
+              className="h-full bg-gradient-to-r from-primary to-primary/80"
+              initial={{ width: 0 }}
+              animate={{ width: `${(answeredCount / totalStatements) * 100}%` }}
+              transition={{ type: "spring", bounce: 0, duration: 0.6 }}
+            />
+          </div>
         </div>
+      </div>
 
-        {/* Statements */}
-        <div className="px-6 py-4 space-y-5">
-          {question.statements.map((statement, idx) => {
-            const selectedValue = answers[statement.id];
-            const isSkipped = skipped[statement.id];
-            const isDone = selectedValue !== undefined || isSkipped;
+      {/* Statements List */}
+      <div className="space-y-4 px-1">
+        {question.statements.map((statement, idx) => {
+          const selectedValue = answers[statement.id];
+          const isSkipped = skipped[statement.id];
+          const isDone = selectedValue !== undefined || isSkipped;
 
-            return (
-              <motion.div
-                key={statement.id}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.06 }}
-                className={`rounded-xl border-2 transition-colors duration-200 ${
-                  isSkipped
-                    ? "border-muted bg-muted/20"
-                    : selectedValue !== undefined
-                    ? "border-teal-200 dark:border-teal-800 bg-teal-50/30 dark:bg-teal-950/10"
-                    : "border-border bg-background"
+          return (
+            <motion.div
+              key={statement.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.1 }}
+              className={`relative overflow-hidden rounded-2xl border-2 transition-all duration-300 ${
+                isDone 
+                  ? "border-primary/30 bg-card shadow-md" 
+                  : "border-border bg-card/50"
+              }`}
+            >
+              {/* Active Indicator Bar */}
+              <div 
+                className={`absolute left-0 top-0 bottom-0 w-1.5 transition-colors duration-300 ${
+                  isSkipped ? "bg-muted" : isDone ? "bg-primary" : "bg-transparent"
                 }`}
-              >
-                <div className="p-4">
-                  {/* Statement text row */}
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <div className="flex items-start gap-2.5 flex-1 min-w-0">
-                      <div
-                        className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mt-0.5 transition-colors ${
-                          isDone
-                            ? "bg-teal-500 text-white"
-                            : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {isDone ? (
-                          isSkipped ? (
-                            <span className="text-[9px]">–</span>
-                          ) : (
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                          )
-                        ) : (
-                          idx + 1
-                        )}
-                      </div>
-                      <p
-                        className={`text-sm font-medium leading-snug ${
-                          isSkipped ? "text-muted-foreground line-through" : "text-foreground"
-                        }`}
-                      >
-                        {statement.text}
-                      </p>
-                    </div>
+              />
 
-                    {!isSkipped && (
-                      <button
-                        onClick={() => handleSkip(statement.id)}
-                        className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-muted"
-                      >
-                        <SkipForward className="w-3 h-3" />
-                        Skip
-                      </button>
-                    )}
-
-                    {isSkipped && (
-                      <button
-                        onClick={() => {
-                          setSkipped((prev) => {
-                            const next = { ...prev };
-                            delete next[statement.id];
-                            return next;
-                          });
-                        }}
-                        className="shrink-0 text-xs text-teal-600 hover:underline"
-                      >
-                        Undo
-                      </button>
-                    )}
+              <div className="p-5 md:p-6">
+                <div className="flex justify-between items-start gap-4 mb-6">
+                  <div className="flex gap-3 min-w-0">
+                    <span className="shrink-0 flex items-center justify-center w-6 h-6 rounded-md bg-muted text-[11px] font-bold text-muted-foreground">
+                      {idx + 1}
+                    </span>
+                    <h3 className={`text-base md:text-lg font-bold leading-snug transition-opacity ${isSkipped ? "opacity-40 line-through" : "opacity-100"}`}>
+                      {statement.text}
+                    </h3>
                   </div>
 
-                  {/* Slider dots */}
-                  {!isSkipped && (
-                    <div className="space-y-2">
-                      {/* Dot row */}
-                      <div className="relative">
-                        {/* Track line */}
-                        <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-border -translate-y-1/2 mx-5" />
-
-                        <div className="relative flex justify-between items-center">
-                          {steps.map((step) => {
-                            const isSelected = selectedValue === step;
-                            const color = SCALE_COLORS[step] ?? "#6366f1";
-
-                            return (
-                              <button
-                                key={step}
-                                onClick={() => handleSelect(statement.id, step)}
-                                style={
-                                  isSelected
-                                    ? { backgroundColor: color, borderColor: color }
-                                    : {}
-                                }
-                                className={`relative z-10 flex flex-col items-center transition-all duration-150 ${
-                                  isSelected ? "scale-125" : "hover:scale-110"
-                                }`}
-                              >
-                                <div
-                                  style={
-                                    isSelected
-                                      ? { backgroundColor: color, boxShadow: `0 0 0 4px ${color}25` }
-                                      : {}
-                                  }
-                                  className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-all duration-150 ${
-                                    isSelected
-                                      ? "text-white border-transparent shadow-md"
-                                      : "bg-background border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
-                                  }`}
-                                >
-                                  {step}
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Labels */}
-                      <div className="flex items-center justify-between px-1">
-                        <span className="text-[10px] font-medium text-muted-foreground max-w-[80px] leading-tight">
-                          {minLabel}
-                        </span>
-                        <span className="text-[10px] font-medium text-muted-foreground max-w-[80px] text-right leading-tight">
-                          {maxLabel}
-                        </span>
-                      </div>
-
-                      {/* Selected label display */}
-                      <AnimatePresence>
-                        {selectedValue != null && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="text-center"
-                          >
-                            {(() => {
-                              const val = selectedValue as number;
-                              return (
-                                <span
-                                  className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                                  style={{
-                                    backgroundColor: `${SCALE_COLORS[val] ?? "#6366f1"}18`,
-                                    color: SCALE_COLORS[val] ?? "#6366f1",
-                                  }}
-                                >
-                                  {SCALE_LABELS[val] ?? val}
-                                </span>
-                              );
-                            })()}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  )}
-
-                  {isSkipped && (
-                    <div className="text-xs text-muted-foreground italic text-center py-1">
-                      This statement was skipped
-                    </div>
+                  {isSkipped ? (
+                    <button
+                      onClick={() => {
+                        setSkipped((prev) => {
+                          const next = { ...prev };
+                          delete next[statement.id];
+                          return next;
+                        });
+                      }}
+                      className="shrink-0 text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors group"
+                    >
+                      <RotateCcw className="w-3 h-3 group-hover:rotate-12 transition-transform" />
+                      Undo
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleSkip(statement.id)}
+                      className="shrink-0 text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors group"
+                    >
+                      <SkipForward className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                      Skip
+                    </button>
                   )}
                 </div>
-              </motion.div>
-            );
-          })}
-        </div>
 
-        {/* Submit footer */}
-        <div className="px-6 pb-6">
-          <motion.button
-            onClick={handleSubmit}
-            disabled={!allAnswered || isSubmitting}
-            whileTap={allAnswered && !isSubmitting ? { scale: 0.97 } : {}}
-            className={`w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl font-semibold text-sm transition-all duration-200 ${
-              allAnswered && !isSubmitting
-                ? "bg-teal-600 hover:bg-teal-700 text-white shadow-md hover:shadow-lg"
-                : "bg-muted text-muted-foreground cursor-not-allowed"
-            }`}
-          >
-            {isSubmitting ? (
-              <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-            ) : (
-              <>
-                <Send className="w-4 h-4" />
-                {allAnswered ? "Submit Ratings" : `Answer all statements (${answeredCount}/${totalStatements})`}
-              </>
-            )}
-          </motion.button>
-        </div>
+                {!isSkipped ? (
+                  <div className="space-y-6">
+                    {/* Visual Button Row */}
+                    <div className="relative pt-2 pb-2">
+                      <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-muted -translate-y-1/2" />
+                      <div className="relative flex justify-between">
+                        {steps.map((step) => {
+                          const isSelected = selectedValue === step;
+
+                          return (
+                            <button
+                              key={step}
+                              onClick={() => handleSelect(statement.id, step)}
+                              className="relative z-10 group focus:outline-none"
+                            >
+                              <div
+                                className={`w-10 h-10 md:w-12 md:h-12 rounded-full border-2 flex items-center justify-center transition-colors duration-150 ${
+                                  isSelected 
+                                    ? "bg-slate-700 border-slate-700 text-white" 
+                                    : "bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-primary"
+                                }`}
+                              >
+                                <span className="text-sm md:text-base font-black tabular-nums">{step}</span>
+                              </div>
+
+                              {/* Hover label (tooltip) */}
+                              <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] font-bold uppercase opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap text-muted-foreground pointer-events-none">
+                                {SCALE_LABELS[step] ?? ""}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Scale Footers */}
+                    <div className="flex justify-between items-center px-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground max-w-[80px]">
+                        {minLabel}
+                      </span>
+
+                      {selectedValue != null && (
+                        <div className="bg-muted/50 px-3 py-1 rounded-full border border-border">
+                          <span className="text-xs font-extrabold uppercase tracking-tight text-slate-700 dark:text-slate-300">
+                            {SCALE_LABELS[selectedValue as keyof typeof SCALE_LABELS] ?? selectedValue}
+                          </span>
+                        </div>
+                      )}
+
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right max-w-[80px]">
+                        {maxLabel}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-4 bg-muted/30 rounded-xl">
+                    <span className="text-sm font-medium text-muted-foreground">This item was skipped</span>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* Unified Button Component */}
+      <div className="mt-10 px-1">
+        <Button
+          variant="default"
+          size="lg"
+          fullWidth
+          onClick={handleSubmit}
+          disabled={!allAnswered || isSubmitting}
+          loading={isSubmitting}
+          iconName="Send"
+          iconPosition="right"
+        >
+          {allAnswered ? "Submit All Ratings" : `Rated ${answeredCount} of ${totalStatements}`}
+        </Button>
+        {!allAnswered && (
+          <p className="mt-3 text-center text-xs font-semibold text-muted-foreground">
+             Please provide a rating or skip for every statement to continue.
+          </p>
+        )}
       </div>
     </div>
   );
