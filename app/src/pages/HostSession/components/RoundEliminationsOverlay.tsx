@@ -7,18 +7,22 @@
 // Render only when `count > 0`. If count is 0 or null, the overlay should
 // not be mounted at all.
 
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import { X, Users } from "lucide-react";
 
 interface Props {
   /** Number of participants eliminated during the round that just ended. */
   count: number | null;
   /** Optional round number to display alongside the count. */
   roundNumber?: number;
+  /** List of names of players eliminated this round. */
+  eliminatedNames?: string[];
   onClose: () => void;
 }
 
-export function RoundEliminationsOverlay({ count, roundNumber, onClose }: Props) {
+export function RoundEliminationsOverlay({ count, roundNumber, eliminatedNames = [], onClose }: Props) {
+  const [showNames, setShowNames] = useState(false);
   const visible = typeof count === "number" && count > 0;
 
   return (
@@ -33,8 +37,6 @@ export function RoundEliminationsOverlay({ count, roundNumber, onClose }: Props)
           className="fixed inset-0 z-[160] flex items-center justify-center p-6 bg-black/75 backdrop-blur-md"
           onClick={onClose}
         >
-          
-
           <motion.div
             initial={{ y: 30, opacity: 0, scale: 0.96 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
@@ -67,7 +69,6 @@ export function RoundEliminationsOverlay({ count, roundNumber, onClose }: Props)
             <div className="px-10 sm:px-14 pt-10 pb-12">
               {/* Header row: live status pill + meta */}
               <div className="flex items-center justify-between mb-10">
-
                 {typeof roundNumber === "number" && roundNumber > 0 && (
                   <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/40">
                     Q{String(roundNumber).padStart(2, "0")}
@@ -75,38 +76,80 @@ export function RoundEliminationsOverlay({ count, roundNumber, onClose }: Props)
                 )}
               </div>
 
-              {/* Count + label, asymmetric layout */}
-              <div className="flex items-end gap-6">
-                {/* Big tabular number */}
-                <motion.div
-                  initial={{ y: 16, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.1, type: "spring", damping: 18, stiffness: 220 }}
-                  className="leading-[0.85] font-black tracking-tighter text-white tabular-nums"
-                  style={{
-                    fontSize: "clamp(7rem, 18vw, 11rem)",
-                    fontFeatureSettings: '"tnum" 1, "ss01" 1',
-                    textShadow:
-                      "0 0 40px rgba(127,29,29,0.55), 0 2px 0 rgba(0,0,0,0.4)",
-                  }}
-                >
-                  {count}
-                </motion.div>
+              <div className="min-h-[220px] flex flex-col justify-center">
+                <AnimatePresence mode="wait">
+                  {!showNames ? (
+                    /* Big Number View */
+                    <motion.div
+                      key="count-view"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      className="flex items-end gap-6"
+                    >
+                      <motion.div
+                        initial={{ y: 16, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 0.1, type: "spring", damping: 18, stiffness: 220 }}
+                        className="leading-[0.85] font-black tracking-tighter text-white tabular-nums"
+                        style={{
+                          fontSize: "clamp(7rem, 18vw, 11rem)",
+                          fontFeatureSettings: '"tnum" 1, "ss01" 1',
+                          textShadow: "0 0 40px rgba(127,29,29,0.55), 0 2px 0 rgba(0,0,0,0.4)",
+                        }}
+                      >
+                        {count}
+                      </motion.div>
 
-                {/* Stacked label, baseline-aligned */}
-                <motion.div
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.25 }}
-                  className="pb-4 sm:pb-6"
-                >
-                  <div className="text-2xl sm:text-3xl font-black uppercase leading-none text-white">
-                    {count === 1 ? "Joueur" : "Joueurs"}
-                  </div>
-                  <div className="mt-1 text-2xl sm:text-3xl font-black uppercase leading-none bg-red-700 bg-clip-text text-transparent">
-                    Éliminé{count === 1 ? "" : "s"}
-                  </div>
-                </motion.div>
+                      <motion.div
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.25 }}
+                        className="pb-4 sm:pb-6"
+                      >
+                        <div className="text-2xl sm:text-3xl font-black uppercase leading-none text-white">
+                          {count === 1 ? "Joueur" : "Joueurs"}
+                        </div>
+                        <div className="mt-1 text-2xl sm:text-3xl font-black uppercase leading-none bg-red-700 bg-clip-text text-transparent">
+                          Éliminé{count === 1 ? "" : "s"}
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  ) : (
+                    /* Names List View */
+                    <motion.div
+                      key="names-view"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      className="w-full"
+                    >
+                      <div className="flex items-center gap-2 mb-4 text-red-500">
+                        <Users size={18} />
+                        <span className="text-sm font-bold uppercase tracking-wider">Liste des éliminés</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                        {eliminatedNames.length > 0 ? (
+                          eliminatedNames.map((name, i) => (
+                            <motion.div
+                              key={i}
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              transition={{ delay: i * 0.03 }}
+                              className="bg-white/5 border border-white/10 rounded px-3 py-2 text-white/90 text-sm font-medium truncate"
+                            >
+                              {name}
+                            </motion.div>
+                          ))
+                        ) : (
+                          <div className="col-span-full text-white/40 text-sm italic">
+                            Aucun nom disponible
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* Divider */}
@@ -122,10 +165,20 @@ export function RoundEliminationsOverlay({ count, roundNumber, onClose }: Props)
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 }}
-                className="mt-5 flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.22em] text-white/40"
+                className="mt-5 flex items-center justify-between text-[11px] sm:text-xs font-mono uppercase tracking-[0.22em]"
               >
-                <span>100% Logique</span>
-                <span className="text-white/30">echap · clic pour fermer</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowNames(!showNames);
+                }}
+                className="text-white hover:text-red-500 transition-colors flex items-center gap-2 group cursor-pointer text-sm sm:text-base font-medium"
+              >
+                {showNames ? "Retour au score" : "Voir les noms"}
+              </button>
+                <span className="text-white/50 text-[11px] sm:text-xs">
+                  echap · clic pour fermer
+                </span>
               </motion.div>
             </div>
           </motion.div>

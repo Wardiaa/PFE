@@ -1726,6 +1726,10 @@ const HostSession: React.FC = () => {
         <RoundEliminationsOverlay
           count={roundEliminationCount}
           roundNumber={overlayRoundNumber}
+          eliminatedNames={participants
+            .filter(p => !p.isAlive && p.eliminatedAtRound === overlayRoundNumber)
+            .map(p => p.name)
+          }
           onClose={() => setRoundEliminationCount(null)}
         />
       )}

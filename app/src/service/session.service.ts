@@ -796,6 +796,32 @@ export class SessionService {
     }
   }
 
+  static async getEliminationHistory(sessionId: string): Promise<EliminationEvent[]> {
+    try {
+      const { data, error } = await supabase
+        .from("elimination_log")
+        .select("*")
+        .eq("session_id", sessionId)
+        .order("eliminated_at", { ascending: true });
+
+      if (error) {
+        console.error("Failed to get elimination history:", error);
+        return [];
+      }
+
+      return (data || []).map((row: any) => ({
+        participantId: row.participant_id,
+        participantName: row.participant_name,
+        questionId: row.question_id,
+        roundNumber: row.round_number,
+        eliminatedAt: new Date(row.eliminated_at),
+      }));
+    } catch (error) {
+      console.error("getEliminationHistory error:", error);
+      return [];
+    }
+  }
+
   static async determineWinner(sessionId: string): Promise<Participant | null> {
     try {
       const { data, error } = await supabase
