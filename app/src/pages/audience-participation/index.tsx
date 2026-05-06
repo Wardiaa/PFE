@@ -1,11 +1,4 @@
 // src/pages/audience-participation/index.tsx
-// Updated: added RANKING question type support.
-//
-// Changes from the SCALING version:
-//  - mapQuestionType: added RANKING → "ranking"
-//  - renderContent "question" case: added RankingQuestion handler
-//  - import RankingQuestion component
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
@@ -156,6 +149,8 @@ const AudienceParticipation: React.FC = () => {
   const toastRef = useRef(toast);
   const isEliminatedRef = useRef<boolean>(false);
   const answerRevealTimeoutRef = useRef<number | undefined>(undefined);
+  // Track if the elimination overlay has already been shown for the current elimination
+  const eliminationOverlayShownRef = useRef<boolean>(false);
 
   useEffect(() => { participantSessionRef.current = participantSession; }, [participantSession]);
   useEffect(() => { currentQuestionRef.current = currentQuestion; }, [currentQuestion]);
@@ -248,7 +243,7 @@ const AudienceParticipation: React.FC = () => {
         if (isMounted) {
           setGameState(newState);
           const me = newState.eliminated.find((p) => p.id === participantSession.participantId);
-          if (me && !isEliminated) {
+          if (me && !isEliminatedRef.current) {
             setIsEliminated(true);
             setEliminatedAtRound(me.eliminatedAtRound ?? newState.currentRound);
           }
@@ -268,7 +263,6 @@ const AudienceParticipation: React.FC = () => {
     return (question as any).image || (question as any).imageUrl || null;
   };
 
-  // ── UPDATED: mapQuestionType now includes RANKING ──────────────────────────
   const mapQuestionType = (dbType: string): Question["type"] => {
     const mapping: Record<string, Question["type"]> = {
       MULTIPLE_CHOICE: "multiple-choice",
@@ -359,6 +353,8 @@ const AudienceParticipation: React.FC = () => {
       setShowAnswerReveal(false);
       clearAnswerRevealTimeout();
       setShowEliminationOverlay(false);
+      // Reset the overlay shown flag when a new question appears
+      eliminationOverlayShownRef.current = false;
 
       if (hasAlreadyResponded) {
         setSessionState("submitted");
@@ -493,6 +489,7 @@ const AudienceParticipation: React.FC = () => {
             clearAnswerRevealTimeout();
             setShowAnswerReveal(false);
             setShowEliminationOverlay(false);
+            eliminationOverlayShownRef.current = false;
             loadQuestion(questionId, questionIndex, timeLimit, undefined, false);
           }
           break;
@@ -532,6 +529,7 @@ const AudienceParticipation: React.FC = () => {
           clearAnswerRevealTimeout();
           setShowAnswerReveal(false);
           setShowEliminationOverlay(false);
+          eliminationOverlayShownRef.current = false;
           setSessionState("ended");
           sessionStateRef.current = "ended";
           break;
@@ -578,6 +576,7 @@ const AudienceParticipation: React.FC = () => {
             clearAnswerRevealTimeout();
             setShowAnswerReveal(false);
             setShowEliminationOverlay(false);
+            eliminationOverlayShownRef.current = false;
           }
           break;
         }
@@ -594,22 +593,64 @@ const AudienceParticipation: React.FC = () => {
     [loadQuestion, startLocalCountdown, stopLocalCountdown, clearAnswerRevealTimeout],
   );
 
-  const { connected: wsConnected, sendMessage } = useSessionSocket({
+  const { sendMessage } = useSessionSocket({
     sessionId: participantSession?.session.id ?? null,
     role: "audience",
     onMessage: handleBroadcast,
     enabled: !!participantSession,
   });
 
-  // ── Timer-end effect ───────────────────────────────────────────────────────
+  // REVISED TIMER END EFFECT: Handles timeout elimination without causing overlay loop
   useEffect(() => {
     if (timerRemaining > 0) return;
     if (!questionClosed) return;
 
+    const handleTimeoutElimination = async () => {
+      if (
+        isEliminationRef.current && 
+        !isEliminatedRef.current && 
+        sessionStateRef.current !== "submitted" &&
+        participantSessionRef.current &&
+        currentQuestionRef.current
+      ) {
+        const ps = participantSessionRef.current;
+        const q = currentQuestionRef.current;
+        const liveRoundNumber = q.number ?? gameState.currentRound ?? 0;
+
+        try {
+          const result = await SessionService.eliminateParticipant({
+            sessionId: ps.session.id,
+            participantId: ps.participantId,
+            questionId: q.id,
+            roundNumber: liveRoundNumber,
+          });
+
+          if (result) {
+            sendMessage({
+              type: SESSION_EVENTS.PLAYER_ELIMINATED,
+              payload: result as unknown as Record<string, unknown>,
+            });
+            setEliminatedAtRound(liveRoundNumber);
+            setIsEliminated(true);
+            // Only show overlay if it hasn't been shown yet for this elimination
+            if (!eliminationOverlayShownRef.current) {
+              setShowEliminationOverlay(true);
+              eliminationOverlayShownRef.current = true;
+            }
+          }
+        } catch (err) {
+          console.error("Failed to eliminate on timeout:", err);
+        }
+      }
+    };
+
+    handleTimeoutElimination();
+
     if (isElimination) {
-      if (isEliminatedRef.current) {
-        if (!showEliminationOverlay) setShowEliminationOverlay(true);
-        return;
+      // If eliminated but overlay already shown, don't force it again
+      if (isEliminatedRef.current && !eliminationOverlayShownRef.current) {
+        setShowEliminationOverlay(true);
+        eliminationOverlayShownRef.current = true;
       }
       if (sessionStateRef.current === "submitted") {
         answerRevealTimeoutRef.current = window.setTimeout(() => {
@@ -617,9 +658,8 @@ const AudienceParticipation: React.FC = () => {
         }, ANSWER_REVEAL_DURATION_MS);
       }
     }
-  }, [questionClosed, timerRemaining, isElimination, showEliminationOverlay]);
+  }, [questionClosed, timerRemaining, isElimination, sendMessage, gameState.currentRound]);
 
-  // ── Join session ──────────────────────────────────────────────────────────
   const handleJoinSession = async (data: {
     code: string;
     name: string;
@@ -736,6 +776,11 @@ const AudienceParticipation: React.FC = () => {
           });
           setEliminatedAtRound(result.eliminated.roundNumber);
           setIsEliminated(true);
+          // Only show overlay if not already shown
+          if (!eliminationOverlayShownRef.current) {
+            setShowEliminationOverlay(true);
+            eliminationOverlayShownRef.current = true;
+          }
         }
 
         sendMessage({
@@ -796,6 +841,7 @@ const AudienceParticipation: React.FC = () => {
     isPausedRef.current = false;
     questionActiveRef.current = true;
     timerRemainingRef.current = 0;
+    eliminationOverlayShownRef.current = false;
 
     setParticipantSession(null);
     setCurrentQuestion(null);
@@ -1134,7 +1180,10 @@ const AudienceParticipation: React.FC = () => {
         <EliminationOverlay
           show={showEliminationOverlay}
           roundNumber={eliminatedAtRound}
-          onStay={() => setShowEliminationOverlay(false)}
+          onStay={() => {
+            setShowEliminationOverlay(false);
+            // Keep eliminationOverlayShownRef.current = true so it won't reappear
+          }}
           onLeave={handleJoinNewSession}
         />
       )}
