@@ -25,6 +25,7 @@ import EndSessionModal from "./components/EndSessionModal";
 import { EliminationHistory } from "./components/EliminationHistory";
 import { RoundEliminationsOverlay } from "./components/RoundEliminationsOverlay";
 import { GameOverOverlay } from "../audience-participation/components/GameOverOverlay";
+import WinnerReveal from "./components/WinnerReveal";
 import { SessionService } from "../../service/session.service.ts";
 import "../../styles/cent-pour-cent-logique.css";
 import type {
@@ -1679,51 +1680,12 @@ const HostSession: React.FC = () => {
         <GameOverOverlay visible isHost onEnd={handleGameOver} />
       )}
 
-      {isElimination && revealedWinner && (
-        <div className="fixed inset-0 z-[150] bg-black/85 backdrop-blur-sm flex items-center justify-center p-6">
-          <motion.div
-            initial={{ scale: 0.6, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring", damping: 16, stiffness: 240 }}
-            className="max-w-md w-full text-center bg-gradient-to-br from-yellow-400 via-yellow-500 to-amber-600 rounded-3xl p-8 shadow-2xl border-4 border-yellow-200/40"
-          >
-            <div className="mx-auto mb-4 w-20 h-20 rounded-full bg-yellow-950/15 flex items-center justify-center">
-              <AppIcon name="Crown" size={48} className="text-yellow-950" />
-            </div>
-            <div className="text-xs uppercase tracking-[0.3em] text-yellow-900/80 font-bold mb-2">
-              100% Logique
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-black text-yellow-950 mb-2">
-              {revealedWinner.name}
-            </h2>
-            <p className="text-yellow-950/80 font-semibold mb-6">
-              remporte la manche
-            </p>
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              <div className="bg-yellow-950/10 rounded-lg p-3">
-                <div className="text-2xl font-bold text-yellow-950">
-                  {revealedWinner.score}
-                </div>
-                <div className="text-xs text-yellow-950/70">Points</div>
-              </div>
-              <div className="bg-yellow-950/10 rounded-lg p-3">
-                <div className="text-2xl font-bold text-yellow-950">
-                  {gameState.totalPlayers}
-                </div>
-                <div className="text-xs text-yellow-950/70">Joueurs</div>
-              </div>
-            </div>
-            <Button
-              size="lg"
-              className="w-full bg-yellow-950 text-yellow-100 hover:bg-yellow-900"
-              onClick={handleViewFinalResults}
-            >
-              Voir les résultats
-              <AppIcon name="ArrowRight" className="ml-2 h-4 w-4" />
-            </Button>
-          </motion.div>
-        </div>
-      )}
+      <WinnerReveal
+        isElimination={isElimination}
+        revealedWinner={revealedWinner}
+        gameState={gameState}
+        handleViewFinalResults={handleViewFinalResults}
+      />
 
       {showQrModal && session?.code && (
         <QrFullscreenModal code={session.code} onClose={() => setShowQrModal(false)} />

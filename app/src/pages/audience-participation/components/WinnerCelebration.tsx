@@ -55,7 +55,10 @@ export function WinnerCelebration({ winner, isWinnerMe }: Props) {
 
   return (
     <div className="cpl-theme min-h-screen flex items-center justify-center px-4 py-12">
-      <div className="cpl-card cpl-winner-card w-full max-w-xl p-8 sm:p-12 text-center animate-in zoom-in-95 duration-500">
+      <div 
+        className="cpl-card cpl-winner-card w-full max-w-xl p-8 sm:p-12 text-center animate-in zoom-in-95 duration-500"
+        style={{ boxShadow: 'none' }}
+      >
         <div className="flex justify-center mb-4">
           <div className="rounded-full bg-[color:var(--cpl-gold)]/20 p-4 animate-bounce">
             {isWinnerMe ? (
@@ -67,14 +70,13 @@ export function WinnerCelebration({ winner, isWinnerMe }: Props) {
         </div>
 
         <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--cpl-text-muted)]">
-          {isWinnerMe ? "🎉 VOUS AVEZ GAGNÉ ! 🎉" : "🏆 LE GAGNANT EST 🏆"}
+          {isWinnerMe ? " VOUS AVEZ GAGNÉ ! " : " LE GAGNANT EST "}
         </p>
 
         <h1
           className="cpl-display mt-3 text-4xl sm:text-6xl"
           style={{
             color: "var(--cpl-gold)",
-            textShadow: "0 0 24px rgba(255, 210, 74, 0.6)",
           }}
         >
           {winner.name}
@@ -84,7 +86,7 @@ export function WinnerCelebration({ winner, isWinnerMe }: Props) {
           {winner.score} points
         </p>
 
-        <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-[color:var(--cpl-gold)]/40 bg-[color:var(--cpl-gold)]/10 px-5 py-2 text-sm font-semibold text-[color:var(--cpl-gold)]">
+        <div className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[color:var(--cpl-gold)]">
           {isWinnerMe ? (
             <>
               <PartyPopper className="h-4 w-4" />
