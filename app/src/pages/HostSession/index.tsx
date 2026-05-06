@@ -1644,18 +1644,25 @@ const HostSession: React.FC = () => {
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-center">
-                  <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">
+              <div className="grid grid-cols-2 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-border/50 overflow-hidden mb-8 shadow-sm">
+                {/* Survivors Section */}
+                <div className="py-5 flex flex-col items-center justify-center border-r border-border/50">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-1.5">
+                    En lice
+                  </span>
+                  <span className="text-3xl font-black tracking-tighter text-foreground tabular-nums">
                     {survivorsCount}
-                  </div>
-                  <div className="text-xs text-muted-foreground">En lice</div>
+                  </span>
                 </div>
-                <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-center">
-                  <div className="text-2xl font-bold text-red-700 dark:text-red-400">
+
+                {/* Eliminated Section */}
+                <div className="py-5 flex flex-col items-center justify-center">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-1.5">
+                    Éliminés
+                  </span>
+                  <span className="text-3xl font-black tracking-tighter text-red-600 d ark:text-red-500 tabular-nums">
                     {eliminatedCount}
-                  </div>
-                  <div className="text-xs text-muted-foreground">Éliminés</div>
+                  </span>
                 </div>
               </div>
 

@@ -1,20 +1,6 @@
 // EliminationHistory.tsx
-// Compact side-panel widget for the presenter (host) view. Shows every
-// elimination in order: who, on which round, at what time. Pulls from the
-// `elimination_log` table via SessionService.getEliminationHistory().
-//
-// FIX: history now ALWAYS comes from the DB via polling, regardless of whether
-// `gameState` is supplied. Previously, passing `gameState` caused the component
-// to read from the frozen `displayedGameState.history` snapshot, which is only
-// refreshed at timer-end or when the host clicks "Next Question". This meant
-// eliminations on no-timer questions were invisible until the host manually
-// advanced — the DB had the record, but the UI was reading the stale snapshot.
-//
-// `gameState` is now used ONLY for the alive-count badge (top-right), which is
-// fine to come from the frozen state. All history items come from live DB polls.
-
 import { useEffect, useRef, useState } from "react";
-import { Skull, Users, History } from "lucide-react";
+import { Skull, Users, Clock } from "lucide-react";
 import { SessionService } from "../../../service/session.service";
 import type { EliminationEvent, GameState } from "../../../lib/presentation.types";
 
@@ -31,7 +17,6 @@ interface Props {
 
 export function EliminationHistory({ sessionId, gameState, pollIntervalMs = 2000 }: Props) {
   const [history, setHistory] = useState<EliminationEvent[]>([]);
-  // Keep a stable ref to the interval so we can clear it cleanly.
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -42,13 +27,7 @@ export function EliminationHistory({ sessionId, gameState, pollIntervalMs = 2000
       if (alive) setHistory(h);
     };
 
-    // Fetch immediately on mount and whenever sessionId changes.
     tick();
-
-    // Then poll on the given interval. Using a short default (2 s) so an
-    // elimination shows up within a couple of seconds of the participant
-    // answering wrongly, even on no-timer questions where the host has not
-    // yet clicked "Next Question".
     intervalRef.current = setInterval(tick, pollIntervalMs);
 
     return () => {
@@ -59,59 +38,83 @@ export function EliminationHistory({ sessionId, gameState, pollIntervalMs = 2000
       }
     };
   }, [sessionId, pollIntervalMs]);
-  // Note: `gameState` is intentionally NOT in the dependency array here.
-  // History always comes from the DB; gameState is only read for the badge below.
 
-  // These can come from either the live or the frozen game state — both are fine
-  // for display purposes. The live state (if available) gives a more accurate
-  // count, but the frozen state is also acceptable.
   const aliveCount = gameState?.alive.length;
   const totalCount = gameState?.totalPlayers;
 
   return (
-    <aside className="rounded-xl border border-border bg-card p-4">
-      <header className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <History className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Historique des éliminations</h3>
+    <aside className="flex flex-col h-full bg-background font-sans">
+      {/* Minimal Header */}
+      <header className="flex items-end justify-between pb-4 mb-4 border-b border-border">
+        <div>
+          <h3 className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-1">
+            Activity Log
+          </h3>
+          <div className="text-lg font-semibold tracking-tight">
+            Eliminations
+          </div>
         </div>
+        
         {typeof aliveCount === "number" && typeof totalCount === "number" && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-secondary/60 px-2 py-0.5 text-xs">
-            <Users className="h-3 w-3" />
-            {aliveCount}/{totalCount} en lice
-          </span>
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <Users size={14} className="text-muted-foreground" />
+            <span className="tabular-nums">
+              {aliveCount} <span className="text-muted-foreground">/ {totalCount}</span>
+            </span>
+          </div>
         )}
       </header>
 
-      {history.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          Aucune élimination pour l'instant.
-        </p>
-      ) : (
-        <ol className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-          {history.map((e) => (
-            <li
-              key={`${e.participantId}-${e.questionId}-${e.roundNumber}`}
-              className="flex items-start gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2"
-            >
-              <Skull className="h-3.5 w-3.5 text-red-500 mt-0.5 flex-shrink-0" />
-              <div className="min-w-0 flex-1 text-xs">
-                <div className="font-medium text-foreground truncate">
-                  {e.participantName}
+      {/* Feed Container */}
+      <div className="flex-1 overflow-hidden">
+        {history.length === 0 ? (
+          <div className="h-full flex items-center justify-center py-10">
+            <p className="text-sm text-muted-foreground/60 italic font-light">
+              No eliminations recorded yet
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-0.5 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+            {history.map((e) => (
+              <div
+                key={`${e.participantId}-${e.questionId}-${e.roundNumber}`}
+                className="group flex items-center justify-between py-3 px-1 border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-red-500/40 group-hover:bg-red-500 transition-colors" />
+                  <span className="text-sm font-medium text-foreground truncate max-w-[160px]">
+                    {e.participantName}
+                  </span>
                 </div>
-                <div className="text-muted-foreground">
-                  Question {e.roundNumber} ·{" "}
-                  {new Date(e.eliminatedAt).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    second: "2-digit",
-                  })}
+
+                <div className="flex items-center gap-4 text-[11px] font-mono text-muted-foreground uppercase">
+                  <div className="flex items-center gap-1.5 bg-muted px-2 py-0.5 rounded text-foreground/70 font-semibold">
+                    Q{String(e.roundNumber).padStart(2, "0")}
+                  </div>
+                  <div className="hidden sm:flex items-center gap-1 w-16 justify-end tabular-nums">
+                    <Clock size={10} />
+                    {new Date(e.eliminatedAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    })}
+                  </div>
                 </div>
               </div>
-            </li>
-          ))}
-        </ol>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Footer Info */}
+      <footer className="mt-auto pt-6">
+        <div className="rounded-lg bg-muted/50 p-3 border border-border/50">
+          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            <span>Status</span>
+            <span className="text-foreground">Live Feed Active</span>
+          </div>
+        </div>
+      </footer>
     </aside>
   );
 }
