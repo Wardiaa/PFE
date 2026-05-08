@@ -130,6 +130,54 @@ const QrFullscreenModal: React.FC<{ code: string; onClose: () => void }> = ({ co
   );
 };
 
+// ── Leave Session Warning Modal (internal to host page) ──────────────────────
+const LeaveWarningModal: React.FC<{
+  isOpen: boolean;
+  onStay: () => void;
+  onLeave: () => void;
+  isLeaving: boolean;
+}> = ({ isOpen, onStay, onLeave, isLeaving }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onStay} />
+      <div className="relative bg-background rounded-2xl shadow-2xl border w-full max-w-md mx-4 overflow-hidden">
+        <div className="h-1.5 w-full bg-amber-500" />
+        <div className="p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-11 h-11 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+              <AppIcon name="AlertTriangle" size={20} className="text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">
+                You're still hosting a session
+              </h2>
+              <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
+                Leaving this page will{" "}
+                <span className="font-medium text-foreground">end the session</span> and
+                disconnect all participants. This cannot be undone.
+              </p>
+            </div>
+          </div>
+          <div className="mt-6 flex flex-col-reverse sm:flex-row gap-3">
+            <Button variant="outline" className="flex-1" onClick={onStay} disabled={isLeaving}>
+              Stay in session
+            </Button>
+            <Button
+              className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
+              onClick={onLeave}
+              disabled={isLeaving}
+            >
+              {isLeaving ? "Ending session…" : "End session & leave"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const HostSession: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -153,6 +201,10 @@ const HostSession: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
   const [showMobileParticipants, setShowMobileParticipants] = useState<boolean>(false);
+
+  // ── Leave warning state ───────────────────────────────────────────────────
+  const [showLeaveWarning, setShowLeaveWarning] = useState<boolean>(false);
+  const [isLeaving, setIsLeaving] = useState<boolean>(false);
 
   // ── 100% Logique elimination state ───────────────────────────────────────
   const [contextMeta, setContextMeta] = useState<{
@@ -960,7 +1012,7 @@ const HostSession: React.FC = () => {
       console.error("handleShowWinner error:", err);
       toast({
         title: "Erreur",
-        description: err?.message || "Échec de la révélation du gagnant.",
+        description: err.message || "Failed to determine winner",
         variant: "destructive",
       });
     } finally {
@@ -970,7 +1022,6 @@ const HostSession: React.FC = () => {
 
   const handlePause = async (): Promise<void> => {
     if (!session) return;
-
     const newPausedState = !isPaused;
     setIsPaused(newPausedState);
     isPausedRef.current = newPausedState;
@@ -978,21 +1029,18 @@ const HostSession: React.FC = () => {
     if (newPausedState) {
       setTimerActive(false);
       timerActiveRef.current = false;
-      sendMessage({
-        type: "PAUSE",
-        payload: { remainingSeconds: timerRef.current },
-      });
     } else {
-      setTimerActive(true);
-      timerActiveRef.current = true;
-      sendMessage({
-        type: "RESUME",
-        payload: {
-          remainingSeconds: timerRef.current,
-          resumedAt: new Date().toISOString(),
-        },
-      });
+      const hasTimer = getQuestionTimeLimit(currentQuestion) !== null;
+      if (hasTimer && timerRef.current > 0) {
+        setTimerActive(true);
+        timerActiveRef.current = true;
+      }
     }
+
+    sendMessage({
+      type: newPausedState ? "SESSION_PAUSE" : "SESSION_RESUME",
+      payload: { timer: timerRef.current },
+    });
 
     const success = await SessionService.togglePause(
       session.id,
@@ -1085,6 +1133,50 @@ const HostSession: React.FC = () => {
       description: "Share this link with participants to join",
       duration: 2000,
     });
+  };
+
+  // ── Leave warning handlers ────────────────────────────────────────────────
+  const signalSessionEnd = () => {
+    window.dispatchEvent(new CustomEvent("syncra:session-end-requested"));
+  };
+
+  const endSessionDB = async () => {
+    if (!session) return;
+    try {
+      await supabase
+        .from("sessions")
+        .update({ status: "ENDED" })
+        .eq("id", session.id);
+    } catch (err: unknown) {
+      console.error("Failed to end session:", err);
+    }
+  };
+
+  const handleBackToDashboard = () => {
+    setShowLeaveWarning(true);
+  };
+
+  const handleStay = () => {
+    setShowLeaveWarning(false);
+  };
+
+  const handleLeaveAndEnd = async () => {
+    setIsLeaving(true);
+    
+    // Signal HostSession to broadcast SESSION_END via its own socket
+    signalSessionEnd();
+    
+    // Small delay to allow the broadcast to be sent
+    await new Promise<void>((resolve) => setTimeout(resolve, 150));
+    
+    // Update the DB status
+    await endSessionDB();
+    
+    setIsLeaving(false);
+    setShowLeaveWarning(false);
+    
+    // Navigate back to dashboard
+    navigate("/dashboard");
   };
 
   const responseProgress =
@@ -1408,93 +1500,13 @@ const HostSession: React.FC = () => {
 
   // ── ACTIVE QUESTION VIEW ──────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="h-14 md:h-16 border-b border-border flex items-center justify-between px-3 md:px-6 bg-card sticky top-0 z-30 gap-2">
-        <div className="flex items-center gap-2 md:gap-3 min-w-0">
-          <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-            <AppIcon name="Radio" size={14} className="text-primary-foreground" />
-          </div>
-          <div className="min-w-0">
-            <span className="font-bold text-foreground text-sm md:text-base truncate block max-w-[120px] sm:max-w-[200px] md:max-w-none">
-              {session.presentation.title}
-            </span>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-muted-foreground hidden sm:inline">
-                • {session.code}
-              </span>
-              {isPaused && (
-                <span className="text-xs bg-yellow-500/20 text-yellow-600 px-1.5 py-0.5 rounded">
-                  Paused
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
-          {isElimination && (
-            <>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setShowEliminationPanel((v) => !v)}
-                title="Historique des éliminations"
-                className="h-8 w-8 md:h-9 md:w-9 relative"
-              >
-                <AppIcon name="History" size={15} />
-              </Button>
-            </>
-          )}
-
-          {currentQuestion && getQuestionTimeLimit(currentQuestion) === null && (
-            <div className="flex items-center gap-1 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg bg-muted">
-              <AppIcon name="Infinity" size={14} className="text-primary" />
-              <span className="font-semibold text-primary text-xs sm:text-sm hidden sm:inline">No timer</span>
-            </div>
-          )}
-          {currentQuestion && getQuestionTimeLimit(currentQuestion) !== null && (
-            <div
-              className={`flex items-center gap-1 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg ${
-                isPaused ? "bg-yellow-500/20" : "bg-muted"
-              }`}
-            >
-              <AppIcon name="Clock" size={14} className="text-primary" />
-              <span className="font-mono font-bold text-primary text-xs sm:text-sm">
-                {timer}s
-              </span>
-            </div>
-          )}
-
-          <Badge variant="secondary" className="text-xs sm:text-sm px-2 sm:px-3 py-0.5 sm:py-1">
-            {currentQuestionIndex + 1}/{session.presentation.questions.length}
-          </Badge>
-
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={toggleFullscreen}
-            title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-            className="hidden md:flex h-8 w-8 md:h-9 md:w-9"
-          >
-            <AppIcon name={isFullscreen ? "Minimize" : "Maximize"} size={15} />
-          </Button>
-
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleEnd}
-            className="text-xs px-2 sm:px-3"
-          >
-            Exit
-          </Button>
-        </div>
-      </header>
-
+    <>
+      {/* ── Timer progress bar — rendered as sibling to main div to avoid stacking context issues ── */}
       {currentQuestion && getQuestionTimeLimit(currentQuestion) !== null && (
-        <div className="h-1 w-full bg-muted/40">
+        <div className="fixed top-0 left-0 right-0 h-1 w-full bg-muted/40 z-[9999]">
           {isPaused ? (
             <div
-              className="h-full bg-yellow-500"
+              className="h-full bg-primary"
               style={{
                 width: `${Math.max(0, (timer / (getQuestionTimeLimit(currentQuestion) || 1)) * 100)}%`,
               }}
@@ -1513,196 +1525,263 @@ const HostSession: React.FC = () => {
         </div>
       )}
 
-      <main className="flex-1 flex flex-col items-center p-3 sm:p-4 md:p-6 lg:p-8 pb-72 sm:pb-64 lg:pb-8 relative overflow-hidden">
-        <div className="max-w-5xl w-full">
-          {currentQuestion && (
-            <QuestionDisplay
-              question={currentQuestion}
-              responses={currentResponses}
-              showResults={showResults}
-              showCorrectAnswer={showCorrectAnswer}
-              hideParticipantNames={hideParticipantNames}
-            />
-          )}
+      {/* ── Clock pill — centered just below the timer bar ── */}
+      {currentQuestion && getQuestionTimeLimit(currentQuestion) !== null && (
+        <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[9999] pointer-events-none">
+          <div
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 shadow-lg border backdrop-blur-sm transition-colors ${
+              isPaused
+                ? 'bg-card/80 border-border text-foreground'
+                : 'bg-card/80 border-border text-foreground'
+            }`}
+          >
+            <AppIcon name={isPaused ? 'PauseCircle' : 'Clock'} size={13} className={isPaused ? 'text-primary' : 'text-primary'} />
+            <span className="font-mono font-bold text-sm tabular-nums">
+              {timer}s
+            </span>
+          </div>
+        </div>
+      )}
 
-          {showResults && (
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-card p-4 sm:p-6 rounded-xl border border-border shadow-xl mt-6 sm:mt-8"
+      {/* ── Integrated Back Arrow & Logo (hidden in fullscreen) ── */}
+      {!isFullscreen && (
+        <div className="px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            {/* Back arrow with leave warning - LEFT */}
+            <button
+              onClick={handleBackToDashboard}
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors group"
             >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
-                    <AppIcon name="Trophy" size={22} className="text-yellow-600" />
-                  </div>
-                  <div>
-                    <div className="font-bold text-base sm:text-lg">
-                      Ready for next question?
+              <AppIcon name="ArrowLeft" size={18} className="group-hover:-translate-x-0.5 transition-transform" />
+              <span className="text-sm font-medium hidden sm:inline cursor-pointer">Back to Dashboard</span>
+            </button>
+
+            {/* Empty spacer - pushes logo all the way to the right */}
+            <div className="flex-1" />
+
+            {/* Syncra Logo - FAR RIGHT, no margin */}
+            <div className="flex items-center gap-2 -mr-2">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center">
+                <svg
+                  viewBox="16 6 70 89"
+                  width="100%"
+                  height="100%"
+                  preserveAspectRatio="xMidYMid meet"
+                  className="fill-primary"
+                >
+                  <path d="M52.0032727,91.1841818 L45.484,84.6649091 L85.3654545,84.6649091 L85.3654545,17.5625455 L80.836,17.5625455 L80.836,80.1354545 L45.484,80.1354545 L52.0032727,73.6161818 L48.8009091,70.4138182 L36.8161818,82.4001818 L48.8009091,94.3865455 L52.0032727,91.1841818 L52.0032727,91.1841818 Z M55.7456364,19.8272727 L48.8009091,26.7703636 L52.0032727,29.9727273 L63.9912727,17.988 L52.0032727,6 L48.8009091,9.20236364 L54.8963636,15.2994545 L16,15.2994545 L16,82.4001818 L20.5278182,82.4001818 L20.5278182,19.8272727 L55.7456364,19.8272727 L55.7456364,19.8272727 Z" />
+                </svg>
+              </div>
+              <span className="font-heading font-bold text-lg text-foreground">Syncra</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
+        {/* ── Main content ── */}
+        <main className="flex-1 flex flex-col items-center p-3 sm:p-4 md:p-6 lg:p-8 pb-24 relative overflow-hidden">
+          
+          <div className="max-w-5xl w-full">
+            {currentQuestion && (
+              <QuestionDisplay
+                question={currentQuestion}
+                responses={currentResponses}
+                showResults={showResults}
+                showCorrectAnswer={showCorrectAnswer}
+                hideParticipantNames={hideParticipantNames}
+              />
+            )}
+
+            {showResults && (
+              <motion.div
+                initial={{ opacity: 0, y: 40 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-card p-4 sm:p-6 rounded-xl border border-border shadow-xl mt-6 sm:mt-8"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
+                      <AppIcon name="Trophy" size={22} className="text-yellow-600" />
                     </div>
-                    <div className="text-xs sm:text-sm text-muted-foreground">
-                      {participants.slice(0, 3).map((p) => p.name).join(", ")}{" "}
-                      {participants.length > 3 ? "and others are waiting" : ""}
+                    <div>
+                      <div className="font-bold text-base sm:text-lg">
+                        Ready for next question?
+                      </div>
+                      <div className="text-xs sm:text-sm text-muted-foreground">
+                        {participants.slice(0, 3).map((p) => p.name).join(", ")}{" "}
+                        {participants.length > 3 ? "and others are waiting" : ""}
+                      </div>
                     </div>
                   </div>
-                </div>
-                {currentQuestionIndex === session.presentation.questions.length - 1 ? (
-                  isElimination ? (
-                    <Button
-                      size="lg"
-                      onClick={handleShowWinner}
-                      disabled={isRevealingWinner || !!revealedWinner}
-                      className="w-full sm:w-auto sm:min-w-40 bg-yellow-500 hover:bg-yellow-600 text-yellow-950 font-bold"
-                    >
-                      {isRevealingWinner ? (
-                        <>
-                          Révélation…{" "}
-                          <AppIcon name="Loader2" className="ml-2 h-4 w-4 animate-spin" />
-                        </>
-                      ) : (
-                        <>
-                          Afficher le gagnant{" "}
-                          <AppIcon name="Crown" className="ml-2 h-4 w-4" />
-                        </>
-                      )}
-                    </Button>
+                  {currentQuestionIndex === session.presentation.questions.length - 1 ? (
+                    isElimination ? (
+                      <Button
+                        size="lg"
+                        onClick={handleShowWinner}
+                        disabled={isRevealingWinner || !!revealedWinner}
+                        className="w-full sm:w-auto sm:min-w-40 bg-yellow-500 hover:bg-yellow-600 text-yellow-950 font-bold"
+                      >
+                        {isRevealingWinner ? (
+                          <>
+                            Révélation…{" "}
+                            <AppIcon name="Loader2" className="ml-2 h-4 w-4 animate-spin" />
+                          </>
+                        ) : (
+                          <>
+                            Afficher le gagnant{" "}
+                            <AppIcon name="Crown" className="ml-2 h-4 w-4" />
+                          </>
+                        )}
+                      </Button>
+                    ) : (
+                      <Button size="lg" onClick={handleNext} className="w-full sm:w-auto sm:min-w-40">
+                        View Results{" "}
+                        <AppIcon name="BarChart3" className="ml-2 h-4 w-4" />
+                      </Button>
+                    )
                   ) : (
                     <Button size="lg" onClick={handleNext} className="w-full sm:w-auto sm:min-w-40">
-                      View Results{" "}
-                      <AppIcon name="BarChart3" className="ml-2 h-4 w-4" />
+                      Next Question{" "}
+                      <AppIcon name="ChevronRight" className="ml-2 h-4 w-4" />
                     </Button>
-                  )
-                ) : (
-                  <Button size="lg" onClick={handleNext} className="w-full sm:w-auto sm:min-w-40">
-                    Next Question{" "}
-                    <AppIcon name="ChevronRight" className="ml-2 h-4 w-4" />
-                  </Button>
-                )}
-              </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </div>
+        </main>
+
+        {/* ── Floating bottom control panel (Menti-style) ── */}
+        <ControlPanel
+          sessionCode={session.code}
+          participantCount={participants.length}
+          responseProgress={responseProgress}
+          currentQuestion={currentQuestionIndex + 1}
+          totalQuestions={session.presentation.questions.length}
+          isPaused={isPaused}
+          onPrevious={handlePrevious}
+          onNext={handleNext}
+          onPause={handlePause}
+          onRestart={handleRestart}
+          onEnd={handleEnd}
+          onToggleQuestionResults={handleToggleResultsWithNoTimer}
+          isShowingResults={showResults}
+          showCorrectAnswer={showCorrectAnswer}
+          onToggleCorrectAnswer={handleToggleCorrectAnswer}
+          isMultipleChoice={isCurrentMultipleChoice}
+          hideParticipantNames={hideParticipantNames}
+          onToggleHideParticipantNames={setHideParticipantNames}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={toggleFullscreen}
+          isElimination={isElimination}
+          onToggleEliminationPanel={() => setShowEliminationPanel((v) => !v)}
+        />
+
+        {isPaused && <PauseOverlay onResume={handlePause} />}
+
+        <EndSessionModal
+          isOpen={isEndModalOpen}
+          onClose={() => setIsEndModalOpen(false)}
+          onConfirm={handleConfirmEnd}
+          onViewResults={handleViewFinalResults}
+        />
+
+        <AnimatePresence>
+          {isElimination && showEliminationPanel && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[140] bg-black/40"
+              onClick={() => setShowEliminationPanel(false)}
+            >
+              <motion.aside
+                initial={{ x: "100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "100%" }}
+                transition={{ type: "spring", damping: 28, stiffness: 280 }}
+                onClick={(e) => e.stopPropagation()}
+                className="absolute top-0 right-0 h-full w-full sm:w-[380px] bg-background border-l border-border shadow-2xl p-4 sm:p-5 overflow-y-auto"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <AppIcon name="History" size={18} className="text-primary" />
+                    <h2 className="text-base font-semibold">Historique des éliminations</h2>
+                  </div>
+                  <button
+                    onClick={() => setShowEliminationPanel(false)}
+                    className="w-8 h-8 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center"
+                    aria-label="Fermer"
+                  >
+                    <AppIcon name="X" size={15} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-border/50 overflow-hidden mb-8 shadow-sm">
+                  <div className="py-5 flex flex-col items-center justify-center border-r border-border/50">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-1.5">
+                      En lice
+                    </span>
+                    <span className="text-3xl font-black tracking-tighter text-foreground tabular-nums">
+                      {survivorsCount}
+                    </span>
+                  </div>
+                  <div className="py-5 flex flex-col items-center justify-center">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-1.5">
+                      Éliminés
+                    </span>
+                    <span className="text-3xl font-black tracking-tighter text-red-600 dark:text-red-500 tabular-nums">
+                      {eliminatedCount}
+                    </span>
+                  </div>
+                </div>
+
+                <EliminationHistory
+                  sessionId={session.id}
+                  gameState={displayedGameState}
+                />
+              </motion.aside>
             </motion.div>
           )}
-        </div>
-      </main>
+        </AnimatePresence>
 
-      <ControlPanel
-        sessionCode={session.code}
-        participantCount={participants.length}
-        responseProgress={responseProgress}
-        currentQuestion={currentQuestionIndex + 1}
-        totalQuestions={session.presentation.questions.length}
-        isPaused={isPaused}
-        onPrevious={handlePrevious}
-        onNext={handleNext}
-        onPause={handlePause}
-        onRestart={handleRestart}
-        onEnd={handleEnd}
-        onToggleQuestionResults={handleToggleResultsWithNoTimer}
-        isShowingResults={showResults}
-        showCorrectAnswer={showCorrectAnswer}
-        onToggleCorrectAnswer={handleToggleCorrectAnswer}
-        isMultipleChoice={isCurrentMultipleChoice}
-        hideParticipantNames={hideParticipantNames}
-        onToggleHideParticipantNames={setHideParticipantNames}
-      />
-
-      {isPaused && <PauseOverlay onResume={handlePause} />}
-
-      <EndSessionModal
-        isOpen={isEndModalOpen}
-        onClose={() => setIsEndModalOpen(false)}
-        onConfirm={handleConfirmEnd}
-        onViewResults={handleViewFinalResults}
-      />
-
-      <AnimatePresence>
-        {isElimination && showEliminationPanel && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[140] bg-black/40"
-            onClick={() => setShowEliminationPanel(false)}
-          >
-            <motion.aside
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 280 }}
-              onClick={(e) => e.stopPropagation()}
-              className="absolute top-0 right-0 h-full w-full sm:w-[380px] bg-background border-l border-border shadow-2xl p-4 sm:p-5 overflow-y-auto"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <AppIcon name="History" size={18} className="text-primary" />
-                  <h2 className="text-base font-semibold">Historique des éliminations</h2>
-                </div>
-                <button
-                  onClick={() => setShowEliminationPanel(false)}
-                  className="w-8 h-8 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center"
-                  aria-label="Fermer"
-                >
-                  <AppIcon name="X" size={15} />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-border/50 overflow-hidden mb-8 shadow-sm">
-                {/* Survivors Section */}
-                <div className="py-5 flex flex-col items-center justify-center border-r border-border/50">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-1.5">
-                    En lice
-                  </span>
-                  <span className="text-3xl font-black tracking-tighter text-foreground tabular-nums">
-                    {survivorsCount}
-                  </span>
-                </div>
-
-                {/* Eliminated Section */}
-                <div className="py-5 flex flex-col items-center justify-center">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-1.5">
-                    Éliminés
-                  </span>
-                  <span className="text-3xl font-black tracking-tighter text-red-600 d ark:text-red-500 tabular-nums">
-                    {eliminatedCount}
-                  </span>
-                </div>
-              </div>
-
-              <EliminationHistory
-                sessionId={session.id}
-                gameState={displayedGameState}
-              />
-            </motion.aside>
-          </motion.div>
+        {isElimination && isGameOver && !revealedWinner && (
+          <GameOverOverlay visible isHost onEnd={handleGameOver} />
         )}
-      </AnimatePresence>
 
-      {isElimination && isGameOver && !revealedWinner && (
-        <GameOverOverlay visible isHost onEnd={handleGameOver} />
-      )}
-
-      <WinnerReveal
-        isElimination={isElimination}
-        revealedWinner={revealedWinner}
-        gameState={gameState}
-        handleViewFinalResults={handleViewFinalResults}
-      />
-
-      {showQrModal && session?.code && (
-        <QrFullscreenModal code={session.code} onClose={() => setShowQrModal(false)} />
-      )}
-
-      {isElimination && (
-        <RoundEliminationsOverlay
-          count={roundEliminationCount}
-          roundNumber={overlayRoundNumber}
-          eliminatedNames={participants
-            .filter(p => !p.isAlive && p.eliminatedAtRound === overlayRoundNumber)
-            .map(p => p.name)
-          }
-          onClose={() => setRoundEliminationCount(null)}
+        <WinnerReveal
+          isElimination={isElimination}
+          revealedWinner={revealedWinner}
+          gameState={gameState}
+          handleViewFinalResults={handleViewFinalResults}
         />
-      )}
-    </div>
+
+        {showQrModal && session?.code && (
+          <QrFullscreenModal code={session.code} onClose={() => setShowQrModal(false)} />
+        )}
+
+        {isElimination && (
+          <RoundEliminationsOverlay
+            count={roundEliminationCount}
+            roundNumber={overlayRoundNumber}
+            eliminatedNames={participants
+              .filter(p => !p.isAlive && p.eliminatedAtRound === overlayRoundNumber)
+              .map(p => p.name)
+            }
+            onClose={() => setRoundEliminationCount(null)}
+          />
+        )}
+      </div>
+
+      {/* Leave Warning Modal */}
+      <LeaveWarningModal
+        isOpen={showLeaveWarning}
+        onStay={handleStay}
+        onLeave={handleLeaveAndEnd}
+        isLeaving={isLeaving}
+      />
+    </>
   );
 };
 

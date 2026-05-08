@@ -14,7 +14,6 @@ import {
   LogOut,
   Menu,
   X,
-  AlertTriangle,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import Navbar from "../../pages/landing/components/Navbar";
@@ -43,11 +42,7 @@ export function MainLayout() {
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
-  // ── Leave-session guard ───────────────────────────────────────────────────
-  const [showLeaveWarning, setShowLeaveWarning] = useState(false);
-  const [pendingPath, setPendingPath]           = useState<string | null>(null);
-  const [isEndingSession, setIsEndingSession]   = useState(false);
-
+  // ── Leave-session guard (kept for main layout logout flow, but host page handles its own) ──
   const hostMatch     = location.pathname.match(/\/session\/([^/]+)\/host/);
   const hostSessionId = hostMatch ? hostMatch[1] : null;
   const isHosting     = !!hostSessionId;
@@ -76,28 +71,6 @@ export function MainLayout() {
     );
     return () => subscription.unsubscribe();
   }, [isHosting]);
-
-  // ── Signal HostSession to broadcast SESSION_END via its own socket ─────────
-  // We dispatch a custom browser event instead of trying to replicate the
-  // broadcast from here. HostSession is still mounted when the modal fires,
-  // so it can receive the event and call sendMessage() through the exact same
-  // useSessionSocket channel that audience participants are subscribed to.
-  // This is identical to the code path triggered by the Exit button fix.
-  const signalSessionEnd = useCallback(() => {
-    window.dispatchEvent(new CustomEvent("syncra:session-end-requested"));
-  }, []);
-
-  // ── Async session ender (used when page is alive) ─────────────────────────
-  const endSession = useCallback(async (sessionId: string) => {
-    try {
-      await supabase
-        .from("sessions")
-        .update({ status: "ENDED" })
-        .eq("id", sessionId);
-    } catch (err: unknown) {
-      console.error("Failed to end session:", err);
-    }
-  }, []);
 
   // ── Keepalive session ender (used in beforeunload — page is closing) ──────
   const endSessionKeepAlive = useCallback((sessionId: string) => {
@@ -153,64 +126,11 @@ export function MainLayout() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isHosting, endSessionKeepAlive]);
 
-  // ── Navbar / logo clicks → warning modal ─────────────────────────────────
-  const requestNavigate = useCallback((path: string) => {
-    if (isHosting) {
-      setPendingPath(path);
-      setShowLeaveWarning(true);
-    } else {
-      navigate(path);
-    }
-  }, [isHosting, navigate]);
-
-  const handleStay = () => {
-    setShowLeaveWarning(false);
-    setPendingPath(null);
-  };
-
-  const handleLeaveAndEnd = async () => {
-    setIsEndingSession(true);
-    if (hostSessionId) {
-      // 1. Signal HostSession (still mounted) to broadcast SESSION_END via its
-      //    own useSessionSocket channel — this reaches all WebSocket-connected
-      //    audience participants instantly.
-      signalSessionEnd();
-      // 2. Small delay to allow the broadcast to be sent before the component
-      //    unmounts due to navigation.
-      await new Promise<void>((resolve) => setTimeout(resolve, 150));
-      // 3. Update the DB status — this is picked up by the audience's dedicated
-      //    postgres_changes ENDED watcher as a reliable fallback.
-      await endSession(hostSessionId);
-    }
-    setIsEndingSession(false);
-    setShowLeaveWarning(false);
-
-    if (pendingPath === "__logout__") {
-      try { await signOut(); } catch {}
-      window.location.href = "/auth";
-    } else if (pendingPath) {
-      navigate(pendingPath);
-    }
-    setPendingPath(null);
-  };
-
-  const handleLogout = async () => {
-    if (isHosting) {
-      setPendingPath("__logout__");
-      setShowLeaveWarning(true);
-      return;
-    }
-    try { await signOut(); } catch {}
-    window.location.href = "/auth";
-  };
-
   // ── Get visible navigation items based on authentication ─────────────────
   const getVisibleNavItems = () => {
     if (user) {
-      // Show all nav items for authenticated users
       return navItems;
     } else {
-      // Show only items that don't require authentication
       return navItems.filter(item => !item.requiresAuth);
     }
   };
@@ -219,9 +139,8 @@ export function MainLayout() {
 
   // ── Check if we're on audience participation page ────────────────────────
   const isAudienceParticipation = location.pathname === "/audience-participation";
+  const isHostPage = location.pathname.endsWith("/host");
   
-  // For audience participation, always show layout with filtered nav
-  // For other routes, check authentication as before
   const shouldRedirectToAuth = !isLoading && !user && !isAudienceParticipation;
 
   useEffect(() => {
@@ -237,7 +156,6 @@ export function MainLayout() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const unreadNotifications = 3;
   const isCreatePage    = location.pathname === "/create";
   const isCreateProcess = location.pathname.startsWith("/create");
   // Hide navbar when a participant has joined a session (URL has ?code=...)
@@ -279,7 +197,7 @@ export function MainLayout() {
 
             {/* Logo - Syncra */}
             <button
-              onClick={() => requestNavigate("/dashboard")}
+              onClick={() => navigate("/dashboard")}
               className="flex items-center gap-3 group cursor-pointer"
             >
               <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500">
@@ -304,7 +222,7 @@ export function MainLayout() {
                 return (
                   <button
                     key={item.path}
-                    onClick={() => requestNavigate(item.path)}
+                    onClick={() => navigate(item.path)}
                     className={cn(
                       "text-sm font-medium transition-colors hover:text-primary flex items-center gap-2 px-3 py-2 rounded-full",
                       isActive
@@ -321,7 +239,6 @@ export function MainLayout() {
 
             {/* Right Side - Desktop */}
             <div className="hidden md:flex items-center gap-3">
-
               <div className="flex items-center gap-3">
                 <img
                   src={displayAvatar}
@@ -337,7 +254,10 @@ export function MainLayout() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={handleLogout}
+                  onClick={async () => {
+                    try { await signOut(); } catch {}
+                    window.location.href = "/auth";
+                  }}
                   className="rounded-full text-muted-foreground hover:text-foreground"
                 >
                   <LogOut className="h-4 w-4" />
@@ -375,7 +295,7 @@ export function MainLayout() {
                   )}
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    requestNavigate(item.path);
+                    navigate(item.path);
                   }}
                 >
                   <Icon className="h-4 w-4" />
@@ -402,7 +322,10 @@ export function MainLayout() {
             <Button
               variant="ghost"
               className="w-full justify-start gap-3 text-red-500 hover:text-red-600 hover:bg-red-50"
-              onClick={handleLogout}
+              onClick={async () => {
+                try { await signOut(); } catch {}
+                window.location.href = "/auth";
+              }}
             >
               <LogOut className="h-4 w-4" />
               Logout
@@ -416,55 +339,8 @@ export function MainLayout() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
 
-      {/* ── Leave-session warning modal ──────────────────────────────────── */}
-      {showLeaveWarning && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={handleStay}
-          />
-          <div className="relative bg-background rounded-2xl shadow-2xl border w-full max-w-md mx-4 overflow-hidden">
-            <div className="h-1.5 w-full bg-amber-500" />
-            <div className="p-6">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-11 h-11 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                  <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">
-                    You're still hosting a session
-                  </h2>
-                  <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
-                    Leaving this page will{" "}
-                    <span className="font-medium text-foreground">end the session</span> and
-                    disconnect all participants. This cannot be undone.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-6 flex flex-col-reverse sm:flex-row gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={handleStay}
-                  disabled={isEndingSession}
-                >
-                  Stay in session
-                </Button>
-                <Button
-                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
-                  onClick={handleLeaveAndEnd}
-                  disabled={isEndingSession}
-                >
-                  {isEndingSession ? "Ending session…" : "End session & leave"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Navigation — hidden when in fullscreen ────────────────────────── */}
-      {!isCreateProcess && !isFullscreen && !isParticipantInSession && (
+      {/* ── Navigation — hidden on host page and fullscreen and participant session ── */}
+      {!isCreateProcess && !isFullscreen && !isParticipantInSession && !isHostPage && (
         user ? renderAuthNavbar() : <Navbar variant="audience" />
       )}
 
@@ -478,8 +354,8 @@ export function MainLayout() {
         <Outlet />
       </main>
 
-      {/* Footer — only show for authenticated users or non-fullscreen */}
-      {!isCreatePage && !isFullscreen && user && (
+      {/* Footer — only show for authenticated users or non-fullscreen, and NOT on host page */}
+      {!isCreatePage && !isHostPage && !isFullscreen && user && (
         <footer className="border-t py-8 mt-auto">
           <div className="max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground">
             <p>© 2026 Syncra. All rights reserved.</p>

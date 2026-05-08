@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import AppIcon from '../../../components/AppIcon';
-import { Button } from '../../../components/ui/button';
-import { Switch } from '../../../components/ui/switch';
 
 interface ControlPanelProps {
   sessionCode: string;
@@ -22,6 +21,10 @@ interface ControlPanelProps {
   isMultipleChoice: boolean;
   hideParticipantNames: boolean;
   onToggleHideParticipantNames: (checked: boolean) => void;
+  isFullscreen: boolean;
+  onToggleFullscreen: () => void;
+  isElimination: boolean;
+  onToggleEliminationPanel: () => void;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -43,225 +46,213 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   isMultipleChoice,
   hideParticipantNames,
   onToggleHideParticipantNames,
+  isFullscreen,
+  onToggleFullscreen,
+  isElimination,
+  onToggleEliminationPanel,
 }) => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [showQr, setShowQr] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const joinUrl = `${window.location.origin}/audience-participation?code=${sessionCode}`;
+
+  // Close QR popover when clicking outside the toolbar wrapper
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowQr(false);
+      }
+    };
+    if (showQr) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showQr]);
+
+  const sep = <div className="w-px h-5 bg-border mx-0.5 flex-shrink-0" />;
+
+  const iconBtn = (
+    label: string,
+    iconName: string,
+    onClick: () => void,
+    opts: {
+      disabled?: boolean;
+      active?: boolean;
+      activeClass?: string;
+      colorClass?: string;
+    } = {}
+  ) => (
+    <button
+      onClick={onClick}
+      disabled={opts.disabled}
+      title={label}
+      className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors flex-shrink-0
+        disabled:opacity-30 disabled:cursor-not-allowed
+        ${opts.active
+          ? opts.activeClass ?? 'bg-primary text-primary-foreground hover:bg-primary/90'
+          : opts.colorClass ?? 'text-muted-foreground hover:bg-muted hover:text-foreground'
+        }`}
+    >
+      <AppIcon name={iconName as any} size={15} />
+    </button>
+  );
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 lg:bottom-6 lg:left-auto lg:right-6 lg:w-96 z-50">
-      <div className="bg-card border-t-2 lg:border-2 border-border lg:rounded-xl shadow-2xl overflow-hidden">
+    <div className="fixed bottom-0 left-0 right-0 z-50 flex flex-col items-center pb-4 sm:pb-5 pointer-events-none">
+      <div ref={wrapperRef} className="pointer-events-auto w-full max-w-5xl px-4 flex flex-col items-center gap-2">
 
-        {/* ── Collapse toggle handle ── */}
-        <button
-          onClick={() => setCollapsed((prev) => !prev)}
-          className="w-full flex items-center justify-center gap-2 py-2 border-b border-border bg-muted/40 hover:bg-muted/70 transition-colors group"
-          aria-label={collapsed ? 'Expand control panel' : 'Collapse control panel'}
-        >
-          <div className="w-8 h-1 rounded-full bg-border group-hover:bg-muted-foreground/60 transition-colors" />
-          <AppIcon
-            name={collapsed ? 'ChevronUp' : 'ChevronDown'}
-            size={14}
-            className="text-muted-foreground"
-          />
-          <div className="w-8 h-1 rounded-full bg-border group-hover:bg-muted-foreground/60 transition-colors" />
-        </button>
-
-        {/* ── Collapsed: compact quick-action bar (mobile-first) ── */}
-        {collapsed && (
-          <div className="flex items-center gap-2 px-3 py-2">
-            {/* Session code pill */}
-            <div className="flex items-center gap-1.5 bg-primary/10 rounded-lg px-2.5 py-1.5 flex-shrink-0">
-              <AppIcon name="Radio" size={13} className="text-primary" />
-              <span className="text-xs font-bold text-primary">{sessionCode}</span>
+        {/* ── QR / Session code popover ── */}
+        {showQr && (
+          <div className="bg-card/98 backdrop-blur-xl border border-border rounded-2xl shadow-2xl p-5 flex flex-col items-center gap-3 animate-in slide-in-from-bottom-3 duration-200">
+            <div className="bg-white p-3 rounded-xl shadow-sm">
+              <QRCodeSVG value={joinUrl} size={148} level="M" includeMargin={false} />
             </div>
-
-            {/* Participants pill */}
-            <div className="flex items-center gap-1 bg-muted rounded-lg px-2 py-1.5 flex-shrink-0">
-              <AppIcon name="Users" size={13} className="text-muted-foreground" />
-              <span className="text-xs font-semibold text-foreground">{participantCount}</span>
-            </div>
-
-            {/* Responses pill */}
-            <div className="flex items-center gap-1 bg-muted rounded-lg px-2 py-1.5 flex-shrink-0">
-              <AppIcon name="CheckCircle2" size={13} className="text-muted-foreground" />
-              <span className="text-xs font-semibold text-foreground">{responseProgress}%</span>
-            </div>
-
-            {/* Spacer */}
-            <div className="flex-1" />
-
-            {/* Essential nav controls always visible when collapsed */}
-            <Button
-              variant="outline"
-              size="icon"
-              icon="ChevronLeft"
-              onClick={onPrevious}
-              disabled={currentQuestion === 1}
-              className="h-8 w-8 flex-shrink-0"
-            />
-            <Button
-              variant="outline"
-              size="icon"
-              icon={isPaused ? 'Play' : 'Pause'}
-              onClick={onPause}
-              className="h-8 w-8 flex-shrink-0"
-            />
-            <Button
-              variant="outline"
-              size="icon"
-              icon="ChevronRight"
-              onClick={onNext}
-              disabled={currentQuestion === totalQuestions}
-              className="h-8 w-8 flex-shrink-0"
-            />
-          </div>
-        )}
-
-        {/* ── Panel body (collapsible) ── */}
-        {!collapsed && (
-          <div className="p-4 md:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-
-            {/* Session code + live indicator */}
-            <div className="flex items-center justify-between pb-4 border-b border-border">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 md:w-10 md:h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <AppIcon name="Radio" size={18} />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Session Code</p>
-                  <p className="text-lg md:text-xl font-bold text-primary">{sessionCode}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 px-2.5 py-1.5 bg-green-100 dark:bg-green-900/20 rounded-lg flex-shrink-0">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-xs md:text-sm font-medium text-green-600 dark:text-green-400">Live</span>
-              </div>
-            </div>
-
-            {/* Participants & Progress */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-muted/50 rounded-lg p-3">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <AppIcon name="Users" size={14} />
-                  <span className="text-xs text-muted-foreground">Participants</span>
-                </div>
-                <p className="text-xl md:text-2xl font-bold text-foreground">{participantCount}</p>
-              </div>
-              <div className="bg-muted/50 rounded-lg p-3">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <AppIcon name="CheckCircle2" size={14} />
-                  <span className="text-xs text-muted-foreground">Responses</span>
-                </div>
-                <p className="text-xl md:text-2xl font-bold text-foreground">{responseProgress}%</p>
-              </div>
-            </div>
-
-            {/* Question Progress */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Question Progress</span>
-                <span className="text-sm font-semibold text-foreground">
-                  {currentQuestion} / {totalQuestions}
-                </span>
-              </div>
-              <div className="h-2 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all duration-500"
-                  style={{ width: `${(currentQuestion / totalQuestions) * 100}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Navigation Controls */}
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                icon="ChevronLeft"
-                onClick={onPrevious}
-                disabled={currentQuestion === 1}
-                className="flex-shrink-0"
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                icon={isPaused ? 'Play' : 'Pause'}
-                onClick={onPause}
-                className="flex-shrink-0"
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                icon="ChevronRight"
-                onClick={onNext}
-                disabled={currentQuestion === totalQuestions}
-                className="flex-shrink-0"
-              />
-              <Button
-                variant="default"
-                icon={isShowingResults ? 'EyeOff' : 'BarChart3'}
-                iconPosition="left"
-                onClick={onToggleQuestionResults}
-                className="flex-1 text-xs md:text-sm"
-              >
-                {isShowingResults ? 'Hide Results' : 'Show Results'}
-              </Button>
-            </div>
-
-            {isMultipleChoice && (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={showCorrectAnswer ? 'default' : 'outline'}
-                  icon={showCorrectAnswer ? 'EyeOff' : 'Check'}
-                  iconPosition="left"
-                  onClick={onToggleCorrectAnswer}
-                  className="flex-1 text-xs md:text-sm"
-                >
-                  {showCorrectAnswer ? 'Hide Answer' : 'Show Answer'}
-                </Button>
-              </div>
-            )}
-
-            {/* Show / Hide participant names */}
-            <div className="flex items-center justify-between bg-muted/40 rounded-lg px-3 py-2.5">
-              <div className="flex items-center gap-2">
-                <AppIcon name="EyeOff" size={14} className="text-muted-foreground flex-shrink-0" />
-                <span className="text-xs md:text-sm text-muted-foreground">Hide Participant Names</span>
-              </div>
-              <Switch
-                checked={hideParticipantNames}
-                onCheckedChange={onToggleHideParticipantNames}
-              />
-            </div>
-
-            <div className="flex items-center gap-2 pt-4 border-t border-border">
-              <Button
-                variant="outline"
-                icon="RotateCcw"
-                iconPosition="left"
-                onClick={onRestart}
-                className="flex-1 text-xs md:text-sm"
-              >
-                Restart
-              </Button>
-              <Button
-                variant="destructive"
-                icon="X"
-                iconPosition="left"
-                onClick={onEnd}
-                className="flex-1 text-xs md:text-sm"
-              >
-                End
-              </Button>
-            </div>
-
-            {/* Keyboard Shortcuts Hint – hidden on mobile (no keyboard) */}
-            <div className="hidden md:block pt-3 border-t border-border">
-              <p className="text-xs text-muted-foreground text-center">
-                Use ← → arrow keys to navigate questions
+            <div className="text-center">
+              <p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-0.5">Session Code</p>
+              <p className="font-mono font-black text-3xl tracking-widest text-foreground">{sessionCode}</p>
+              <p className="text-[11px] text-muted-foreground mt-1 truncate max-w-[220px]">
+                {window.location.host}/audience-participation
               </p>
             </div>
           </div>
         )}
+
+        {/* ── Main floating bar ── */}
+        <div className="w-full opacity-[0.18] hover:opacity-100 focus-within:opacity-100 transition-all duration-300 translate-y-1.5 hover:translate-y-0 focus-within:translate-y-0">
+          <div className="flex items-center bg-card/95 backdrop-blur-xl border border-border rounded-2xl shadow-2xl px-2 py-1.5 gap-0.5">
+
+            {/* ── Far left: Restart + End + Elimination history ── */}
+            {iconBtn('Restart session', 'RotateCcw', onRestart)}
+            {iconBtn('End session', 'X', onEnd, { colorClass: 'text-destructive/70 hover:bg-destructive/10 hover:text-destructive' })}
+            {isElimination && iconBtn('Elimination history', 'History', onToggleEliminationPanel)}
+
+            {sep}
+
+            {/* ── Navigation ── */}
+            {iconBtn('Previous question (←)', 'ChevronLeft', onPrevious, {
+              disabled: currentQuestion === 1,
+              colorClass: 'text-foreground hover:bg-muted',
+            })}
+            {iconBtn(isPaused ? 'Resume' : 'Pause', isPaused ? 'Play' : 'Pause', onPause, {
+              colorClass: 'text-foreground hover:bg-muted',
+            })}
+            {iconBtn('Next question (→)', 'ChevronRight', onNext, {
+              disabled: currentQuestion === totalQuestions,
+              colorClass: 'text-foreground hover:bg-muted',
+            })}
+
+            {sep}
+
+            {/* ── Show / Hide Results (with label) ── */}
+            <button
+              onClick={onToggleQuestionResults}
+              title={isShowingResults ? 'Hide results' : 'Show results'}
+              className={`h-9 flex items-center gap-1.5 rounded-xl px-2.5 text-xs font-medium transition-colors flex-shrink-0 ${
+                isShowingResults
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              <AppIcon name={isShowingResults ? 'EyeOff' : 'BarChart3'} size={15} />
+              <span className="hidden sm:inline whitespace-nowrap">
+                {isShowingResults ? 'Hide Results' : 'Show Results'}
+              </span>
+            </button>
+
+            {/* ── Hide participant names — icon toggle, right next to results ── */}
+            <button
+              onClick={() => onToggleHideParticipantNames(!hideParticipantNames)}
+              title={hideParticipantNames ? 'Show participant names' : 'Hide participant names'}
+              className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors flex-shrink-0 ${
+                hideParticipantNames
+                  ? 'bg-muted text-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              <AppIcon name={hideParticipantNames ? 'EyeOff' : 'Eye'} size={15} />
+            </button>
+
+            {/* ── Correct answer (MC only) ── */}
+            {isMultipleChoice && (
+              <button
+                onClick={onToggleCorrectAnswer}
+                title={showCorrectAnswer ? 'Hide correct answer' : 'Show correct answer'}
+                className={`h-9 flex items-center gap-1.5 rounded-xl px-2.5 text-xs font-medium transition-colors flex-shrink-0 ${
+                  showCorrectAnswer
+                    ? 'bg-green-600 text-white hover:bg-green-700'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                <AppIcon name={showCorrectAnswer ? 'EyeOff' : 'Check'} size={15} />
+                <span className="hidden sm:inline whitespace-nowrap">
+                  {showCorrectAnswer ? 'Hide Answer' : 'Show Answer'}
+                </span>
+              </button>
+            )}
+
+            {sep}
+
+            {/* ── Session code / QR button ── */}
+            <button
+              onClick={() => setShowQr((v) => !v)}
+              title="Show session code & QR"
+              className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors flex-shrink-0 ${
+                showQr
+                  ? 'bg-muted text-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              <AppIcon name="QrCode" size={15} />
+            </button>
+
+            {/* ── Fullscreen toggle ── */}
+            <button
+              onClick={onToggleFullscreen}
+              title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              className="h-9 w-9 rounded-xl flex items-center justify-center transition-colors flex-shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <AppIcon name={isFullscreen ? 'Minimize' : 'Maximize'} size={15} />
+            </button>
+
+            {sep}
+
+            {/* ── Question progress ── */}
+            <div className="flex items-center gap-2 flex-shrink-0 px-1">
+              {/* Fraction */}
+              <span className="text-xs font-semibold tabular-nums text-foreground whitespace-nowrap">
+                {currentQuestion}
+                <span className="text-muted-foreground font-normal"> / {totalQuestions}</span>
+              </span>
+              {/* Mini segmented bar */}
+              <div className="flex items-center gap-[3px]">
+                {Array.from({ length: totalQuestions }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`h-1.5 rounded-full transition-colors duration-300 ${
+                      i < currentQuestion ? 'bg-primary' : 'bg-border'
+                    }`}
+                    style={{ width: Math.max(4, Math.min(16, Math.floor(96 / totalQuestions))) }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* ── Flexible spacer — pushes stats to the far right ── */}
+            <div className="flex-1 min-w-2" />
+
+            {/* ── Far right: Participants count + Response % ── */}
+            <div className="flex items-center gap-3 flex-shrink-0 pr-1">
+              <div className="flex items-center gap-1.5">
+                <AppIcon name="Users" size={14} className="text-muted-foreground flex-shrink-0" />
+                <span className="text-sm font-semibold tabular-nums text-foreground">{participantCount}</span>
+              </div>
+              <div className="w-px h-4 bg-border flex-shrink-0" />
+              <div className="flex items-center gap-1.5">
+                <AppIcon name="CheckCircle2" size={14} className="text-muted-foreground flex-shrink-0" />
+                <span className="text-sm font-semibold tabular-nums text-foreground">{responseProgress}%</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
       </div>
     </div>
   );
