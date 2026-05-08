@@ -1592,63 +1592,6 @@ const HostSession: React.FC = () => {
                 hideParticipantNames={hideParticipantNames}
               />
             )}
-
-            {showResults && (
-              <motion.div
-                initial={{ opacity: 0, y: 40 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-card p-4 sm:p-6 rounded-xl border border-border shadow-xl mt-6 sm:mt-8"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 sm:gap-4">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
-                      <AppIcon name="Trophy" size={22} className="text-yellow-600" />
-                    </div>
-                    <div>
-                      <div className="font-bold text-base sm:text-lg">
-                        Ready for next question?
-                      </div>
-                      <div className="text-xs sm:text-sm text-muted-foreground">
-                        {participants.slice(0, 3).map((p) => p.name).join(", ")}{" "}
-                        {participants.length > 3 ? "and others are waiting" : ""}
-                      </div>
-                    </div>
-                  </div>
-                  {currentQuestionIndex === session.presentation.questions.length - 1 ? (
-                    isElimination ? (
-                      <Button
-                        size="lg"
-                        onClick={handleShowWinner}
-                        disabled={isRevealingWinner || !!revealedWinner}
-                        className="w-full sm:w-auto sm:min-w-40 bg-yellow-500 hover:bg-yellow-600 text-yellow-950 font-bold"
-                      >
-                        {isRevealingWinner ? (
-                          <>
-                            Révélation…{" "}
-                            <AppIcon name="Loader2" className="ml-2 h-4 w-4 animate-spin" />
-                          </>
-                        ) : (
-                          <>
-                            Afficher le gagnant{" "}
-                            <AppIcon name="Crown" className="ml-2 h-4 w-4" />
-                          </>
-                        )}
-                      </Button>
-                    ) : (
-                      <Button size="lg" onClick={handleNext} className="w-full sm:w-auto sm:min-w-40">
-                        View Results{" "}
-                        <AppIcon name="BarChart3" className="ml-2 h-4 w-4" />
-                      </Button>
-                    )
-                  ) : (
-                    <Button size="lg" onClick={handleNext} className="w-full sm:w-auto sm:min-w-40">
-                      Next Question{" "}
-                      <AppIcon name="ChevronRight" className="ml-2 h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </motion.div>
-            )}
           </div>
         </main>
 
@@ -1676,6 +1619,17 @@ const HostSession: React.FC = () => {
           onToggleFullscreen={toggleFullscreen}
           isElimination={isElimination}
           onToggleEliminationPanel={() => setShowEliminationPanel((v) => !v)}
+          // props for action button
+          showResultsActionButton={showResults}
+          onViewResults={() => {
+            sendMessage({ type: "SESSION_END", payload: {} });
+            SessionService.updateSessionStatus(session.id, "ENDED");
+            navigate(`/results/${session.id}`);
+          }}
+          onShowWinner={handleShowWinner}
+          isLastQuestion={currentQuestionIndex === session.presentation.questions.length - 1}
+          isRevealingWinner={isRevealingWinner}
+          hasWinner={!!revealedWinner}
         />
 
         {isPaused && <PauseOverlay onResume={handlePause} />}

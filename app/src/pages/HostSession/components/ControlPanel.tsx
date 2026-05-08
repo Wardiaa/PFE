@@ -25,6 +25,13 @@ interface ControlPanelProps {
   onToggleFullscreen: () => void;
   isElimination: boolean;
   onToggleEliminationPanel: () => void;
+  // New props for the action button
+  showResultsActionButton?: boolean;
+  onViewResults?: () => void;
+  onShowWinner?: () => void;
+  isLastQuestion?: boolean;
+  isRevealingWinner?: boolean;
+  hasWinner?: boolean;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -50,6 +57,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   onToggleFullscreen,
   isElimination,
   onToggleEliminationPanel,
+  showResultsActionButton = false,
+  onViewResults,
+  onShowWinner,
+  isLastQuestion = false,
+  isRevealingWinner = false,
+  hasWinner = false,
 }) => {
   const [showQr, setShowQr] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -95,6 +108,49 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     </button>
   );
 
+  // Render the action button - ONLY for the last question
+  const renderActionButton = () => {
+    // Only show when results are showing AND it's the last question
+    if (!showResultsActionButton || !isLastQuestion) return null;
+
+    if (isElimination) {
+      return (
+        <button
+          onClick={onShowWinner}
+          disabled={isRevealingWinner || hasWinner}
+          className="h-9 flex items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition-colors flex-shrink-0 bg-yellow-500 hover:bg-yellow-600 text-yellow-950"
+        >
+          {isRevealingWinner ? (
+            <>
+              <AppIcon name="Loader2" size={14} className="animate-spin" />
+              <span className="hidden sm:inline">Revealing...</span>
+            </>
+          ) : (
+            <>
+              <AppIcon name="Crown" size={14} />
+              <span className="hidden sm:inline">Show Winner</span>
+              <span className="sm:hidden">Winner</span>
+            </>
+          )}
+        </button>
+      );
+    } else {
+      return (
+        <button
+          onClick={onViewResults}
+          className="h-9 flex items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition-colors flex-shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+        >
+          <AppIcon name="BarChart3" size={14} />
+          <span className="hidden sm:inline">View Results</span>
+          <span className="sm:hidden">Results</span>
+        </button>
+      );
+    }
+  };
+
+  // Determine if the panel should be fully visible
+  const isFullyVisible = showResultsActionButton && isLastQuestion;
+
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 flex flex-col items-center pb-4 sm:pb-5 pointer-events-none">
       <div ref={wrapperRef} className="pointer-events-auto w-full max-w-5xl px-4 flex flex-col items-center gap-2">
@@ -116,7 +172,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         )}
 
         {/* ── Main floating bar ── */}
-        <div className="w-full opacity-[0.18] hover:opacity-100 focus-within:opacity-100 transition-all duration-300 translate-y-1.5 hover:translate-y-0 focus-within:translate-y-0">
+        <div 
+          className={`w-full transition-all duration-300 ${
+            isFullyVisible 
+              ? 'opacity-100 translate-y-0' 
+              : 'opacity-[0.18] hover:opacity-100 focus-within:opacity-100 translate-y-1.5 hover:translate-y-0 focus-within:translate-y-0'
+          }`}
+        >
           <div className="flex items-center bg-card/95 backdrop-blur-xl border border-border rounded-2xl shadow-2xl px-2 py-1.5 gap-0.5">
 
             {/* ── Far left: Restart + End + Elimination history ── */}
@@ -235,16 +297,26 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               </div>
             </div>
 
-            {/* ── Flexible spacer — pushes stats to the far right ── */}
+            {/* ── Flexible spacer — pushes stats and action button to the far right ── */}
             <div className="flex-1 min-w-2" />
 
-            {/* ── Far right: Participants count + Response % ── */}
+            {/* ── Far right: Action Button (only for last question) + Stats ── */}
             <div className="flex items-center gap-3 flex-shrink-0 pr-1">
+              {/* Action Button - appears only for last question when results are showing */}
+              {renderActionButton()}
+              
+              {/* Divider before stats (only if action button is shown) */}
+              {isFullyVisible && <div className="w-px h-4 bg-border flex-shrink-0" />}
+              
+              {/* Participants count */}
               <div className="flex items-center gap-1.5">
                 <AppIcon name="Users" size={14} className="text-muted-foreground flex-shrink-0" />
                 <span className="text-sm font-semibold tabular-nums text-foreground">{participantCount}</span>
               </div>
+              
               <div className="w-px h-4 bg-border flex-shrink-0" />
+              
+              {/* Response progress */}
               <div className="flex items-center gap-1.5">
                 <AppIcon name="CheckCircle2" size={14} className="text-muted-foreground flex-shrink-0" />
                 <span className="text-sm font-semibold tabular-nums text-foreground">{responseProgress}%</span>
