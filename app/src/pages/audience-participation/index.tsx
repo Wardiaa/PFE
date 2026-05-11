@@ -1,7 +1,6 @@
 // src/pages/audience-participation/index.tsx
-// VERSION STABLE - Élimination parfaite
-// Ajouté: support pour les types de questions SCALING et RANKING
-// Conservé: toute la logique d'élimination originale qui fonctionnait parfaitement
+// Version avec UI de l'ancienne version ET timer wall-clock optimisé
+// (Je garde la même structure que la version restaurée mais avec le timer optimisé)
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -153,6 +152,10 @@ const AudienceParticipation: React.FC = () => {
   const toastRef = useRef(toast);
   const isEliminatedRef = useRef<boolean>(false);
   const answerRevealTimeoutRef = useRef<number | undefined>(undefined);
+  const eliminationOverlayShownRef = useRef<boolean>(false);
+
+  // OPTIMIZED: wall-clock anchor reference
+  const questionEndsAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     participantSessionRef.current = participantSession;
@@ -325,51 +328,83 @@ const AudienceParticipation: React.FC = () => {
     }
   }, []);
 
-  const startLocalCountdown = useCallback(() => {
-    stopLocalCountdown();
-    timerIntervalRef.current = window.setInterval(() => {
-      if (isPausedRef.current || !questionActiveRef.current) return;
-      const next = timerRemainingRef.current - 1;
-      if (next <= 0) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = undefined;
-        timerRemainingRef.current = 0;
-        setTimerRemaining(0);
-        setQuestionActive(false);
-        questionActiveRef.current = false;
-        setQuestionClosed(true);
-        questionClosedRef.current = true;
-        // Toast with 2 seconds duration
-        toastRef.current({
-          title: "Time's Up!",
-          description: "The time for this question has expired.",
-          duration: 2000,
-        });
-      } else {
-        timerRemainingRef.current = next;
-        setTimerRemaining(next);
-      }
-    }, 1000);
-  }, [stopLocalCountdown]);
+  /**
+   * OPTIMIZED: Wall-clock-anchored countdown.
+   * Runs every 500 ms so the display is responsive, but computes the remaining
+   * time from the absolute `endsAtMs` epoch value rather than decrementing a
+   * counter. This means even if a tick fires late (e.g. tab throttling), the
+   * next tick corrects it automatically.
+   */
+  const startWallClockCountdown = useCallback(
+    (endsAtMs: number) => {
+      stopLocalCountdown();
+
+      timerIntervalRef.current = window.setInterval(() => {
+        if (isPausedRef.current || !questionActiveRef.current) return;
+
+        const remaining = Math.max(
+          0,
+          Math.ceil((endsAtMs - Date.now()) / 1000),
+        );
+
+        timerRemainingRef.current = remaining;
+        setTimerRemaining(remaining);
+
+        if (remaining <= 0) {
+          clearInterval(timerIntervalRef.current);
+          timerIntervalRef.current = undefined;
+          timerRemainingRef.current = 0;
+          setTimerRemaining(0);
+          setQuestionActive(false);
+          questionActiveRef.current = false;
+          setQuestionClosed(true);
+          questionClosedRef.current = true;
+          toastRef.current({
+            title: "Time's Up!",
+            description: "The time for this question has expired.",
+            duration: 2000,
+          });
+        }
+      }, 500);
+    },
+    [stopLocalCountdown],
+  );
 
   useEffect(() => () => stopLocalCountdown(), [stopLocalCountdown]);
   useEffect(() => () => clearAnswerRevealTimeout(), [clearAnswerRevealTimeout]);
 
+  /**
+   * OPTIMIZED: accepts `endsAtMs` (absolute epoch ms from the host) instead of
+   * `startedAt` + `useElapsed`. When `endsAtMs` is provided the timer is
+   * anchored to the same wall-clock moment as the host's timer, eliminating
+   * drift from network latency and independent `setInterval` jitter.
+   */
   const applyQuestion = useCallback(
     (
       question: Question,
       timeLimit: number | null,
-      startedAt?: string,
-      useElapsed: boolean = false,
+      endsAtMs?: number,
       hasAlreadyResponded: boolean = false,
     ) => {
       const limit = timeLimit == null || timeLimit <= 0 ? null : timeLimit;
+
       let remaining = limit ?? 0;
-      if (limit !== null && useElapsed && startedAt) {
-        const elapsed = Math.floor(
-          (Date.now() - new Date(startedAt).getTime()) / 1000,
-        );
-        remaining = Math.max(0, limit - elapsed);
+      let actualEndsAtMs: number | null = null;
+
+      if (limit !== null) {
+        if (endsAtMs && endsAtMs > Date.now()) {
+          // Use the host-provided absolute end time (most accurate).
+          actualEndsAtMs = endsAtMs;
+          remaining = Math.max(0, Math.ceil((endsAtMs - Date.now()) / 1000));
+          questionEndsAtRef.current = endsAtMs;
+        } else {
+          // Fallback: start a fresh local timer (late-join without endsAt).
+          actualEndsAtMs = Date.now() + limit * 1000;
+          remaining = limit;
+          questionEndsAtRef.current = actualEndsAtMs;
+        }
+      } else {
+        questionEndsAtRef.current = null;
       }
 
       setCurrentQuestion(question);
@@ -388,6 +423,7 @@ const AudienceParticipation: React.FC = () => {
       setShowAnswerReveal(false);
       clearAnswerRevealTimeout();
       setShowEliminationOverlay(false);
+      eliminationOverlayShownRef.current = false;
 
       if (hasAlreadyResponded) {
         setSessionState("submitted");
@@ -396,9 +432,12 @@ const AudienceParticipation: React.FC = () => {
         setSessionState("question");
         sessionStateRef.current = "question";
       }
-      if (limit !== null && remaining > 0) startLocalCountdown();
+
+      if (limit !== null && remaining > 0 && actualEndsAtMs) {
+        startWallClockCountdown(actualEndsAtMs);
+      }
     },
-    [startLocalCountdown, clearAnswerRevealTimeout],
+    [startWallClockCountdown, clearAnswerRevealTimeout],
   );
 
   const loadQuestion = useCallback(
@@ -406,8 +445,7 @@ const AudienceParticipation: React.FC = () => {
       questionId: string,
       questionIndex: number,
       timeLimit?: number | null,
-      startedAt?: string,
-      useElapsed: boolean = false,
+      endsAtMs?: number,
     ) => {
       if (!participantSessionRef.current) return;
 
@@ -432,8 +470,7 @@ const AudienceParticipation: React.FC = () => {
         applyQuestion(
           cachedQ,
           cachedQ.timeLimit ?? timeLimit ?? null,
-          startedAt,
-          useElapsed,
+          endsAtMs,
           hasAlreadyResponded,
         );
         return;
@@ -471,8 +508,7 @@ const AudienceParticipation: React.FC = () => {
         applyQuestion(
           newQuestion,
           questionData.time_limit ?? timeLimit ?? null,
-          startedAt,
-          useElapsed,
+          endsAtMs,
           hasAlreadyResponded,
         );
       } catch (err) {
@@ -516,19 +552,16 @@ const AudienceParticipation: React.FC = () => {
           const questionId = payload?.questionId as string | undefined;
           const questionIndex = (payload?.questionIndex as number) ?? 0;
           const timeLimit = payload?.timeLimit as number | null | undefined;
-          const startedAt = payload?.startedAt as string | undefined;
+          // OPTIMIZED: use host-broadcast absolute end time for clock synchronisation.
+          const endsAt = payload?.endsAt as number | undefined;
+
           if (questionId) {
             stopLocalCountdown();
             clearAnswerRevealTimeout();
             setShowAnswerReveal(false);
             setShowEliminationOverlay(false);
-            loadQuestion(
-              questionId,
-              questionIndex,
-              timeLimit,
-              startedAt,
-              !!startedAt,
-            );
+            eliminationOverlayShownRef.current = false;
+            loadQuestion(questionId, questionIndex, timeLimit ?? null, endsAt);
           }
           break;
         }
@@ -547,12 +580,18 @@ const AudienceParticipation: React.FC = () => {
         case "RESUME": {
           const remaining =
             (payload?.remainingSeconds as number) ?? timerRemainingRef.current;
-          const resumedAt = payload?.resumedAt as string | undefined;
+          // OPTIMIZED: host now sends endsAt on resume so we re-anchor the clock.
+          const endsAt = payload?.endsAt as number | undefined;
+
           setIsPaused(false);
           isPausedRef.current = false;
           setTimerRemaining(remaining);
           timerRemainingRef.current = remaining;
-          if (remaining > 0 && questionActiveRef.current) startLocalCountdown();
+
+          if (remaining > 0 && questionActiveRef.current) {
+            const endsAtMs = endsAt ?? Date.now() + remaining * 1000;
+            startWallClockCountdown(endsAtMs);
+          }
           break;
         }
 
@@ -570,6 +609,7 @@ const AudienceParticipation: React.FC = () => {
           clearAnswerRevealTimeout();
           setShowAnswerReveal(false);
           setShowEliminationOverlay(false);
+          eliminationOverlayShownRef.current = false;
           setSessionState("ended");
           sessionStateRef.current = "ended";
           break;
@@ -578,6 +618,7 @@ const AudienceParticipation: React.FC = () => {
         case SESSION_EVENTS.PLAYER_ELIMINATED: {
           const ev = payload as unknown as EliminationEvent;
           setEliminationEvents((prev) => [...prev, ev]);
+
           if (participantSessionRef.current?.session.id) {
             SessionService.getGameState(
               participantSessionRef.current.session.id,
@@ -626,6 +667,7 @@ const AudienceParticipation: React.FC = () => {
             clearAnswerRevealTimeout();
             setShowAnswerReveal(false);
             setShowEliminationOverlay(false);
+            eliminationOverlayShownRef.current = false;
           }
           break;
         }
@@ -641,7 +683,7 @@ const AudienceParticipation: React.FC = () => {
     },
     [
       loadQuestion,
-      startLocalCountdown,
+      startWallClockCountdown,
       stopLocalCountdown,
       clearAnswerRevealTimeout,
     ],
@@ -811,8 +853,10 @@ const AudienceParticipation: React.FC = () => {
               } else {
                 setTimerRemaining(recalculated);
                 timerRemainingRef.current = recalculated;
-                if (recalculated > 0 && questionActiveRef.current)
-                  startLocalCountdown();
+                if (recalculated > 0 && questionActiveRef.current) {
+                  const endsAtMs = Date.now() + recalculated * 1000;
+                  startWallClockCountdown(endsAtMs);
+                }
               }
             }
           }
@@ -829,12 +873,15 @@ const AudienceParticipation: React.FC = () => {
             clearAnswerRevealTimeout();
             setShowAnswerReveal(false);
             setShowEliminationOverlay(false);
+            eliminationOverlayShownRef.current = false;
+            const endsAtMs = updatedSession.current_question_ends_at
+              ? new Date(updatedSession.current_question_ends_at).getTime()
+              : undefined;
             loadQuestion(
               newQuestionId,
               newQuestionIndex,
               undefined,
-              updatedSession.current_question_started_at,
-              true,
+              endsAtMs,
             );
           }
         },
@@ -848,7 +895,7 @@ const AudienceParticipation: React.FC = () => {
     participantSession?.session.id,
     wsConnected,
     loadQuestion,
-    startLocalCountdown,
+    startWallClockCountdown,
     stopLocalCountdown,
     clearAnswerRevealTimeout,
   ]);
@@ -864,7 +911,7 @@ const AudienceParticipation: React.FC = () => {
       const { data: sessionExists, error: sessionCheckError } = await supabase
         .from("sessions")
         .select(
-          "id, code, status, context_id, is_paused, current_question_started_at, timer_paused_remaining, timer_resumed_at",
+          "id, code, status, context_id, is_paused, current_question_started_at, current_question_ends_at, timer_paused_remaining, timer_resumed_at",
         )
         .eq("code", joinData.code.toUpperCase())
         .maybeSingle();
@@ -916,16 +963,27 @@ const AudienceParticipation: React.FC = () => {
           ];
         if (currentQ?.id) {
           const timeLimit = currentQ.timeLimit ?? null;
-          const remaining = computeRemainingFromDbRow(
-            {
-              is_paused: paused,
-              current_question_started_at:
-                sessionExists.current_question_started_at,
-              timer_paused_remaining: sessionExists.timer_paused_remaining,
-              timer_resumed_at: sessionExists.timer_resumed_at,
-            },
-            timeLimit,
-          );
+          
+          // OPTIMIZED: use endsAt from DB if available
+          let endsAtMs: number | undefined = undefined;
+          if (sessionExists.current_question_ends_at) {
+            endsAtMs = new Date(sessionExists.current_question_ends_at).getTime();
+          } else {
+            // Fallback: compute remaining from other fields
+            const remaining = computeRemainingFromDbRow(
+              {
+                is_paused: paused,
+                current_question_started_at:
+                  sessionExists.current_question_started_at,
+                timer_paused_remaining: sessionExists.timer_paused_remaining,
+                timer_resumed_at: sessionExists.timer_resumed_at,
+              },
+              timeLimit,
+            );
+            if (remaining !== null && remaining > 0) {
+              endsAtMs = Date.now() + remaining * 1000;
+            }
+          }
 
           let hasAlreadyResponded = false;
           try {
@@ -942,8 +1000,21 @@ const AudienceParticipation: React.FC = () => {
           setCurrentQuestion(currentQ);
           currentQuestionRef.current = currentQ;
           setTimerTotal(timeLimit ?? 0);
-          setTimerRemaining(remaining ?? 0);
-          timerRemainingRef.current = remaining ?? 0;
+          
+          if (endsAtMs && endsAtMs > Date.now()) {
+            const remaining = Math.max(0, Math.ceil((endsAtMs - Date.now()) / 1000));
+            setTimerRemaining(remaining);
+            timerRemainingRef.current = remaining;
+            questionEndsAtRef.current = endsAtMs;
+            if (!paused && remaining > 0) {
+              startWallClockCountdown(endsAtMs);
+            }
+          } else {
+            const remaining = timeLimit ?? 0;
+            setTimerRemaining(remaining);
+            timerRemainingRef.current = remaining;
+          }
+          
           setQuestionActive(true);
           questionActiveRef.current = true;
           setQuestionClosed(false);
@@ -953,13 +1024,6 @@ const AudienceParticipation: React.FC = () => {
           setShowAnswerReveal(false);
           setSessionState(hasAlreadyResponded ? "submitted" : "question");
           sessionStateRef.current = hasAlreadyResponded ? "submitted" : "question";
-          if (
-            timeLimit !== null &&
-            !paused &&
-            remaining !== null &&
-            remaining > 0
-          )
-            startLocalCountdown();
         } else {
           setSessionState("waiting");
           sessionStateRef.current = "waiting";
@@ -1118,6 +1182,8 @@ const AudienceParticipation: React.FC = () => {
     isPausedRef.current = false;
     questionActiveRef.current = true;
     timerRemainingRef.current = 0;
+    eliminationOverlayShownRef.current = false;
+    questionEndsAtRef.current = null;
 
     setParticipantSession(null);
     setCurrentQuestion(null);
@@ -1288,7 +1354,7 @@ const AudienceParticipation: React.FC = () => {
                 onSubmit={(r) => handleSubmitResponse({ words: r.words })}
               />
             )}
-            {/* ── Scaling question ─────────────────────────────────────── */}
+            {/* Scaling question */}
             {currentQuestion.type === "scaling" && (
               <ScalingQuestion
                 question={{
@@ -1307,7 +1373,7 @@ const AudienceParticipation: React.FC = () => {
                 }
               />
             )}
-            {/* ── Ranking question ──────────────────────────────────────── */}
+            {/* Ranking question */}
             {currentQuestion.type === "ranking" && (
               <RankingQuestion
                 question={{

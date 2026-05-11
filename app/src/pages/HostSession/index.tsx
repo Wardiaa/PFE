@@ -1,6 +1,5 @@
 // src/pages/HostSession/index.tsx
-// Version avec UI de l'ancienne version (flèche back, clock pill centrée, timer bar)
-// MAIS avec la logique optimisée (fallback polling 30s, élimination intacte)
+// Version avec UI de l'ancienne version ET timer wall-clock optimisé
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -295,10 +294,34 @@ const HostSession: React.FC = () => {
   const sendMessageRef = useRef<(msg: any) => void>(() => {});
   const currentQuestionTimeLimitRef = useRef<number | null | undefined>(null);
 
-  const applyQuestionTimer = (question?: Question | null) => {
+  /**
+   * OPTIMIZED: absolute epoch-ms when the current question timer expires.
+   * Shared reference point so the host timer and all participant timers
+   * compute remaining = ceil((endsAt - Date.now()) / 1000) from the
+   * same anchor instead of running independent ±1s counters.
+   */
+  const questionEndsAtRef = useRef<number | null>(null);
+
+  /**
+   * OPTIMIZED: stores the wall-clock end time in questionEndsAtRef.
+   * Pass overrideEndsAtMs when restoring timer from DB after page refresh
+   * or when resuming from pause (endsAt = now + remaining).
+   */
+  const applyQuestionTimer = (question?: Question | null, overrideEndsAtMs?: number) => {
     const limit = getQuestionTimeLimit(question);
-    setTimer(limit ?? 0);
-    timerRef.current = limit ?? 0;
+
+    if (limit !== null) {
+      const endsAtMs = overrideEndsAtMs ?? Date.now() + limit * 1000;
+      questionEndsAtRef.current = endsAtMs;
+      const remaining = Math.max(0, Math.ceil((endsAtMs - Date.now()) / 1000));
+      setTimer(remaining);
+      timerRef.current = remaining;
+    } else {
+      questionEndsAtRef.current = null;
+      setTimer(0);
+      timerRef.current = 0;
+    }
+
     setTimerActive(limit !== null);
     timerActiveRef.current = limit !== null;
     return limit;
@@ -404,7 +427,9 @@ const HostSession: React.FC = () => {
     }
   }, [isElimination, revealedWinner, showResults, gameState.alive.length, gameState.totalPlayers, sendMessage]);
 
-  // ── Timer interval ───────────────────────────────────────────────────────
+  // ── OPTIMIZED: Wall-clock-anchored timer interval ─────────────────────────
+  // Fires every 500 ms for responsiveness. Computes remaining from the absolute
+  // endsAt epoch instead of decrementing a counter — eliminates accumulated drift.
   useEffect(() => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
@@ -414,41 +439,46 @@ const HostSession: React.FC = () => {
     if (
       currentQuestionIndex >= 0 &&
       timerActiveRef.current &&
-      timerRef.current > 0
+      questionEndsAtRef.current !== null
     ) {
       timerIntervalRef.current = window.setInterval(() => {
         if (
-          !isPausedRef.current &&
-          timerActiveRef.current &&
-          timerRef.current > 0
+          isPausedRef.current ||
+          !timerActiveRef.current ||
+          questionEndsAtRef.current === null
         ) {
-          timerRef.current -= 1;
-          setTimer(timerRef.current);
+          return;
+        }
 
-          if (timerRef.current <= 0) {
-            clearInterval(timerIntervalRef.current);
-            timerIntervalRef.current = undefined;
-            timerActiveRef.current = false;
-            setTimerActive(false);
-            setShowResults(true);
-            toast({ title: "Time's Up!", description: "Showing results..." });
+        const remaining = Math.max(
+          0,
+          Math.ceil((questionEndsAtRef.current - Date.now()) / 1000),
+        );
+        timerRef.current = remaining;
+        setTimer(remaining);
 
-            if (isEliminationRef.current) {
-              window.setTimeout(() => {
-                const latest = gameStateRef.current;
-                const count =
-                  latest.eliminated.length -
-                  roundStartEliminatedCountRef.current;
-                setDisplayedGameState(latest);
-                if (count > 0) {
-                  setRoundEliminationCount(count);
-                  setOverlayRoundNumber(latest.currentRound);
-                }
-              }, 1200);
-            }
+        if (remaining <= 0) {
+          clearInterval(timerIntervalRef.current);
+          timerIntervalRef.current = undefined;
+          timerActiveRef.current = false;
+          setTimerActive(false);
+          setShowResults(true);
+          toast({ title: "Time's Up!", description: "Showing results..." });
+
+          if (isEliminationRef.current) {
+            window.setTimeout(() => {
+              const latest = gameStateRef.current;
+              const count =
+                latest.eliminated.length - roundStartEliminatedCountRef.current;
+              setDisplayedGameState(latest);
+              if (count > 0) {
+                setRoundEliminationCount(count);
+                setOverlayRoundNumber(latest.currentRound);
+              }
+            }, 1200);
           }
         }
-      }, 1000);
+      }, 500);
     }
 
     return () => {
@@ -457,7 +487,7 @@ const HostSession: React.FC = () => {
         timerIntervalRef.current = undefined;
       }
     };
-  }, [currentQuestionIndex, timerActive, timerRef.current, isPaused, toast]);
+  }, [currentQuestionIndex, timerActive, toast]);
 
   useEffect(
     () => () => {
@@ -590,37 +620,50 @@ const HostSession: React.FC = () => {
               if (currentQ.showResultsInstantly) setShowResults(true);
 
               const limit = getQuestionTimeLimit(currentQ);
-              let remaining = limit ?? 0;
-              if (limit === null) {
-                remaining = 0;
-              } else if (
-                existingSession.is_paused &&
-                existingSession.timer_paused_remaining != null
-              ) {
-                remaining = existingSession.timer_paused_remaining;
-              } else if (
-                !existingSession.is_paused &&
-                existingSession.timer_resumed_at != null &&
-                existingSession.timer_paused_remaining != null
-              ) {
-                const elapsedSinceResume = Math.floor(
-                  (Date.now() - new Date(existingSession.timer_resumed_at).getTime()) / 1000,
-                );
-                remaining = Math.max(0, existingSession.timer_paused_remaining - elapsedSinceResume);
-              } else if (existingSession.current_question_started_at) {
-                const elapsed = Math.floor(
-                  (Date.now() - new Date(existingSession.current_question_started_at).getTime()) / 1000,
-                );
-                remaining = Math.max(0, limit - elapsed);
-              } else {
-                remaining = limit;
-              }
+              if (limit !== null) {
+                // OPTIMIZED: restore wall-clock endsAt from DB instead of a plain counter.
+                let endsAtMs: number | null = null;
 
-              setTimer(remaining);
-              timerRef.current = remaining;
-              const shouldBeActive = limit !== null && !existingSession.is_paused && remaining > 0;
-              setTimerActive(shouldBeActive);
-              timerActiveRef.current = shouldBeActive;
+                if (existingSession.current_question_ends_at) {
+                  endsAtMs = new Date(existingSession.current_question_ends_at).getTime();
+                } else if (
+                  existingSession.is_paused &&
+                  existingSession.timer_paused_remaining != null
+                ) {
+                  const remaining = existingSession.timer_paused_remaining;
+                  setTimer(remaining);
+                  timerRef.current = remaining;
+                  setTimerActive(false);
+                  timerActiveRef.current = false;
+                  endsAtMs = null;
+                } else if (
+                  !existingSession.is_paused &&
+                  existingSession.timer_resumed_at != null &&
+                  existingSession.timer_paused_remaining != null
+                ) {
+                  const elapsedSinceResume = Math.floor(
+                    (Date.now() - new Date(existingSession.timer_resumed_at).getTime()) / 1000,
+                  );
+                  const remaining = Math.max(0, existingSession.timer_paused_remaining - elapsedSinceResume);
+                  endsAtMs = Date.now() + remaining * 1000;
+                } else if (existingSession.current_question_started_at) {
+                  endsAtMs =
+                    new Date(existingSession.current_question_started_at).getTime() +
+                    limit * 1000;
+                } else {
+                  endsAtMs = Date.now() + limit * 1000;
+                }
+
+                if (endsAtMs !== null) {
+                  questionEndsAtRef.current = endsAtMs;
+                  const remaining = Math.max(0, Math.ceil((endsAtMs - Date.now()) / 1000));
+                  setTimer(remaining);
+                  timerRef.current = remaining;
+                  const shouldBeActive = !existingSession.is_paused && remaining > 0;
+                  setTimerActive(shouldBeActive);
+                  timerActiveRef.current = shouldBeActive;
+                }
+              }
             }
           }
 
@@ -720,7 +763,7 @@ const HostSession: React.FC = () => {
     };
   }, [session?.id, isElimination]);
 
-  // ── Fallback polling (30s, très léger) ────────────────────────────────────
+  // ── Fallback polling (30s, safety net) ────────────────────────────────────
   useEffect(() => {
     if (!session?.id || !isElimination) return;
 
@@ -851,12 +894,19 @@ const HostSession: React.FC = () => {
       return;
     }
 
-    const startedAt = new Date().toISOString();
+    const timeLimit = getQuestionTimeLimit(firstQuestion);
+
     await SessionService.updateSessionStatus(session.id, "ACTIVE");
-    await SessionService.setCurrentQuestion(session.id, 0, firstQuestion.id);
+    // OPTIMIZED: pass timeLimit so DB stores current_question_ends_at.
+    const { startedAt, endsAt } = await SessionService.setCurrentQuestion(
+      session.id,
+      0,
+      firstQuestion.id,
+      timeLimit,
+    );
 
     setCurrentQuestionIndex(0);
-    const timeLimit = applyQuestionTimer(firstQuestion);
+    applyQuestionTimer(firstQuestion, endsAt ?? undefined);
     applyQuestionSettings(firstQuestion);
     setIsPaused(false);
     isPausedRef.current = false;
@@ -869,6 +919,7 @@ const HostSession: React.FC = () => {
         questionIndex: 0,
         timeLimit,
         startedAt,
+        endsAt, // OPTIMIZED: absolute end time for wall-clock sync on participants
       },
     });
 
@@ -880,12 +931,17 @@ const HostSession: React.FC = () => {
 
     const newIndex = currentQuestionIndex - 1;
     const prevQuestion = session.presentation.questions[newIndex];
-    const startedAt = new Date().toISOString();
+    const timeLimit = getQuestionTimeLimit(prevQuestion);
 
-    await SessionService.setCurrentQuestion(session.id, newIndex, prevQuestion?.id);
+    const { startedAt, endsAt } = await SessionService.setCurrentQuestion(
+      session.id,
+      newIndex,
+      prevQuestion?.id,
+      timeLimit,
+    );
 
     setCurrentQuestionIndex(newIndex);
-    const timeLimit = applyQuestionTimer(prevQuestion);
+    applyQuestionTimer(prevQuestion, endsAt ?? undefined);
     applyQuestionSettings(prevQuestion);
     setIsPaused(false);
     isPausedRef.current = false;
@@ -897,6 +953,7 @@ const HostSession: React.FC = () => {
         questionIndex: newIndex,
         timeLimit,
         startedAt,
+        endsAt,
       },
     });
   };
@@ -907,12 +964,17 @@ const HostSession: React.FC = () => {
     if (currentQuestionIndex < session.presentation.questions.length - 1) {
       const newIndex = currentQuestionIndex + 1;
       const nextQuestion = session.presentation.questions[newIndex];
-      const startedAt = new Date().toISOString();
+      const timeLimit = getQuestionTimeLimit(nextQuestion);
 
-      await SessionService.setCurrentQuestion(session.id, newIndex, nextQuestion?.id);
+      const { startedAt, endsAt } = await SessionService.setCurrentQuestion(
+        session.id,
+        newIndex,
+        nextQuestion?.id,
+        timeLimit,
+      );
 
       setCurrentQuestionIndex(newIndex);
-      const timeLimit = applyQuestionTimer(nextQuestion);
+      applyQuestionTimer(nextQuestion, endsAt ?? undefined);
       applyQuestionSettings(nextQuestion);
       setIsPaused(false);
       isPausedRef.current = false;
@@ -924,6 +986,7 @@ const HostSession: React.FC = () => {
           questionIndex: newIndex,
           timeLimit,
           startedAt,
+          endsAt,
         },
       });
     } else {
@@ -978,6 +1041,12 @@ const HostSession: React.FC = () => {
     }
   };
 
+  /**
+   * FIXED and OPTIMIZED:
+   * - Event type is "PAUSE"/"RESUME" (audience listens for these)
+   * - Payload key is "remainingSeconds" (audience expects this)
+   * - On resume: questionEndsAtRef is recomputed and endsAt is broadcast
+   */
   const handlePause = async (): Promise<void> => {
     if (!session) return;
     const newPausedState = !isPaused;
@@ -985,25 +1054,37 @@ const HostSession: React.FC = () => {
     isPausedRef.current = newPausedState;
 
     if (newPausedState) {
+      // Pausing
       setTimerActive(false);
       timerActiveRef.current = false;
+
       sendMessage({
         type: "PAUSE",
         payload: { remainingSeconds: timerRef.current },
       });
     } else {
+      // Resuming
       const hasTimer = getQuestionTimeLimit(currentQuestion) !== null;
       if (hasTimer && timerRef.current > 0) {
+        // Recompute wall-clock anchor from remaining seconds.
+        const newEndsAtMs = Date.now() + timerRef.current * 1000;
+        questionEndsAtRef.current = newEndsAtMs;
         setTimerActive(true);
         timerActiveRef.current = true;
+
+        sendMessage({
+          type: "RESUME",
+          payload: {
+            remainingSeconds: timerRef.current,
+            endsAt: newEndsAtMs,
+          },
+        });
+      } else {
+        sendMessage({
+          type: "RESUME",
+          payload: { remainingSeconds: timerRef.current },
+        });
       }
-      sendMessage({
-        type: "RESUME",
-        payload: {
-          remainingSeconds: timerRef.current,
-          resumedAt: new Date().toISOString(),
-        },
-      });
     }
 
     const success = await SessionService.togglePause(
@@ -1023,12 +1104,17 @@ const HostSession: React.FC = () => {
   const handleRestart = async (): Promise<void> => {
     if (!session) return;
     const firstQuestion = session.presentation.questions[0];
-    const startedAt = new Date().toISOString();
+    const timeLimit = getQuestionTimeLimit(firstQuestion);
 
-    await SessionService.setCurrentQuestion(session.id, 0, firstQuestion?.id);
+    const { startedAt, endsAt } = await SessionService.setCurrentQuestion(
+      session.id,
+      0,
+      firstQuestion?.id,
+      timeLimit,
+    );
 
     setCurrentQuestionIndex(0);
-    const timeLimit = applyQuestionTimer(firstQuestion);
+    applyQuestionTimer(firstQuestion, endsAt ?? undefined);
     applyQuestionSettings(firstQuestion);
     setIsPaused(false);
     isPausedRef.current = false;
@@ -1040,6 +1126,7 @@ const HostSession: React.FC = () => {
         questionIndex: 0,
         timeLimit,
         startedAt,
+        endsAt,
       },
     });
 
@@ -1423,7 +1510,7 @@ const HostSession: React.FC = () => {
     );
   }
 
-  // ── ACTIVE QUESTION VIEW (UI de l'ancienne version) ─────────────────────────
+  // ── ACTIVE QUESTION VIEW (UI de l'ancienne version + timer optimisé) ─────────
   return (
     <>
       {/* Timer progress bar */}
@@ -1443,7 +1530,7 @@ const HostSession: React.FC = () => {
               animate={{
                 scaleX: timer / (getQuestionTimeLimit(currentQuestion) || 1),
               }}
-              transition={{ duration: 1, ease: "linear" }}
+              transition={{ duration: 0.5, ease: "linear" }}
               style={{ transformOrigin: "left" }}
             />
           ) : null}
