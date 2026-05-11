@@ -1,11 +1,12 @@
 // src/lib/session.service.ts
-// Updated: added RANKING type support in mapQuestionType + getQuestionResponses aggregation.
+// BASE: version fonctionnelle avec élimination parfaite
+// AJOUTÉ: support pour les types de questions SCALING et RANKING
+
 import { supabase } from "../lib/supabase";
 import type {
   Session,
   Participant,
   Question,
-  QuestionType,
   QuestionResponses,
   EliminationEvent,
   GameState,
@@ -28,13 +29,15 @@ export interface SubmitResponseParams {
   sessionId: string;
   participantId: string;
   questionId: string;
-  answer: any;
+  answer: unknown;
 }
 
 export interface JoinSessionResult {
   session: Session;
   participantId: string;
   participantToken: string;
+  /** Absolute epoch-ms when the current question timer expires */
+  currentQuestionEndsAt?: number;
 }
 
 export class SessionService {
@@ -263,6 +266,9 @@ export class SessionService {
         },
         participantId: participant.id,
         participantToken: participant.token,
+        currentQuestionEndsAt: session.current_question_ends_at
+          ? new Date(session.current_question_ends_at).getTime()
+          : undefined,
       };
     } catch (error) {
       console.error("Join session error:", error);
@@ -349,15 +355,17 @@ export class SessionService {
     questionId?: string,
   ): Promise<boolean> {
     try {
+      const startedAt = new Date().toISOString();
       const { error } = await supabase
         .from("sessions")
         .update({
           current_question_index: questionIndex,
           current_question_id: questionId,
-          current_question_started_at: new Date().toISOString(),
+          current_question_started_at: startedAt,
           is_paused: false,
           timer_paused_remaining: null,
           timer_resumed_at: null,
+          current_question_ends_at: null,
         })
         .eq("id", sessionId);
 
@@ -382,8 +390,12 @@ export class SessionService {
       if (isPaused) {
         update.timer_paused_remaining = remainingAtPause ?? null;
         update.timer_resumed_at = null;
+        update.current_question_ends_at = null;
       } else {
         update.timer_resumed_at = new Date().toISOString();
+        if (remainingAtPause != null && remainingAtPause > 0) {
+          update.current_question_ends_at = new Date(Date.now() + remainingAtPause * 1000).toISOString();
+        }
       }
       const { error } = await supabase
         .from("sessions")
@@ -460,7 +472,7 @@ export class SessionService {
         const answer = response.answer;
         const participantName = response.participants?.name;
 
-        if (typeof answer === "object") {
+        if (typeof answer === "object" && answer !== null) {
           // ── Scaling answers ──────────────────────────────────────────────
           if (answer.scalingAnswers && typeof answer.scalingAnswers === "object") {
             if (!aggregated.statements) aggregated.statements = {};
@@ -469,7 +481,7 @@ export class SessionService {
             const statementAnswers = answer.scalingAnswers as Record<string, number | null>;
 
             Object.entries(statementAnswers).forEach(([statementId, value]) => {
-              if (value === null) return; // skipped — don't count in distribution
+              if (value === null) return;
 
               if (!aggregated.statements[statementId]) {
                 aggregated.statements[statementId] = {
@@ -483,7 +495,6 @@ export class SessionService {
               stmt.distribution[value] = (stmt.distribution[value] || 0) + 1;
               stmt.total += 1;
 
-              // Recalculate average
               let sum = 0;
               let count = 0;
               Object.entries(stmt.distribution).forEach(([rating, cnt]) => {
@@ -524,7 +535,6 @@ export class SessionService {
 
               const item = aggregated.items[itemId];
               const oneBasedRank = zeroBasedIdx + 1;
-              // Borda count: item ranked 1st gets N points, last gets 1 point
               const bordaPoints = n - zeroBasedIdx;
               item.bordaScore += bordaPoints;
               item.total += 1;
@@ -550,9 +560,7 @@ export class SessionService {
               aggregated.individualResponses || [];
             aggregated.individualResponses.push({
               optionId: answer.optionId,
-              participantName: hideParticipantNames
-                ? undefined
-                : participantName,
+              participantName: hideParticipantNames ? undefined : participantName,
               timestamp: new Date(),
             });
 
@@ -565,9 +573,7 @@ export class SessionService {
             aggregated.individualRatings = aggregated.individualRatings || [];
             aggregated.individualRatings.push({
               rating: answer.rating,
-              participantName: hideParticipantNames
-                ? undefined
-                : participantName,
+              participantName: hideParticipantNames ? undefined : participantName,
               timestamp: new Date(),
             });
 
@@ -597,9 +603,7 @@ export class SessionService {
             aggregated.recent.unshift({
               text: answer.text,
               timestamp: new Date(),
-              participantName: hideParticipantNames
-                ? undefined
-                : participantName,
+              participantName: hideParticipantNames ? undefined : participantName,
             });
             aggregated.recent = aggregated.recent.slice(0, 10);
 
@@ -619,9 +623,7 @@ export class SessionService {
             aggregated.individualWords = aggregated.individualWords || [];
             aggregated.individualWords.push({
               words: answer.words,
-              participantName: hideParticipantNames
-                ? undefined
-                : participantName,
+              participantName: hideParticipantNames ? undefined : participantName,
               timestamp: new Date(),
             });
           }
@@ -729,28 +731,107 @@ export class SessionService {
   }
 
   static async getGameState(sessionId: string): Promise<GameState> {
-    try {
-      const [{ data: participants }, { data: history }, { data: session }] =
-        await Promise.all([
-          supabase
-            .from("participants")
-            .select(
-              "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id",
-            )
-            .eq("session_id", sessionId),
-          supabase
-            .from("elimination_log")
-            .select("*")
-            .eq("session_id", sessionId)
-            .order("eliminated_at", { ascending: true }),
-          supabase
-            .from("sessions")
-            .select("current_question_index, status, context_id")
-            .eq("id", sessionId)
-            .maybeSingle(),
-        ]);
+  try {
+    const [{ data: participants }, { data: history }, { data: session }] =
+      await Promise.all([
+        supabase
+          .from("participants")
+          .select(
+            "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id",
+          )
+          .eq("session_id", sessionId),
+        supabase
+          .from("elimination_log")
+          .select("*")
+          .eq("session_id", sessionId)
+          .order("eliminated_at", { ascending: true }),
+        supabase
+          .from("sessions")
+          .select("current_question_index, status, context_id")
+          .eq("id", sessionId)
+          .maybeSingle(),
+      ]);
 
-      const allParticipants = (participants || []).map((p: any) => ({
+    const allParticipants = (participants || []).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      score: p.score ?? 0,
+      avatar: p.avatar_url ?? undefined,
+      isAnonymous: p.is_anonymous,
+      joinedAt: new Date(p.joined_at),
+      isAlive: p.is_alive === true,
+      eliminatedAtRound: p.eliminated_at_round ?? null,
+      eliminatedAtQuestionId: p.eliminated_at_question_id ?? null,
+    }));
+
+    const alive = allParticipants.filter((p) => p.isAlive === true);
+    const eliminated = allParticipants.filter((p) => p.isAlive === false);
+
+    const eliminationHistory: EliminationEvent[] = (history || []).map(
+      (row: any) => ({
+        participantId: row.participant_id,
+        participantName: row.participant_name,
+        questionId: row.question_id,
+        roundNumber: row.round_number,
+        eliminatedAt: new Date(row.eliminated_at),
+      }),
+    );
+
+    // 🔧 FIX: Utiliser allParticipants.length directement (plus fiable)
+    const totalPlayers = allParticipants.length;
+
+    return {
+      alive,
+      eliminated,
+      winner: null,
+      totalPlayers,  // ← Maintenant calculé directement
+      currentRound: (session?.current_question_index ?? -1) + 1,
+      history: eliminationHistory,
+    };
+  } catch (error) {
+    console.error("getGameState error:", error);
+    return {
+      alive: [],
+      eliminated: [],
+      winner: null,
+      totalPlayers: 0,
+      currentRound: 0,
+      history: [],
+    };
+  }
+}
+
+  static async determineWinner(sessionId: string): Promise<Participant | null> {
+    try {
+      const { data: session } = await supabase
+        .from("sessions")
+        .select("context_id, current_question_index")
+        .eq("id", sessionId)
+        .maybeSingle();
+
+      if (!session?.context_id) {
+        console.warn("[determineWinner] session/context_id missing for", sessionId);
+        return null;
+      }
+
+      const { data: questions } = await supabase
+        .from("questions")
+        .select("id, question_order")
+        .eq("context_id", session.context_id)
+        .order("question_order", { ascending: true });
+
+      if (!questions || questions.length === 0) return null;
+      const lastQuestionId = questions[questions.length - 1].id;
+
+      const { data: aliveRows } = await supabase
+        .from("participants")
+        .select(
+          "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id",
+        )
+        .eq("session_id", sessionId)
+        .eq("is_alive", true);
+
+      const toParticipant = (p: any): Participant => ({
         id: p.id,
         name: p.name,
         score: p.score ?? 0,
@@ -760,43 +841,114 @@ export class SessionService {
         isAlive: p.is_alive === true,
         eliminatedAtRound: p.eliminated_at_round ?? null,
         eliminatedAtQuestionId: p.eliminated_at_question_id ?? null,
-      }));
+      });
 
-      const alive = allParticipants.filter((p) => p.isAlive === true);
-      const eliminated = allParticipants.filter((p) => p.isAlive === false);
+      const alive = (aliveRows || []).map(toParticipant);
 
-      const eliminationHistory: EliminationEvent[] = (history || []).map(
-        (row: any) => ({
-          participantId: row.participant_id,
-          participantName: row.participant_name,
-          questionId: row.question_id,
-          roundNumber: row.round_number,
-          eliminatedAt: new Date(row.eliminated_at),
-        }),
-      );
+      if (alive.length === 1) return alive[0];
 
-      return {
-        alive,
-        eliminated,
-        winner: null,
-        totalPlayers: allParticipants.length,
-        currentRound: (session?.current_question_index ?? -1) + 1,
-        history: eliminationHistory,
-      };
+      if (alive.length > 1) {
+        const aliveIds = alive.map((p) => p.id);
+        const { data: lastResponses } = await supabase
+          .from("responses")
+          .select("participant_id, submitted_at")
+          .eq("session_id", sessionId)
+          .eq("question_id", lastQuestionId)
+          .eq("is_correct", true)
+          .in("participant_id", aliveIds)
+          .order("submitted_at", { ascending: true });
+
+        if (lastResponses && lastResponses.length > 0) {
+          const earliestId = lastResponses[0].participant_id;
+          const winner = alive.find((p) => p.id === earliestId);
+          if (winner) return winner;
+        }
+
+        return [...alive].sort((a, b) => {
+          if ((b.score ?? 0) !== (a.score ?? 0))
+            return (b.score ?? 0) - (a.score ?? 0);
+          return a.joinedAt.getTime() - b.joinedAt.getTime();
+        })[0];
+      }
+
+      const { data: elimRows } = await supabase
+        .from("participants")
+        .select(
+          "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id",
+        )
+        .eq("session_id", sessionId)
+        .eq("is_alive", false)
+        .order("score", { ascending: false })
+        .limit(1);
+
+      return elimRows?.[0] ? toParticipant(elimRows[0]) : null;
     } catch (error) {
-      console.error("getGameState error:", error);
-      return {
-        alive: [],
-        eliminated: [],
-        winner: null,
-        totalPlayers: 0,
-        currentRound: 0,
-        history: [],
-      };
+      console.error("determineWinner error:", error);
+      return null;
     }
   }
 
-  static async getEliminationHistory(sessionId: string): Promise<EliminationEvent[]> {
+  static async submitEliminationAnswer(args: {
+    sessionId: string;
+    participantId: string;
+    questionId: string;
+    roundNumber: number;
+    chosenOptionId: string;
+    isCorrect: boolean;
+    pointsIfCorrect: number;
+  }): Promise<{
+    correct: boolean;
+    eliminated: EliminationEvent | null;
+    newScore: number | null;
+  }> {
+    try {
+      const { error: responseError } = await supabase.from("responses").insert({
+        session_id: args.sessionId,
+        participant_id: args.participantId,
+        question_id: args.questionId,
+        answer: {
+          optionId: args.chosenOptionId,
+          isCorrect: args.isCorrect,
+          pointsEarned: args.isCorrect ? args.pointsIfCorrect : 0,
+        },
+        is_correct: args.isCorrect,
+        points_earned: args.isCorrect ? args.pointsIfCorrect : 0,
+        submitted_at: new Date().toISOString(),
+      });
+
+      if (responseError && responseError.code !== "23505") {
+        console.error("[submitEliminationAnswer] Response insert failed:", responseError);
+      }
+
+      if (responseError?.code === "23505") {
+        return { correct: args.isCorrect, eliminated: null, newScore: null };
+      }
+
+      if (args.isCorrect) {
+        const newScore = await SessionService.incrementScore(
+          args.participantId,
+          args.pointsIfCorrect,
+        );
+        return { correct: true, eliminated: null, newScore };
+      }
+
+      const eliminated = await SessionService.eliminateParticipant({
+        sessionId: args.sessionId,
+        participantId: args.participantId,
+        questionId: args.questionId,
+        roundNumber: args.roundNumber,
+      });
+
+      return { correct: false, eliminated, newScore: null };
+    } catch (error) {
+      console.error("submitEliminationAnswer error:", error);
+      return { correct: false, eliminated: null, newScore: null };
+    }
+  }
+
+  static async getEliminationHistory(
+    sessionId: string,
+  ): Promise<EliminationEvent[]> {
     try {
       const { data, error } = await supabase
         .from("elimination_log")
@@ -804,12 +956,8 @@ export class SessionService {
         .eq("session_id", sessionId)
         .order("eliminated_at", { ascending: true });
 
-      if (error) {
-        console.error("Failed to get elimination history:", error);
-        return [];
-      }
-
-      return (data || []).map((row: any) => ({
+      if (error || !data) return [];
+      return data.map((row: any) => ({
         participantId: row.participant_id,
         participantName: row.participant_name,
         questionId: row.question_id,
@@ -822,37 +970,8 @@ export class SessionService {
     }
   }
 
-  static async determineWinner(sessionId: string): Promise<Participant | null> {
-    try {
-      const { data, error } = await supabase
-        .from("participants")
-        .select("*")
-        .eq("session_id", sessionId)
-        .eq("is_alive", true)
-        .order("score", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error || !data) return null;
-
-      return {
-        id: data.id,
-        name: data.name,
-        score: data.score ?? 0,
-        avatar: data.avatar_url ?? undefined,
-        isAnonymous: data.is_anonymous,
-        joinedAt: new Date(data.joined_at),
-        isAlive: true,
-      };
-    } catch (error) {
-      console.error("determineWinner error:", error);
-      return null;
-    }
-  }
-
-  // ── UPDATED: mapQuestionType now includes RANKING ──────────────────────────
-  static mapQuestionType(dbType: string): QuestionType {
-    const mapping: Record<string, QuestionType> = {
+  private static mapQuestionType(dbType: string): Question["type"] {
+    const mapping: Record<string, Question["type"]> = {
       MULTIPLE_CHOICE: "multiple-choice",
       SINGLE_CHOICE: "multiple-choice",
       TRUE_FALSE: "multiple-choice",
@@ -863,48 +982,6 @@ export class SessionService {
       SCALING: "scaling",
       RANKING: "ranking",
     };
-    return mapping[dbType] ?? "multiple-choice";
-  }
-
-  static async submitEliminationAnswer(args: {
-    sessionId: string;
-    participantId: string;
-    questionId: string;
-    roundNumber: number;
-    chosenOptionId: string;
-    isCorrect: boolean;
-    pointsIfCorrect: number;
-  }): Promise<{ correct: boolean; eliminated: EliminationEvent | null }> {
-    try {
-      const submitOk = await this.submitResponse({
-        sessionId: args.sessionId,
-        participantId: args.participantId,
-        questionId: args.questionId,
-        answer: { optionId: args.chosenOptionId },
-      });
-
-      if (!submitOk) {
-        return { correct: false, eliminated: null };
-      }
-
-      if (args.isCorrect) {
-        if (args.pointsIfCorrect > 0) {
-          await this.incrementScore(args.participantId, args.pointsIfCorrect);
-        }
-        return { correct: true, eliminated: null };
-      }
-
-      const eliminated = await this.eliminateParticipant({
-        sessionId: args.sessionId,
-        participantId: args.participantId,
-        questionId: args.questionId,
-        roundNumber: args.roundNumber,
-      });
-
-      return { correct: false, eliminated };
-    } catch (error) {
-      console.error("submitEliminationAnswer error:", error);
-      return { correct: false, eliminated: null };
-    }
+    return mapping[dbType] || "multiple-choice";
   }
 }

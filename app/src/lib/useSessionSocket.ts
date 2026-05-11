@@ -1,3 +1,4 @@
+// src/lib/useSessionSocket.ts
 /**
  * Real-time session events via Supabase Broadcast channels.
  *

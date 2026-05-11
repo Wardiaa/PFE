@@ -1,5 +1,7 @@
 // src/pages/HostSession/index.tsx
-// Updated: mapQuestionType now includes RANKING → "ranking"
+// Version avec UI de l'ancienne version (flèche back, clock pill centrée, timer bar)
+// MAIS avec la logique optimisée (fallback polling 30s, élimination intacte)
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
@@ -130,7 +132,7 @@ const QrFullscreenModal: React.FC<{ code: string; onClose: () => void }> = ({ co
   );
 };
 
-// ── Leave Session Warning Modal (internal to host page) ──────────────────────
+// ── Leave Session Warning Modal ──────────────────────────────────────────────
 const LeaveWarningModal: React.FC<{
   isOpen: boolean;
   onStay: () => void;
@@ -206,7 +208,7 @@ const HostSession: React.FC = () => {
   const [showLeaveWarning, setShowLeaveWarning] = useState<boolean>(false);
   const [isLeaving, setIsLeaving] = useState<boolean>(false);
 
-  // ── 100% Logique elimination state ───────────────────────────────────────
+  // ── Elimination state ─────────────────────────────────────────────────────
   const [contextMeta, setContextMeta] = useState<{
     gameMode: GameMode;
     themeId: string;
@@ -247,22 +249,6 @@ const HostSession: React.FC = () => {
   const survivorsCount = isElimination ? gameState.alive.length : 0;
   const eliminatedCount = isElimination ? gameState.eliminated.length : 0;
 
-  // ── All useRef hooks ──────────────────────────────────────────────────────
-  const timerRef = useRef<number>(0);
-  const timerActiveRef = useRef<boolean>(false);
-  const timerIntervalRef = useRef<number | undefined>(undefined);
-  const isPausedRef = useRef<boolean>(false);
-  const sessionRef = useRef<Session | null>(null);
-  const currentQuestionRef = useRef<Question | undefined>(undefined);
-  const hasLoadedRef = useRef<boolean>(false);
-  const hideParticipantNamesRef = useRef<boolean>(false);
-  const gameStateRef = useRef<GameState>(gameState);
-  const isEliminationRef = useRef<boolean>(false);
-  const sendMessageRef = useRef<(msg: any) => void>(() => {});
-
-  const currentQuestionTimeLimitRef = useRef<number | null | undefined>(null);
-
-  // ── UPDATED: mapQuestionType now includes RANKING ──────────────────────────
   const mapQuestionType = (dbType: string): Question["type"] => {
     const mapping: Record<string, Question["type"]> = {
       MULTIPLE_CHOICE: "multiple-choice",
@@ -283,11 +269,6 @@ const HostSession: React.FC = () => {
       ? session?.presentation?.questions?.[currentQuestionIndex]
       : undefined;
 
-  // Keep ref in sync
-  useEffect(() => {
-    currentQuestionTimeLimitRef.current = currentQuestion?.timeLimit;
-  }, [currentQuestion]);
-
   const currentResponses: QuestionResponses = currentQuestion
     ? responses[currentQuestion.id] || {}
     : {};
@@ -299,6 +280,20 @@ const HostSession: React.FC = () => {
       return null;
     return question.timeLimit;
   };
+
+  // ── All useRef hooks ──────────────────────────────────────────────────────
+  const timerRef = useRef<number>(0);
+  const timerActiveRef = useRef<boolean>(false);
+  const timerIntervalRef = useRef<number | undefined>(undefined);
+  const isPausedRef = useRef<boolean>(false);
+  const sessionRef = useRef<Session | null>(null);
+  const currentQuestionRef = useRef<Question | undefined>(undefined);
+  const hasLoadedRef = useRef<boolean>(false);
+  const hideParticipantNamesRef = useRef<boolean>(false);
+  const gameStateRef = useRef<GameState>(gameState);
+  const isEliminationRef = useRef<boolean>(false);
+  const sendMessageRef = useRef<(msg: any) => void>(() => {});
+  const currentQuestionTimeLimitRef = useRef<number | null | undefined>(null);
 
   const applyQuestionTimer = (question?: Question | null) => {
     const limit = getQuestionTimeLimit(question);
@@ -319,9 +314,10 @@ const HostSession: React.FC = () => {
     }
   }, []);
 
-  // ── Keep refs in sync ────────────────────────────────────────────────────
+  // ── Keep refs in sync ─────────────────────────────────────────────────────
   useEffect(() => { sessionRef.current = session; }, [session]);
   useEffect(() => { currentQuestionRef.current = currentQuestion; }, [currentQuestion]);
+  useEffect(() => { currentQuestionTimeLimitRef.current = currentQuestion?.timeLimit; }, [currentQuestion]);
   useEffect(() => { timerRef.current = timer; }, [timer]);
   useEffect(() => { timerActiveRef.current = timerActive; }, [timerActive]);
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
@@ -329,16 +325,14 @@ const HostSession: React.FC = () => {
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
   useEffect(() => { isEliminationRef.current = isElimination; }, [isElimination]);
 
-  // ── Fullscreen change listener ───────────────────────────────────────────
+  // ── Fullscreen change listener ─────────────────────────────────────────────
   useEffect(() => {
-    const onFsChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
+    const onFsChange = () => { setIsFullscreen(!!document.fullscreenElement); };
     document.addEventListener("fullscreenchange", onFsChange);
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
-  // ── Real-time message handler ────────────────────────────────────────────
+  // ── Real-time message handler ─────────────────────────────────────────────
   const handleWsMessage = useCallback(
     (msg: { type: string; payload?: Record<string, unknown> }) => {
       if (msg.type === SESSION_EVENTS.RESPONSE_SUBMITTED) {
@@ -399,7 +393,7 @@ const HostSession: React.FC = () => {
 
   useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
 
-  // ── Fin de partie: all players eliminated, no winner ──────────────────────
+  // ── All players eliminated ─────────────────────────────────────────────────
   useEffect(() => {
     if (!isElimination || isGameOverRef.current || revealedWinner) return;
     if (!showResults) return;
@@ -472,7 +466,7 @@ const HostSession: React.FC = () => {
     [],
   );
 
-  // ── Update hideParticipantNames when currentQuestion changes ──────────
+  // ── Update hideParticipantNames when question changes ─────────────────────
   useEffect(() => {
     if (currentQuestion) {
       setHideParticipantNames(currentQuestion.hideParticipantNames ?? false);
@@ -486,7 +480,7 @@ const HostSession: React.FC = () => {
     setRoundEliminationCount(null);
   }, [currentQuestionIndex]);
 
-  // ── Reload responses when hideParticipantNames or showResults changes ────
+  // ── Reload responses when hideParticipantNames or showResults changes ─────
   useEffect(() => {
     if (currentQuestion && session) {
       SessionService.getQuestionResponses(
@@ -499,7 +493,7 @@ const HostSession: React.FC = () => {
     }
   }, [hideParticipantNames, currentQuestion?.id, session?.id, showResults]);
 
-  // ── Load session ─────────────────────────────────────────────────────────
+  // ── Load session ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!id || !user || hasLoadedRef.current) return;
 
@@ -593,9 +587,7 @@ const HostSession: React.FC = () => {
           ) {
             const currentQ = questions[existingSession.current_question_index];
             if (currentQ) {
-              if (currentQ.showResultsInstantly) {
-                setShowResults(true);
-              }
+              if (currentQ.showResultsInstantly) setShowResults(true);
 
               const limit = getQuestionTimeLimit(currentQ);
               let remaining = limit ?? 0;
@@ -612,21 +604,12 @@ const HostSession: React.FC = () => {
                 existingSession.timer_paused_remaining != null
               ) {
                 const elapsedSinceResume = Math.floor(
-                  (Date.now() -
-                    new Date(existingSession.timer_resumed_at).getTime()) /
-                    1000,
+                  (Date.now() - new Date(existingSession.timer_resumed_at).getTime()) / 1000,
                 );
-                remaining = Math.max(
-                  0,
-                  existingSession.timer_paused_remaining - elapsedSinceResume,
-                );
+                remaining = Math.max(0, existingSession.timer_paused_remaining - elapsedSinceResume);
               } else if (existingSession.current_question_started_at) {
                 const elapsed = Math.floor(
-                  (Date.now() -
-                    new Date(
-                      existingSession.current_question_started_at,
-                    ).getTime()) /
-                    1000,
+                  (Date.now() - new Date(existingSession.current_question_started_at).getTime()) / 1000,
                 );
                 remaining = Math.max(0, limit - elapsed);
               } else {
@@ -635,16 +618,13 @@ const HostSession: React.FC = () => {
 
               setTimer(remaining);
               timerRef.current = remaining;
-              const shouldBeActive =
-                limit !== null && !existingSession.is_paused && remaining > 0;
+              const shouldBeActive = limit !== null && !existingSession.is_paused && remaining > 0;
               setTimerActive(shouldBeActive);
               timerActiveRef.current = shouldBeActive;
             }
           }
 
-          const participantsData = await SessionService.getParticipants(
-            existingSession.id,
-          );
+          const participantsData = await SessionService.getParticipants(existingSession.id);
           setParticipants(participantsData);
 
           if (existingSession.current_question_index >= 0) {
@@ -655,10 +635,7 @@ const HostSession: React.FC = () => {
                 currentQ.id,
                 currentQ.hideParticipantNames ?? false,
               );
-              setResponses((prev) => ({
-                ...prev,
-                [currentQ.id]: responsesData,
-              }));
+              setResponses((prev) => ({ ...prev, [currentQ.id]: responsesData }));
             }
           }
 
@@ -700,7 +677,7 @@ const HostSession: React.FC = () => {
     loadSession();
   }, [id, user, navigate, toast]);
 
-  // ── Hydrate elimination game state ───────────────────────────────────────
+  // ── Hydrate elimination game state ─────────────────────────────────────────
   useEffect(() => {
     if (!session?.id || !isElimination) return;
     SessionService.getGameState(session.id).then(setGameState);
@@ -743,19 +720,19 @@ const HostSession: React.FC = () => {
     };
   }, [session?.id, isElimination]);
 
-  // ── Periodic game state refresh for elimination mode (fallback) ────────────
+  // ── Fallback polling (30s, très léger) ────────────────────────────────────
   useEffect(() => {
     if (!session?.id || !isElimination) return;
 
     const interval = setInterval(async () => {
       const newState = await SessionService.getGameState(session.id);
       setGameState(newState);
-    }, 3000);
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [session?.id, isElimination]);
 
-  // ── Supabase subscriptions: participants (INSERT + UPDATE) + responses ──
+  // ── Supabase subscriptions: participants + responses ───────────────────────
   useEffect(() => {
     if (!session) return;
 
@@ -864,15 +841,13 @@ const HostSession: React.FC = () => {
     setShowCorrectAnswer(false);
   };
 
+  // ── Action handlers ───────────────────────────────────────────────────────
+
   const handleStart = async (): Promise<void> => {
     if (!session) return;
     const firstQuestion = session.presentation.questions[0];
     if (!firstQuestion) {
-      toast({
-        title: "Error",
-        description: "No questions found",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "No questions found", variant: "destructive" });
       return;
     }
 
@@ -897,10 +872,7 @@ const HostSession: React.FC = () => {
       },
     });
 
-    toast({
-      title: "Session Started",
-      description: "Participants can now join and answer",
-    });
+    toast({ title: "Session Started", description: "Participants can now join and answer" });
   };
 
   const handlePrevious = async (): Promise<void> => {
@@ -910,11 +882,7 @@ const HostSession: React.FC = () => {
     const prevQuestion = session.presentation.questions[newIndex];
     const startedAt = new Date().toISOString();
 
-    await SessionService.setCurrentQuestion(
-      session.id,
-      newIndex,
-      prevQuestion?.id,
-    );
+    await SessionService.setCurrentQuestion(session.id, newIndex, prevQuestion?.id);
 
     setCurrentQuestionIndex(newIndex);
     const timeLimit = applyQuestionTimer(prevQuestion);
@@ -941,11 +909,7 @@ const HostSession: React.FC = () => {
       const nextQuestion = session.presentation.questions[newIndex];
       const startedAt = new Date().toISOString();
 
-      await SessionService.setCurrentQuestion(
-        session.id,
-        newIndex,
-        nextQuestion?.id,
-      );
+      await SessionService.setCurrentQuestion(session.id, newIndex, nextQuestion?.id);
 
       setCurrentQuestionIndex(newIndex);
       const timeLimit = applyQuestionTimer(nextQuestion);
@@ -963,13 +927,7 @@ const HostSession: React.FC = () => {
         },
       });
     } else {
-      // Last question completed.
-      if (isElimination) {
-        // In elimination mode we do NOT auto-end the session — the host uses
-        // the "Show Winner" button below the results panel.
-        return;
-      }
-      // Standard mode: navigate to results page.
+      if (isElimination) return;
       if (session) {
         sendMessage({ type: "SESSION_END", payload: {} });
         await SessionService.updateSessionStatus(session.id, "ENDED");
@@ -1029,18 +987,24 @@ const HostSession: React.FC = () => {
     if (newPausedState) {
       setTimerActive(false);
       timerActiveRef.current = false;
+      sendMessage({
+        type: "PAUSE",
+        payload: { remainingSeconds: timerRef.current },
+      });
     } else {
       const hasTimer = getQuestionTimeLimit(currentQuestion) !== null;
       if (hasTimer && timerRef.current > 0) {
         setTimerActive(true);
         timerActiveRef.current = true;
       }
+      sendMessage({
+        type: "RESUME",
+        payload: {
+          remainingSeconds: timerRef.current,
+          resumedAt: new Date().toISOString(),
+        },
+      });
     }
-
-    sendMessage({
-      type: newPausedState ? "SESSION_PAUSE" : "SESSION_RESUME",
-      payload: { timer: timerRef.current },
-    });
 
     const success = await SessionService.togglePause(
       session.id,
@@ -1052,11 +1016,7 @@ const HostSession: React.FC = () => {
       isPausedRef.current = !newPausedState;
       setTimerActive(newPausedState);
       timerActiveRef.current = newPausedState;
-      toast({
-        title: "Error",
-        description: "Failed to pause/resume session",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to pause/resume session", variant: "destructive" });
     }
   };
 
@@ -1083,10 +1043,7 @@ const HostSession: React.FC = () => {
       },
     });
 
-    toast({
-      title: "Session Restarted",
-      description: "Reset to the first question",
-    });
+    toast({ title: "Session Restarted", description: "Reset to the first question" });
   };
 
   useEffect(() => {
@@ -1135,7 +1092,7 @@ const HostSession: React.FC = () => {
     });
   };
 
-  // ── Leave warning handlers ────────────────────────────────────────────────
+  // ── Leave warning handlers ─────────────────────────────────────────────────
   const signalSessionEnd = () => {
     window.dispatchEvent(new CustomEvent("syncra:session-end-requested"));
   };
@@ -1152,30 +1109,16 @@ const HostSession: React.FC = () => {
     }
   };
 
-  const handleBackToDashboard = () => {
-    setShowLeaveWarning(true);
-  };
-
-  const handleStay = () => {
-    setShowLeaveWarning(false);
-  };
+  const handleBackToDashboard = () => { setShowLeaveWarning(true); };
+  const handleStay = () => { setShowLeaveWarning(false); };
 
   const handleLeaveAndEnd = async () => {
     setIsLeaving(true);
-    
-    // Signal HostSession to broadcast SESSION_END via its own socket
     signalSessionEnd();
-    
-    // Small delay to allow the broadcast to be sent
     await new Promise<void>((resolve) => setTimeout(resolve, 150));
-    
-    // Update the DB status
     await endSessionDB();
-    
     setIsLeaving(false);
     setShowLeaveWarning(false);
-    
-    // Navigate back to dashboard
     navigate("/dashboard");
   };
 
@@ -1191,17 +1134,13 @@ const HostSession: React.FC = () => {
         )
       : 0;
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
-            <AppIcon
-              name="Loader2"
-              size={28}
-              className="text-primary animate-spin"
-            />
+            <AppIcon name="Loader2" size={28} className="text-primary animate-spin" />
           </div>
           <p className="text-muted-foreground text-sm">Setting up your session...</p>
         </div>
@@ -1214,15 +1153,9 @@ const HostSession: React.FC = () => {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="text-center max-w-sm w-full">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-destructive/10 flex items-center justify-center">
-            <AppIcon
-              name="AlertCircle"
-              size={32}
-              className="text-destructive"
-            />
+            <AppIcon name="AlertCircle" size={32} className="text-destructive" />
           </div>
-          <h2 className="text-xl md:text-2xl font-bold text-foreground mb-2">
-            Session Error
-          </h2>
+          <h2 className="text-xl md:text-2xl font-bold text-foreground mb-2">Session Error</h2>
           <p className="text-sm md:text-base text-muted-foreground mb-6">
             {error || "Session not found."}
           </p>
@@ -1239,7 +1172,7 @@ const HostSession: React.FC = () => {
     );
   }
 
-  // ── LOBBY VIEW ────────────────────────────────────────────────────────────
+  // ── LOBBY VIEW ─────────────────────────────────────────────────────────────
   if (currentQuestionIndex === -1) {
     return (
       <div className="min-h-screen bg-primary flex flex-col text-white">
@@ -1297,10 +1230,7 @@ const HostSession: React.FC = () => {
                           </Avatar>
                           <span className="font-medium flex-1 text-sm">{p.name}</span>
                           {p.score > 0 && (
-                            <Badge
-                              variant="secondary"
-                              className="bg-yellow-500/20 text-yellow-300 text-xs"
-                            >
+                            <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-300 text-xs">
                               {p.score} pts
                             </Badge>
                           )}
@@ -1325,10 +1255,7 @@ const HostSession: React.FC = () => {
             <div className="flex-1 flex flex-col md:grid md:grid-cols-2 md:gap-8 md:items-center gap-6">
               <div className="space-y-5 sm:space-y-6 md:space-y-8">
                 <div>
-                  <Badge
-                    variant="outline"
-                    className="text-white border-white mb-3 bg-white/20 text-xs sm:text-sm"
-                  >
+                  <Badge variant="outline" className="text-white border-white mb-3 bg-white/20 text-xs sm:text-sm">
                     Join at {window.location.host}
                   </Badge>
                   <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight mb-2">
@@ -1413,7 +1340,10 @@ const HostSession: React.FC = () => {
                 </div>
               </div>
 
-              <div className="hidden md:flex bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 flex-col" style={{ minHeight: "380px", maxHeight: "500px" }}>
+              <div
+                className="hidden md:flex bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 flex-col"
+                style={{ minHeight: "380px", maxHeight: "500px" }}
+              >
                 <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
                   <div className="flex items-center gap-2 font-bold text-lg">
                     <AppIcon name="Users" className="h-5 w-5" />
@@ -1454,10 +1384,7 @@ const HostSession: React.FC = () => {
                           </Avatar>
                           <span className="font-medium flex-1">{p.name}</span>
                           {p.score > 0 && (
-                            <Badge
-                              variant="secondary"
-                              className="bg-yellow-500/20 text-yellow-300"
-                            >
+                            <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-300">
                               {p.score} pts
                             </Badge>
                           )}
@@ -1472,8 +1399,7 @@ const HostSession: React.FC = () => {
                   className="w-full mt-4 bg-white text-primary hover:bg-white/90 font-bold text-lg shadow-xl"
                   onClick={handleStart}
                 >
-                  Start Presentation{" "}
-                  <AppIcon name="Play" className="ml-2 h-5 w-5" />
+                  Start Presentation <AppIcon name="Play" className="ml-2 h-5 w-5" />
                 </Button>
               </div>
             </div>
@@ -1484,8 +1410,7 @@ const HostSession: React.FC = () => {
                 className="w-full bg-white text-primary hover:bg-white/90 font-bold text-base shadow-xl"
                 onClick={handleStart}
               >
-                Start Presentation{" "}
-                <AppIcon name="Play" className="ml-2 h-5 w-5" />
+                Start Presentation <AppIcon name="Play" className="ml-2 h-5 w-5" />
               </Button>
             </div>
           </div>
@@ -1498,10 +1423,10 @@ const HostSession: React.FC = () => {
     );
   }
 
-  // ── ACTIVE QUESTION VIEW ──────────────────────────────────────────────────
+  // ── ACTIVE QUESTION VIEW (UI de l'ancienne version) ─────────────────────────
   return (
     <>
-      {/* ── Timer progress bar — rendered as sibling to main div to avoid stacking context issues ── */}
+      {/* Timer progress bar */}
       {currentQuestion && getQuestionTimeLimit(currentQuestion) !== null && (
         <div className="fixed top-0 left-0 right-0 h-1 w-full bg-muted/40 z-[9999]">
           {isPaused ? (
@@ -1525,7 +1450,7 @@ const HostSession: React.FC = () => {
         </div>
       )}
 
-      {/* ── Clock pill — centered just below the timer bar ── */}
+      {/* Clock pill - centered */}
       {currentQuestion && getQuestionTimeLimit(currentQuestion) !== null && (
         <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[9999] pointer-events-none">
           <div
@@ -1535,7 +1460,7 @@ const HostSession: React.FC = () => {
                 : 'bg-card/80 border-border text-foreground'
             }`}
           >
-            <AppIcon name={isPaused ? 'PauseCircle' : 'Clock'} size={13} className={isPaused ? 'text-primary' : 'text-primary'} />
+            <AppIcon name={isPaused ? 'PauseCircle' : 'Clock'} size={13} className="text-primary" />
             <span className="font-mono font-bold text-sm tabular-nums">
               {timer}s
             </span>
@@ -1543,11 +1468,10 @@ const HostSession: React.FC = () => {
         </div>
       )}
 
-      {/* ── Integrated Back Arrow & Logo (hidden in fullscreen) ── */}
+      {/* Back arrow and logo */}
       {!isFullscreen && (
         <div className="px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            {/* Back arrow with leave warning - LEFT */}
             <button
               onClick={handleBackToDashboard}
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors group"
@@ -1555,11 +1479,7 @@ const HostSession: React.FC = () => {
               <AppIcon name="ArrowLeft" size={18} className="group-hover:-translate-x-0.5 transition-transform" />
               <span className="text-sm font-medium hidden sm:inline cursor-pointer">Back to Dashboard</span>
             </button>
-
-            {/* Empty spacer - pushes logo all the way to the right */}
             <div className="flex-1" />
-
-            {/* Syncra Logo - FAR RIGHT, no margin */}
             <div className="flex items-center gap-2 -mr-2">
               <div className="w-7 h-7 rounded-lg flex items-center justify-center">
                 <svg
@@ -1579,9 +1499,7 @@ const HostSession: React.FC = () => {
       )}
 
       <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
-        {/* ── Main content ── */}
         <main className="flex-1 flex flex-col items-center p-3 sm:p-4 md:p-6 lg:p-8 pb-24 relative overflow-hidden">
-          
           <div className="max-w-5xl w-full">
             {currentQuestion && (
               <QuestionDisplay
@@ -1595,7 +1513,7 @@ const HostSession: React.FC = () => {
           </div>
         </main>
 
-        {/* ── Floating bottom control panel (Menti-style) ── */}
+        {/* Floating bottom control panel */}
         <ControlPanel
           sessionCode={session.code}
           participantCount={participants.length}
@@ -1619,7 +1537,6 @@ const HostSession: React.FC = () => {
           onToggleFullscreen={toggleFullscreen}
           isElimination={isElimination}
           onToggleEliminationPanel={() => setShowEliminationPanel((v) => !v)}
-          // props for action button
           showResultsActionButton={showResults}
           onViewResults={() => {
             sendMessage({ type: "SESSION_END", payload: {} });
@@ -1693,7 +1610,7 @@ const HostSession: React.FC = () => {
 
                 <EliminationHistory
                   sessionId={session.id}
-                  gameState={displayedGameState}
+                  gameState={gameState}
                 />
               </motion.aside>
             </motion.div>
@@ -1728,7 +1645,6 @@ const HostSession: React.FC = () => {
         )}
       </div>
 
-      {/* Leave Warning Modal */}
       <LeaveWarningModal
         isOpen={showLeaveWarning}
         onStay={handleStay}

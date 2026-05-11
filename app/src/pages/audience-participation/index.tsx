@@ -1,4 +1,8 @@
 // src/pages/audience-participation/index.tsx
+// VERSION STABLE - Élimination parfaite
+// Ajouté: support pour les types de questions SCALING et RANKING
+// Conservé: toute la logique d'élimination originale qui fonctionnait parfaitement
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
@@ -149,18 +153,34 @@ const AudienceParticipation: React.FC = () => {
   const toastRef = useRef(toast);
   const isEliminatedRef = useRef<boolean>(false);
   const answerRevealTimeoutRef = useRef<number | undefined>(undefined);
-  // Track if the elimination overlay has already been shown for the current elimination
-  const eliminationOverlayShownRef = useRef<boolean>(false);
 
-  useEffect(() => { participantSessionRef.current = participantSession; }, [participantSession]);
-  useEffect(() => { currentQuestionRef.current = currentQuestion; }, [currentQuestion]);
-  useEffect(() => { sessionStateRef.current = sessionState; }, [sessionState]);
-  useEffect(() => { questionClosedRef.current = questionClosed; }, [questionClosed]);
-  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
-  useEffect(() => { questionActiveRef.current = questionActive; }, [questionActive]);
-  useEffect(() => { timerRemainingRef.current = timerRemaining; }, [timerRemaining]);
-  useEffect(() => { toastRef.current = toast; }, [toast]);
-  useEffect(() => { isEliminatedRef.current = isEliminated; }, [isEliminated]);
+  useEffect(() => {
+    participantSessionRef.current = participantSession;
+  }, [participantSession]);
+  useEffect(() => {
+    currentQuestionRef.current = currentQuestion;
+  }, [currentQuestion]);
+  useEffect(() => {
+    sessionStateRef.current = sessionState;
+  }, [sessionState]);
+  useEffect(() => {
+    questionClosedRef.current = questionClosed;
+  }, [questionClosed]);
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+  useEffect(() => {
+    questionActiveRef.current = questionActive;
+  }, [questionActive]);
+  useEffect(() => {
+    timerRemainingRef.current = timerRemaining;
+  }, [timerRemaining]);
+  useEffect(() => {
+    toastRef.current = toast;
+  }, [toast]);
+  useEffect(() => {
+    isEliminatedRef.current = isEliminated;
+  }, [isEliminated]);
 
   const prefilledCode = (searchParams.get("code") || "").toUpperCase();
 
@@ -221,7 +241,11 @@ const AudienceParticipation: React.FC = () => {
           ctx?.game_mode === "elimination" ? "elimination" : "standard";
         const themeValue = ctx?.theme || "default";
 
-        setContextMeta({ gameMode: gameModeValue, themeId: themeValue });
+        setContextMeta({
+          gameMode: gameModeValue,
+          themeId: themeValue,
+        });
+
         isEliminationRef.current = gameModeValue === "elimination";
       } catch (err) {
         console.error("[Metadata] Error:", err);
@@ -229,21 +253,29 @@ const AudienceParticipation: React.FC = () => {
     };
 
     loadMetadata();
-    return () => { cancelled = true; };
+
+    return () => {
+      cancelled = true;
+    };
   }, [participantSession?.session?.id]);
 
   useEffect(() => {
     if (!isElimination || !participantSession?.session.id) return;
+
     let isMounted = true;
 
     const refreshGameState = async () => {
       if (!isMounted) return;
       try {
-        const newState = await SessionService.getGameState(participantSession.session.id);
+        const newState = await SessionService.getGameState(
+          participantSession.session.id,
+        );
         if (isMounted) {
           setGameState(newState);
-          const me = newState.eliminated.find((p) => p.id === participantSession.participantId);
-          if (me && !isEliminatedRef.current) {
+          const me = newState.eliminated.find(
+            (p) => p.id === participantSession.participantId,
+          );
+          if (me && !isEliminated) {
             setIsEliminated(true);
             setEliminatedAtRound(me.eliminatedAtRound ?? newState.currentRound);
           }
@@ -255,8 +287,16 @@ const AudienceParticipation: React.FC = () => {
 
     refreshGameState();
     const interval = setInterval(refreshGameState, 2000);
-    return () => { isMounted = false; clearInterval(interval); };
-  }, [isElimination, participantSession?.session.id, participantSession?.participantId]);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [
+    isElimination,
+    participantSession?.session.id,
+    participantSession?.participantId,
+  ]);
 
   const getQuestionImage = (question: Question | null): string | null => {
     if (!question) return null;
@@ -299,6 +339,7 @@ const AudienceParticipation: React.FC = () => {
         questionActiveRef.current = false;
         setQuestionClosed(true);
         questionClosedRef.current = true;
+        // Toast with 2 seconds duration
         toastRef.current({
           title: "Time's Up!",
           description: "The time for this question has expired.",
@@ -331,14 +372,8 @@ const AudienceParticipation: React.FC = () => {
         remaining = Math.max(0, limit - elapsed);
       }
 
-      // Normalize DB type (e.g. "SCALING", "RANKING") to UI type so all
-      // downstream === checks work regardless of which code path loaded the question.
-      const normalizedQuestion: Question = {
-        ...question,
-        type: (question.type as string).toLowerCase() as Question["type"],
-      };
-      setCurrentQuestion(normalizedQuestion);
-      currentQuestionRef.current = normalizedQuestion;
+      setCurrentQuestion(question);
+      currentQuestionRef.current = question;
       setTimerTotal(limit ?? 0);
       setTimerRemaining(remaining);
       timerRemainingRef.current = remaining;
@@ -353,8 +388,6 @@ const AudienceParticipation: React.FC = () => {
       setShowAnswerReveal(false);
       clearAnswerRevealTimeout();
       setShowEliminationOverlay(false);
-      // Reset the overlay shown flag when a new question appears
-      eliminationOverlayShownRef.current = false;
 
       if (hasAlreadyResponded) {
         setSessionState("submitted");
@@ -427,7 +460,6 @@ const AudienceParticipation: React.FC = () => {
           description: questionData.description,
           timeLimit: questionData.time_limit,
           options: questionData.options,
-          // pass statements field (Scaling) and options (Ranking uses options)
           statements: questionData.statements || undefined,
           scale: questionData.scale,
           labels: questionData.labels,
@@ -484,19 +516,26 @@ const AudienceParticipation: React.FC = () => {
           const questionId = payload?.questionId as string | undefined;
           const questionIndex = (payload?.questionIndex as number) ?? 0;
           const timeLimit = payload?.timeLimit as number | null | undefined;
+          const startedAt = payload?.startedAt as string | undefined;
           if (questionId) {
             stopLocalCountdown();
             clearAnswerRevealTimeout();
             setShowAnswerReveal(false);
             setShowEliminationOverlay(false);
-            eliminationOverlayShownRef.current = false;
-            loadQuestion(questionId, questionIndex, timeLimit, undefined, false);
+            loadQuestion(
+              questionId,
+              questionIndex,
+              timeLimit,
+              startedAt,
+              !!startedAt,
+            );
           }
           break;
         }
 
         case "PAUSE": {
-          const remaining = (payload?.remainingSeconds as number) ?? timerRemainingRef.current;
+          const remaining =
+            (payload?.remainingSeconds as number) ?? timerRemainingRef.current;
           stopLocalCountdown();
           setIsPaused(true);
           isPausedRef.current = true;
@@ -506,7 +545,9 @@ const AudienceParticipation: React.FC = () => {
         }
 
         case "RESUME": {
-          const remaining = (payload?.remainingSeconds as number) ?? timerRemainingRef.current;
+          const remaining =
+            (payload?.remainingSeconds as number) ?? timerRemainingRef.current;
+          const resumedAt = payload?.resumedAt as string | undefined;
           setIsPaused(false);
           isPausedRef.current = false;
           setTimerRemaining(remaining);
@@ -529,7 +570,6 @@ const AudienceParticipation: React.FC = () => {
           clearAnswerRevealTimeout();
           setShowAnswerReveal(false);
           setShowEliminationOverlay(false);
-          eliminationOverlayShownRef.current = false;
           setSessionState("ended");
           sessionStateRef.current = "ended";
           break;
@@ -539,7 +579,9 @@ const AudienceParticipation: React.FC = () => {
           const ev = payload as unknown as EliminationEvent;
           setEliminationEvents((prev) => [...prev, ev]);
           if (participantSessionRef.current?.session.id) {
-            SessionService.getGameState(participantSessionRef.current.session.id)
+            SessionService.getGameState(
+              participantSessionRef.current.session.id,
+            )
               .then((newState) => {
                 setGameState(newState);
                 const me = newState.eliminated.find(
@@ -547,10 +589,14 @@ const AudienceParticipation: React.FC = () => {
                 );
                 if (me && !isEliminatedRef.current) {
                   setIsEliminated(true);
-                  setEliminatedAtRound(me.eliminatedAtRound ?? newState.currentRound);
+                  setEliminatedAtRound(
+                    me.eliminatedAtRound ?? newState.currentRound,
+                  );
                 }
               })
-              .catch((err) => console.error("Failed to refresh game state:", err));
+              .catch((err) =>
+                console.error("Failed to refresh game state:", err),
+              );
           }
           break;
         }
@@ -562,9 +608,13 @@ const AudienceParticipation: React.FC = () => {
 
         case SESSION_EVENTS.GAME_END: {
           if (participantSessionRef.current?.session.id) {
-            SessionService.getGameState(participantSessionRef.current.session.id)
+            SessionService.getGameState(
+              participantSessionRef.current.session.id,
+            )
               .then(setGameState)
-              .catch((err) => console.error("Failed to refresh game state:", err));
+              .catch((err) =>
+                console.error("Failed to refresh game state:", err),
+              );
           }
           break;
         }
@@ -576,7 +626,6 @@ const AudienceParticipation: React.FC = () => {
             clearAnswerRevealTimeout();
             setShowAnswerReveal(false);
             setShowEliminationOverlay(false);
-            eliminationOverlayShownRef.current = false;
           }
           break;
         }
@@ -590,122 +639,349 @@ const AudienceParticipation: React.FC = () => {
           break;
       }
     },
-    [loadQuestion, startLocalCountdown, stopLocalCountdown, clearAnswerRevealTimeout],
+    [
+      loadQuestion,
+      startLocalCountdown,
+      stopLocalCountdown,
+      clearAnswerRevealTimeout,
+    ],
   );
 
-  const { sendMessage } = useSessionSocket({
+  const { connected: wsConnected, sendMessage } = useSessionSocket({
     sessionId: participantSession?.session.id ?? null,
     role: "audience",
     onMessage: handleBroadcast,
     enabled: !!participantSession,
   });
 
-  // REVISED TIMER END EFFECT: Handles timeout elimination without causing overlay loop
+  // ── Timer-end effect: determine what to show when a question closes ────────
   useEffect(() => {
-    if (timerRemaining > 0) return;
     if (!questionClosed) return;
+    if (!isElimination) return;
+    if (!participantSession || !currentQuestion) return;
+    if (revealedWinner) return;
 
-    const handleTimeoutElimination = async () => {
-      if (
-        isEliminationRef.current && 
-        !isEliminatedRef.current && 
-        sessionStateRef.current !== "submitted" &&
-        participantSessionRef.current &&
-        currentQuestionRef.current
-      ) {
-        const ps = participantSessionRef.current;
-        const q = currentQuestionRef.current;
-        const liveRoundNumber = q.number ?? gameState.currentRound ?? 0;
+    const ps = participantSession;
+    const q = currentQuestion;
 
-        try {
-          const result = await SessionService.eliminateParticipant({
-            sessionId: ps.session.id,
-            participantId: ps.participantId,
-            questionId: q.id,
-            roundNumber: liveRoundNumber,
+    // ── CHECK 1: Already-eliminated spectator ─────────────────────────────
+    if (isEliminatedRef.current) {
+      const liveRoundNumber =
+        currentQuestionRef.current?.number ?? gameState.currentRound ?? 0;
+
+      if (eliminatedAtRound === liveRoundNumber && sessionStateRef.current !== "submitted") {
+        setShowAnswerReveal(true);
+        clearAnswerRevealTimeout();
+        answerRevealTimeoutRef.current = window.setTimeout(() => {
+          setShowAnswerReveal(false);
+          setShowEliminationOverlay(true);
+          answerRevealTimeoutRef.current = undefined;
+        }, ANSWER_REVEAL_DURATION_MS);
+      } else {
+        setShowAnswerReveal(true);
+      }
+      return;
+    }
+
+    // ── CHECK 2: Active player who submitted a correct answer ──────────────
+    if (sessionStateRef.current === "submitted") {
+      setShowCorrectAnswerFeedback(true);
+      return;
+    }
+
+    // ── CHECK 3: Active player who never submitted ────────────────────────
+    const roundNumber =
+      currentQuestionRef.current?.number ?? gameState.currentRound ?? 0;
+    (async () => {
+      try {
+        const eliminated = await SessionService.eliminateParticipant({
+          sessionId: ps.session.id,
+          participantId: ps.participantId,
+          questionId: q.id,
+          roundNumber,
+        });
+
+        if (eliminated) {
+          sendMessage({
+            type: SESSION_EVENTS.PLAYER_ELIMINATED,
+            payload: eliminated as unknown as Record<string, unknown>,
           });
+          setEliminatedAtRound(eliminated.roundNumber);
+          setIsEliminated(true);
+        }
+        setShowAnswerReveal(true);
+        clearAnswerRevealTimeout();
+        answerRevealTimeoutRef.current = window.setTimeout(() => {
+          setShowAnswerReveal(false);
+          setShowEliminationOverlay(true);
+          answerRevealTimeoutRef.current = undefined;
+        }, ANSWER_REVEAL_DURATION_MS);
+      } catch (err) {
+        console.error("Auto-eliminate on timer end failed:", err);
+        setShowEliminationOverlay(true);
+      }
+    })();
+  }, [questionClosed]);
 
-          if (result) {
-            sendMessage({
-              type: SESSION_EVENTS.PLAYER_ELIMINATED,
-              payload: result as unknown as Record<string, unknown>,
-            });
-            setEliminatedAtRound(liveRoundNumber);
-            setIsEliminated(true);
-            // Only show overlay if it hasn't been shown yet for this elimination
-            if (!eliminationOverlayShownRef.current) {
-              setShowEliminationOverlay(true);
-              eliminationOverlayShownRef.current = true;
+  useEffect(() => {
+    if (!participantSession) return;
+    const sessionId = participantSession.session.id;
+
+    const endedWatcher = supabase
+      .channel(`session-ended-watcher-${sessionId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "sessions",
+          filter: `id=eq.${sessionId}`,
+        },
+        (payload) => {
+          const updated = payload.new as any;
+          if (
+            updated.status === "ENDED" &&
+            sessionStateRef.current !== "ended"
+          ) {
+            stopLocalCountdown();
+            setSessionState("ended");
+            sessionStateRef.current = "ended";
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(endedWatcher);
+    };
+  }, [participantSession?.session.id]);
+
+  useEffect(() => {
+    if (!participantSession) return;
+    const sessionId = participantSession.session.id;
+
+    const sessionChannel = supabase
+      .channel(`session-audience-fallback-${sessionId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "sessions",
+          filter: `id=eq.${sessionId}`,
+        },
+        (payload) => {
+          if (wsConnected) return;
+
+          const updatedSession = payload.new as any;
+          if (updatedSession.status === "ENDED") return;
+
+          const newIsPaused: boolean = updatedSession.is_paused ?? false;
+          const wasPaused = isPausedRef.current;
+
+          if (newIsPaused !== wasPaused) {
+            setIsPaused(newIsPaused);
+            isPausedRef.current = newIsPaused;
+            if (newIsPaused) {
+              stopLocalCountdown();
+              const frozen: number =
+                updatedSession.timer_paused_remaining ??
+                timerRemainingRef.current;
+              setTimerRemaining(frozen);
+              timerRemainingRef.current = frozen;
+            } else {
+              const timeLimit = currentQuestionRef.current?.timeLimit ?? null;
+              const recalculated = computeRemainingFromDbRow(
+                {
+                  is_paused: false,
+                  current_question_started_at:
+                    updatedSession.current_question_started_at,
+                  timer_paused_remaining: updatedSession.timer_paused_remaining,
+                  timer_resumed_at: updatedSession.timer_resumed_at,
+                },
+                timeLimit,
+              );
+              if (recalculated === null) {
+                setTimerRemaining(0);
+                timerRemainingRef.current = 0;
+                setQuestionActive(true);
+                questionActiveRef.current = true;
+                setQuestionClosed(false);
+                questionClosedRef.current = false;
+              } else {
+                setTimerRemaining(recalculated);
+                timerRemainingRef.current = recalculated;
+                if (recalculated > 0 && questionActiveRef.current)
+                  startLocalCountdown();
+              }
             }
           }
-        } catch (err) {
-          console.error("Failed to eliminate on timeout:", err);
-        }
-      }
+
+          const newQuestionId: string | null =
+            updatedSession.current_question_id;
+          const newQuestionIndex: number =
+            updatedSession.current_question_index;
+          if (
+            newQuestionId &&
+            newQuestionId !== currentQuestionRef.current?.id
+          ) {
+            stopLocalCountdown();
+            clearAnswerRevealTimeout();
+            setShowAnswerReveal(false);
+            setShowEliminationOverlay(false);
+            loadQuestion(
+              newQuestionId,
+              newQuestionIndex,
+              undefined,
+              updatedSession.current_question_started_at,
+              true,
+            );
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(sessionChannel);
     };
+  }, [
+    participantSession?.session.id,
+    wsConnected,
+    loadQuestion,
+    startLocalCountdown,
+    stopLocalCountdown,
+    clearAnswerRevealTimeout,
+  ]);
 
-    handleTimeoutElimination();
-
-    if (isElimination) {
-      // If eliminated but overlay already shown, don't force it again
-      if (isEliminatedRef.current && !eliminationOverlayShownRef.current) {
-        setShowEliminationOverlay(true);
-        eliminationOverlayShownRef.current = true;
-      }
-      if (sessionStateRef.current === "submitted") {
-        answerRevealTimeoutRef.current = window.setTimeout(() => {
-          setShowCorrectAnswerFeedback(true);
-        }, ANSWER_REVEAL_DURATION_MS);
-      }
-    }
-  }, [questionClosed, timerRemaining, isElimination, sendMessage, gameState.currentRound]);
-
-  const handleJoinSession = async (data: {
+  const handleJoinSession = async (joinData: {
     code: string;
     name: string;
-    isAnonymous?: boolean;
   }) => {
     setIsLoading(true);
+    setError(null);
+
     try {
+      const { data: sessionExists, error: sessionCheckError } = await supabase
+        .from("sessions")
+        .select(
+          "id, code, status, context_id, is_paused, current_question_started_at, timer_paused_remaining, timer_resumed_at",
+        )
+        .eq("code", joinData.code.toUpperCase())
+        .maybeSingle();
+
+      if (sessionCheckError)
+        throw new Error("Database error. Please try again.");
+      if (!sessionExists)
+        throw new Error(
+          `No session found with code "${joinData.code.toUpperCase()}".`,
+        );
+      if (sessionExists.status === "ENDED")
+        throw new Error("This session has already ended.");
+
       const result = await SessionService.joinSession({
-        sessionCode: data.code,
-        participantName: data.name,
+        sessionCode: joinData.code,
+        participantName: joinData.name,
         userId: user?.id,
-        isAnonymous: data.isAnonymous,
+        isAnonymous: !user,
       });
 
       if (!result) throw new Error("Failed to join session");
 
-      setParticipantSession({
+      const ps: ParticipantSession = {
         session: result.session,
         participantId: result.participantId,
-        participantName: data.name,
+        participantName: joinData.name,
         participantToken: result.participantToken,
-      });
+      };
+
+      participantSessionRef.current = ps;
+      setParticipantSession(ps);
+
+      const joinedCode = joinData.code.toUpperCase();
+      if (searchParams.get("code") !== joinedCode) {
+        setSearchParams({ code: joinedCode }, { replace: true });
+      }
+
+      const paused = sessionExists.is_paused || false;
+      setIsPaused(paused);
+      isPausedRef.current = paused;
 
       if (
         result.session.status === "ACTIVE" &&
-        result.session.currentQuestionId
+        result.session.currentQuestionIndex >= 0
       ) {
-        setSessionState("waiting");
-        sessionStateRef.current = "waiting";
-        await loadQuestion(
-          result.session.currentQuestionId,
-          result.session.currentQuestionIndex,
-          undefined,
-          result.session.currentQuestionStartedAt?.toISOString(),
-          true,
-        );
+        const currentQ =
+          result.session.presentation.questions[
+            result.session.currentQuestionIndex
+          ];
+        if (currentQ?.id) {
+          const timeLimit = currentQ.timeLimit ?? null;
+          const remaining = computeRemainingFromDbRow(
+            {
+              is_paused: paused,
+              current_question_started_at:
+                sessionExists.current_question_started_at,
+              timer_paused_remaining: sessionExists.timer_paused_remaining,
+              timer_resumed_at: sessionExists.timer_resumed_at,
+            },
+            timeLimit,
+          );
+
+          let hasAlreadyResponded = false;
+          try {
+            hasAlreadyResponded = await SessionService.checkExistingResponse(
+              result.session.id,
+              result.participantId,
+              currentQ.id,
+              result.participantToken,
+            );
+          } catch (err) {
+            console.error('Failed to check existing response:', err);
+          }
+
+          setCurrentQuestion(currentQ);
+          currentQuestionRef.current = currentQ;
+          setTimerTotal(timeLimit ?? 0);
+          setTimerRemaining(remaining ?? 0);
+          timerRemainingRef.current = remaining ?? 0;
+          setQuestionActive(true);
+          questionActiveRef.current = true;
+          setQuestionClosed(false);
+          questionClosedRef.current = false;
+          setShowCorrectAnswerFeedback(false);
+          setSubmittedOptionId(null);
+          setShowAnswerReveal(false);
+          setSessionState(hasAlreadyResponded ? "submitted" : "question");
+          sessionStateRef.current = hasAlreadyResponded ? "submitted" : "question";
+          if (
+            timeLimit !== null &&
+            !paused &&
+            remaining !== null &&
+            remaining > 0
+          )
+            startLocalCountdown();
+        } else {
+          setSessionState("waiting");
+          sessionStateRef.current = "waiting";
+        }
+      } else if (result.session.status === "ENDED") {
+        setSessionState("ended");
+        sessionStateRef.current = "ended";
       } else {
         setSessionState("waiting");
         sessionStateRef.current = "waiting";
       }
 
-      toast({ title: "Joined Successfully", duration: 2000 });
+      toast({
+        title: "Joined Successfully",
+        duration: 2000,
+      });
     } catch (err: any) {
       console.error("Join error:", err);
       setError({
-        type: err.message?.includes("ended") ? "session_not_found" : "invalid_code",
+        type: err.message?.includes("ended")
+          ? "session_not_found"
+          : "invalid_code",
         message: err.message || "Failed to join session",
       });
       setSessionState("error");
@@ -750,14 +1026,17 @@ const AudienceParticipation: React.FC = () => {
       const chosenOptionId: string | undefined = response?.optionId;
       if (!chosenOptionId) return;
 
-      const chosenOption = (q.options ?? []).find((o: any) => o.id === chosenOptionId) as any;
+      const chosenOption = (q.options ?? []).find(
+        (o: any) => o.id === chosenOptionId,
+      ) as any;
       const isCorrect = !!chosenOption?.isCorrect;
       const pts = (q as any).points ?? 0;
 
       setSubmittedOptionId(chosenOptionId);
 
       try {
-        const liveRoundNumber = currentQuestionRef.current?.number ?? gameState.currentRound ?? 0;
+        const liveRoundNumber =
+          currentQuestionRef.current?.number ?? gameState.currentRound ?? 0;
 
         const result = await SessionService.submitEliminationAnswer({
           sessionId: ps.session.id,
@@ -776,11 +1055,6 @@ const AudienceParticipation: React.FC = () => {
           });
           setEliminatedAtRound(result.eliminated.roundNumber);
           setIsEliminated(true);
-          // Only show overlay if not already shown
-          if (!eliminationOverlayShownRef.current) {
-            setShowEliminationOverlay(true);
-            eliminationOverlayShownRef.current = true;
-          }
         }
 
         sendMessage({
@@ -818,7 +1092,10 @@ const AudienceParticipation: React.FC = () => {
       if (success) {
         setSessionState("submitted");
         sessionStateRef.current = "submitted";
-        toast({ title: "Response Submitted!", description: "Your answer has been recorded" });
+        toast({
+          title: "Response Submitted!",
+          description: "Your answer has been recorded",
+        });
       } else {
         throw new Error("Failed to submit response");
       }
@@ -841,7 +1118,6 @@ const AudienceParticipation: React.FC = () => {
     isPausedRef.current = false;
     questionActiveRef.current = true;
     timerRemainingRef.current = 0;
-    eliminationOverlayShownRef.current = false;
 
     setParticipantSession(null);
     setCurrentQuestion(null);
@@ -853,7 +1129,14 @@ const AudienceParticipation: React.FC = () => {
     setQuestionClosed(false);
     setIsPaused(false);
 
-    setGameState({ alive: [], eliminated: [], winner: null, totalPlayers: 0, currentRound: 0, history: [] });
+    setGameState({
+      alive: [],
+      eliminated: [],
+      winner: null,
+      totalPlayers: 0,
+      currentRound: 0,
+      history: [],
+    });
     setEliminationEvents([]);
     setIsEliminated(false);
     setEliminatedAtRound(0);
@@ -908,8 +1191,8 @@ const AudienceParticipation: React.FC = () => {
               isPaused
                 ? "bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-950/40 dark:border-yellow-800 dark:text-yellow-400"
                 : isWarning
-                ? "bg-red-50 border-red-200 text-red-700 dark:bg-red-950/40 dark:border-red-800 dark:text-red-400 animate-pulse"
-                : "bg-background border-border text-foreground"
+                  ? "bg-red-50 border-red-200 text-red-700 dark:bg-red-950/40 dark:border-red-800 dark:text-red-400 animate-pulse"
+                  : "bg-background border-border text-foreground"
             }`}
           >
             <span>{`${timerRemaining}s`}</span>
@@ -937,11 +1220,18 @@ const AudienceParticipation: React.FC = () => {
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 flex items-center justify-center">
                 <div className="bg-card rounded-xl p-8 text-center max-w-md mx-4">
                   <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-500/20 flex items-center justify-center">
-                    <AppIcon name="Pause" size={40} className="text-yellow-500" />
+                    <AppIcon
+                      name="Pause"
+                      size={40}
+                      className="text-yellow-500"
+                    />
                   </div>
-                  <h2 className="text-2xl font-bold text-foreground mb-2">Session Paused</h2>
+                  <h2 className="text-2xl font-bold text-foreground mb-2">
+                    Session Paused
+                  </h2>
                   <p className="text-muted-foreground">
-                    The presenter has paused the session. Please wait for them to resume.
+                    The presenter has paused the session. Please wait for them
+                    to resume.
                   </p>
                 </div>
               </div>
@@ -1010,7 +1300,11 @@ const AudienceParticipation: React.FC = () => {
                   labels: currentQuestion.labels,
                   responseCount: 0,
                 }}
-                onSubmit={(r) => handleSubmitResponse({ scalingAnswers: r.scalingAnswers })}
+                onSubmit={(r) =>
+                  handleSubmitResponse({
+                    scalingAnswers: r.scalingAnswers,
+                  })
+                }
               />
             )}
             {/* ── Ranking question ──────────────────────────────────────── */}
@@ -1020,10 +1314,15 @@ const AudienceParticipation: React.FC = () => {
                   text: currentQuestion.text,
                   description: currentQuestion.description,
                   image: getQuestionImage(currentQuestion),
-                  options: (currentQuestion.options ?? []) as Array<{ id: string; text: string }>,
+                  options: (currentQuestion.options ?? []) as Array<{
+                    id: string;
+                    text: string;
+                  }>,
                   responseCount: 0,
                 }}
-                onSubmit={(r) => handleSubmitResponse({ rankingOrder: r.rankingOrder })}
+                onSubmit={(r) =>
+                  handleSubmitResponse({ rankingOrder: r.rankingOrder })
+                }
               />
             )}
           </div>
@@ -1048,7 +1347,10 @@ const AudienceParticipation: React.FC = () => {
           );
         }
         return (
-          <WaitingState message="Waiting for the presenter to start..." showSpinner />
+          <WaitingState
+            message="Waiting for the presenter to start..."
+            showSpinner
+          />
         );
 
       case "ended":
@@ -1078,7 +1380,9 @@ const AudienceParticipation: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-success/10 border border-success/20">
-              <div className={`w-2 h-2 rounded-full ${isPaused ? "bg-yellow-500" : "bg-success animate-pulse"}`} />
+              <div
+                className={`w-2 h-2 rounded-full ${isPaused ? "bg-yellow-500" : "bg-success animate-pulse"}`}
+              />
               <span className="text-sm font-medium text-success whitespace-nowrap">
                 {isPaused ? "Paused" : "Live"}
               </span>
@@ -1093,18 +1397,20 @@ const AudienceParticipation: React.FC = () => {
                   {participantSession.session.presentation.questions.length}
                 </span>
                 <div className="flex gap-1">
-                  {participantSession.session.presentation.questions.map((_, index) => (
-                    <div
-                      key={index}
-                      className={`w-2 h-2 rounded-full transition-colors duration-250 ${
-                        index === currentQuestion.number - 1
-                          ? "bg-primary"
-                          : index < currentQuestion.number - 1
-                          ? "bg-success"
-                          : "bg-muted"
-                      }`}
-                    />
-                  ))}
+                  {participantSession.session.presentation.questions.map(
+                    (_, index) => (
+                      <div
+                        key={index}
+                        className={`w-2 h-2 rounded-full transition-colors duration-250 ${
+                          index === currentQuestion.number - 1
+                            ? "bg-primary"
+                            : index < currentQuestion.number - 1
+                              ? "bg-success"
+                              : "bg-muted"
+                        }`}
+                      />
+                    ),
+                  )}
                 </div>
               </div>
             </div>
@@ -1114,6 +1420,7 @@ const AudienceParticipation: React.FC = () => {
     );
   };
 
+  // Detect Fin de Partie: all players eliminated, no winner.
   useEffect(() => {
     if (!isElimination || revealedWinner || isGameOver) return;
     if (!questionClosed) return;
@@ -1142,7 +1449,8 @@ const AudienceParticipation: React.FC = () => {
   }
 
   if (isElimination) {
-    const liveRoundNumber = currentQuestion?.number ?? gameState.currentRound ?? 0;
+    const liveRoundNumber =
+      currentQuestion?.number ?? gameState.currentRound ?? 0;
 
     const hasJustSubmittedAndWaiting =
       !isEliminated && sessionState === "submitted" && !showCorrectAnswerFeedback;
@@ -1180,17 +1488,16 @@ const AudienceParticipation: React.FC = () => {
         <EliminationOverlay
           show={showEliminationOverlay}
           roundNumber={eliminatedAtRound}
-          onStay={() => {
-            setShowEliminationOverlay(false);
-            // Keep eliminationOverlayShownRef.current = true so it won't reappear
-          }}
+          onStay={() => setShowEliminationOverlay(false)}
           onLeave={handleJoinNewSession}
         />
       )}
 
       {renderTimerBar()}
 
-      <main className={`main-content ${sessionState === "question" ? "pt-8" : ""}`}>
+      <main
+        className={`main-content ${sessionState === "question" ? "pt-8" : ""}`}
+      >
         <div className="container mx-auto px-4 py-8 md:py-12 lg:py-16">
           {getSessionTitle()}
           <div className="flex items-center justify-center min-h-[calc(100vh-300px)]">
