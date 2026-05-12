@@ -299,11 +299,7 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
               >
                 Submit Answer <IconSend size={Math.round(12 * S)} />
               </div>
-              {/* Footer */}
-              <div className="flex items-center justify-center text-slate-500" style={{ gap: 6 * S, fontSize: 11 * S, marginTop: 8 * S }}>
-                <IconUsers size={Math.round(13 * S)} />
-                <span>0 participants have responded</span>
-              </div>
+             
             </div>
           )}
 
@@ -325,9 +321,7 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
               >
                 Submit Response <IconSend size={Math.round(12 * S)} />
               </div>
-              <div className="flex items-center justify-center text-slate-500" style={{ gap: 6 * S, fontSize: 11 * S, marginTop: 8 * S }}>
-                <IconUsers size={Math.round(13 * S)} /> <span>0 participants have responded</span>
-              </div>
+              
             </div>
           )}
 
@@ -413,9 +407,7 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
               >
                 Submit Rating <IconSend size={Math.round(12 * S)} />
               </div>
-              <div className="flex items-center justify-center text-slate-500" style={{ gap: 6 * S, fontSize: 11 * S, marginTop: 8 * S }}>
-                <IconUsers size={Math.round(13 * S)} /> <span>0 participants have responded</span>
-              </div>
+              
             </div>
           )}
 
@@ -438,9 +430,7 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
               >
                 Submit Words <IconSend size={Math.round(12 * S)} />
               </div>
-              <div className="flex items-center justify-center text-slate-500" style={{ gap: 6 * S, fontSize: 11 * S, marginTop: 8 * S }}>
-                <IconUsers size={Math.round(13 * S)} /> <span>0 participants have responded</span>
-              </div>
+              
             </div>
           )}
         </div>

@@ -170,11 +170,7 @@ function MultipleChoicePreview({ question, scale }: { question: Question; scale:
       >
         Submit Answer <IconSend size={Math.round(14 * s)} />
       </button>
-      {/* Footer — text-sm text-muted-foreground */}
-      <div className="flex items-center justify-center gap-2 text-slate-500" style={{ fontSize: 13 * s, marginTop: 8 * s }}>
-        <IconUsers size={Math.round(16 * s)} />
-        <span>0 participants have responded</span>
-      </div>
+     
     </div>
   );
 }
@@ -210,10 +206,7 @@ function OpenTextPreview({ scale }: { scale: number }) {
       >
         Submit Response <IconSend size={Math.round(14 * s)} />
       </button>
-      <div className="flex items-center justify-center gap-2 text-slate-500" style={{ fontSize: 13 * s, marginTop: 8 * s }}>
-        <IconUsers size={Math.round(16 * s)} />
-        <span>0 participants have responded</span>
-      </div>
+      
     </div>
   );
 }
@@ -322,10 +315,7 @@ function RatingPreview({ question, scale: s }: { question: Question; scale: numb
       >
         Submit Rating <IconSend size={Math.round(14 * s)} />
       </button>
-      <div className="flex items-center justify-center gap-2 text-slate-500" style={{ fontSize: 13 * s, marginTop: 8 * s }}>
-        <IconUsers size={Math.round(16 * s)} />
-        <span>0 participants have responded</span>
-      </div>
+      
     </div>
   );
 }
@@ -402,10 +392,6 @@ function WordCloudPreview({ question, scale: s }: { question: Question; scale: n
       >
         Submit Words <IconSend size={Math.round(14 * s)} />
       </button>
-      <div className="flex items-center justify-center gap-2 text-slate-500" style={{ fontSize: 13 * s, marginTop: 8 * s }}>
-        <IconUsers size={Math.round(16 * s)} />
-        <span>0 participants have responded</span>
-      </div>
     </div>
   );
 }
