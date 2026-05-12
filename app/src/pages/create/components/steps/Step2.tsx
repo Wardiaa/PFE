@@ -6,10 +6,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../../components/ui/select";
-import { ThemeSelector } from "../../../../components/ui/theme-selector";
 import { DevicePreview } from "../../../../components/ui/device-preview";
 import { ImageUploadWidget } from "../../../../components/ui/image-upload-widget";
-import { Sparkles, Layout, Image as ImageIcon, Tag, Check, Clock } from "lucide-react";
+import { Layout, Image as ImageIcon, Tag, Check, Clock } from "lucide-react";
 import type { ContextData } from "../../types";
 import { motion } from "framer-motion";
 
@@ -96,7 +95,7 @@ export function Step2({
   onCategoryChange,
   onTagsChange,
   onCoverImageChange,
-  onGameModeChange, // <-- NEW
+  onGameModeChange,
 }: Step2Props) {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-white">
@@ -247,21 +246,6 @@ export function Step2({
               )}
             </section>
 
-            {/* ── Visual Identity — disabled (Coming Soon) ───────────── */}
-            <ComingSoon>
-              <section className="space-y-4 sm:space-y-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600" />
-                  <h3 className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-900">
-                    Visual Identity
-                  </h3>
-                </div>
-                <ThemeSelector
-                  selectedTheme={context.theme}
-                  onSelect={onThemeChange}
-                />
-              </section>
-            </ComingSoon>
 
             <section className="space-y-4 sm:space-y-6">
               <div className="flex items-center gap-2 mb-2">
