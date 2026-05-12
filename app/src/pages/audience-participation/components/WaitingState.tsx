@@ -12,7 +12,7 @@ const WaitingState: React.FC<WaitingStateProps> = ({ message, showSpinner = true
       <div className="bg-card rounded-xl p-8 md:p-10 lg:p-12 shadow-lg border border-border text-center">
         <div className="mb-6">
           {showSpinner ? (
-            <div className="inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 rounded-full bg-linear-to-br from-primary/20 to-secondary/20 animate-pulse">
+            <div className="inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 rounded-full bg-linear-to-br from-primary/20 to-secondary/20  ">
               <AppIcon name="Loader2" size={40} color="var(--color-primary)" className="animate-spin" />
             </div>
           ) : (

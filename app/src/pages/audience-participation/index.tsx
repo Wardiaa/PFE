@@ -1257,7 +1257,7 @@ const AudienceParticipation: React.FC = () => {
               isPaused
                 ? "bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-950/40 dark:border-yellow-800 dark:text-yellow-400"
                 : isWarning
-                  ? "bg-red-50 border-red-200 text-red-700 dark:bg-red-950/40 dark:border-red-800 dark:text-red-400 animate-pulse"
+                  ? "bg-red-50 border-red-200 text-red-700 dark:bg-red-950/40 dark:border-red-800 dark:text-red-400 "
                   : "bg-background border-border text-foreground"
             }`}
           >
@@ -1447,7 +1447,7 @@ const AudienceParticipation: React.FC = () => {
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-success/10 border border-success/20">
               <div
-                className={`w-2 h-2 rounded-full ${isPaused ? "bg-yellow-500" : "bg-success animate-pulse"}`}
+                className={`w-2 h-2 rounded-full ${isPaused ? "bg-yellow-500" : "bg-success "}`}
               />
               <span className="text-sm font-medium text-success whitespace-nowrap">
                 {isPaused ? "Paused" : "Live"}

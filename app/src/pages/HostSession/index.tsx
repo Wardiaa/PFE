@@ -1226,7 +1226,7 @@ const HostSession: React.FC = () => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
+          <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center  ">
             <AppIcon name="Loader2" size={28} className="text-primary animate-spin" />
           </div>
           <p className="text-muted-foreground text-sm">Setting up your session...</p>

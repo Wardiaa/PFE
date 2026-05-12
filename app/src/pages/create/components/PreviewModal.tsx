@@ -499,7 +499,7 @@ function SessionHeader({
           }}
         >
           <div
-            className="rounded-full bg-green-500 animate-pulse"
+            className="rounded-full bg-green-500  "
             style={{ width: 8 * s, height: 8 * s }}
           />
           <span className="font-medium text-green-600 whitespace-nowrap" style={{ fontSize: 14 * s }}>

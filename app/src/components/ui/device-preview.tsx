@@ -143,9 +143,9 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
                 borderColor: "rgb(34 197 94 / 0.2)",
               }}
             >
-              {/* w-2 h-2 rounded-full bg-success animate-pulse */}
+              
               <div
-                className="rounded-full bg-green-500 animate-pulse"
+                className="rounded-full bg-green-500 "
                 style={{ width: 7 * S, height: 7 * S }}
               />
               {/* text-sm font-medium text-success */}

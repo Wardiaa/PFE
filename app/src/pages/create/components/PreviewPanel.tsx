@@ -356,7 +356,7 @@ const DesktopFrame = ({ question, settings, totalQuestions, currentIndex }: { qu
             </div>
           </div>
           <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 border border-indigo-200">
-            <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+            <div className="w-1.5 h-1.5 rounded-full bg-rose-500  " />
             <span className="text-[9px] font-bold text-indigo-600">Q {currentIndex + 1}</span>
           </div>
         </div>

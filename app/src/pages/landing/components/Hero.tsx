@@ -259,7 +259,7 @@ const HostSessionPreview: React.FC = () => {
         <div className="flex items-center gap-1.5">
           {/* Real-time indicator */}
           <div className="flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500  " />
             <span className="text-[9px] text-slate-400">Real-time</span>
           </div>
 
