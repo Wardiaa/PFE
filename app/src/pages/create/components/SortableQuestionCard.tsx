@@ -17,6 +17,8 @@ import {
   MoreVertical,
   CheckCircle2,
   ChevronDown,
+  SlidersHorizontal,
+  ListOrdered,
 } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -116,6 +118,36 @@ const TYPE_META: Record<
     bg: "bg-emerald-50",
     border: "border-emerald-200",
     label: "Rating",
+  },
+   scales: {
+    icon: SlidersHorizontal,
+    color: "text-teal-600",
+    bg: "bg-teal-50",
+    border: "border-teal-200",
+    label: "Scale",
+  },
+  SCALING: {
+    icon: SlidersHorizontal,
+    color: "text-teal-600",
+    bg: "bg-teal-50",
+    border: "border-teal-200",
+    label: "Scale",
+  },
+
+  
+  ranking: {
+    icon: ListOrdered,
+    color: "text-violet-600",
+    bg: "bg-violet-50",
+    border: "border-violet-200",
+    label: "Rank",
+  },
+  RANKING: {
+    icon: ListOrdered,
+    color: "text-violet-600",
+    bg: "bg-violet-50",
+    border: "border-violet-200",
+    label: "Rank",
   },
 };
 
