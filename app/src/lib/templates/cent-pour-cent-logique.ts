@@ -22,7 +22,7 @@ export const centPourCentLogiqueTemplate = {
   themeId: "cent-pour-cent-logique",
 
   coverImage:
-    "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80",
+    "",
 
   questions: [
     {

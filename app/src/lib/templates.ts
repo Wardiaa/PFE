@@ -1,10 +1,5 @@
-// templates.ts - COMPLETE ENHANCED VERSION
-// ── 100% Logique integration ────────────────────────────────────────────────
-// The new "100% Logique" template is imported from its own file and inserted
-// at the top of the template list so it's the first thing users see.
-// Every other template stays exactly the same.
+// lib/templates.ts
 import { centPourCentLogiqueTemplate } from "./templates/cent-pour-cent-logique";
-
 import {
   Trophy,
   BarChart3,
@@ -26,8 +21,27 @@ import {
 } from "lucide-react";
 import { QUESTION_TYPES } from "./question-types";
 
-// Template categories for filtering
-// (counts bumped to include the new 100% Logique template)
+export interface Template {
+  id: string;
+  name: string;
+  description: string;
+  icon: any;
+  color: string;
+  category: string;
+  popularity?: number;
+  isPopular?: boolean;
+  isNew?: boolean;
+  questions?: any[];
+  settings?: any;
+  estimatedSetupTime?: string;
+  avgCompletionTime?: string;
+  targetAudience?: string;
+  gameMode?: "standard" | "elimination";
+  themeId?: string;
+  coverImage?: string;
+  extras?: any[];
+}
+
 export const TEMPLATE_CATEGORIES = [
   { id: "all", name: "All Templates", icon: Grid, count: 12 },
   { id: "popular", name: "Most Popular", icon: TrendingUp, count: 6 },
@@ -39,7 +53,6 @@ export const TEMPLATE_CATEGORIES = [
   { id: "game-show", name: "Game Show", icon: Crown, count: 1 },
 ];
 
-// Sort options
 export const SORT_OPTIONS = [
   { id: "popularity", name: "Most Popular", icon: TrendingUp },
   { id: "newest", name: "Newest First", icon: Sparkles },
@@ -47,10 +60,8 @@ export const SORT_OPTIONS = [
   { id: "alphabetical", name: "A to Z", icon: BookOpen },
 ];
 
-export const templates = [
-  // ── 100% Logique — featured first ─────────────────────────────────────────
+export const templates: Template[] = [
   centPourCentLogiqueTemplate,
-
   {
     id: "quiz-classic",
     name: "Classic Quiz",
@@ -273,8 +284,7 @@ export const templates = [
         title: "Which planet is known as the Red Planet?",
         points: 200,
         timeLimit: 20,
-        imageUrl:
-          "https://images.unsplash.com/photo-1446776653964-20c1d3a81b06?auto=format&fit=crop&w=600",
+        imageUrl: "https://images.unsplash.com/photo-1446776653964-20c1d3a81b06?auto=format&fit=crop&w=600",
         options: [
           { id: "1", text: "Venus", isCorrect: false },
           { id: "2", text: "Mars", isCorrect: true },
@@ -288,8 +298,7 @@ export const templates = [
         title: "In which year did the Titanic sink?",
         points: 300,
         timeLimit: 25,
-        imageUrl:
-          "https://images.unsplash.com/photo-1513326738677-b964603b136d?auto=format&fit=crop&w=600",
+        imageUrl: "https://images.unsplash.com/photo-1513326738677-b964603b136d?auto=format&fit=crop&w=600",
         options: [
           { id: "1", text: "1905", isCorrect: false },
           { id: "2", text: "1912", isCorrect: true },
@@ -303,8 +312,7 @@ export const templates = [
         title: "Bananas grow on trees.",
         points: 150,
         timeLimit: 15,
-        imageUrl:
-          "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?auto=format&fit=crop&w=600",
+        imageUrl: "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?auto=format&fit=crop&w=600",
         options: [
           { id: "1", text: "True", isCorrect: false },
           { id: "2", text: "False", isCorrect: true },
@@ -320,22 +328,19 @@ export const templates = [
           {
             id: "1",
             text: "Option 1",
-            imageUrl:
-              "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Apple_logo_black.svg/800px-Apple_logo_black.svg.png",
+            imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Apple_logo_black.svg/800px-Apple_logo_black.svg.png",
             isCorrect: true,
           },
           {
             id: "2",
             text: "Option 2",
-            imageUrl:
-              "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Microsoft_logo.svg/800px-Microsoft_logo.svg.png",
+            imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Microsoft_logo.svg/800px-Microsoft_logo.svg.png",
             isCorrect: false,
           },
           {
             id: "3",
             text: "Option 3",
-            imageUrl:
-              "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/800px-Google_2015_logo.svg.png",
+            imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/800px-Google_2015_logo.svg.png",
             isCorrect: false,
           },
         ],
@@ -371,13 +376,7 @@ export const templates = [
         points: 0,
         timeLimit: 30,
         maxRating: 5,
-        ratingLabels: [
-          "Very Unsatisfied",
-          "Unsatisfied",
-          "Neutral",
-          "Satisfied",
-          "Very Satisfied",
-        ],
+        ratingLabels: ["Very Unsatisfied", "Unsatisfied", "Neutral", "Satisfied", "Very Satisfied"],
       },
       {
         id: "q2",
@@ -552,8 +551,7 @@ export const templates = [
       {
         id: "q3",
         type: QUESTION_TYPES.WORD_CLOUD,
-        title:
-          "What's the first word that comes to mind when you hear 'teamwork'?",
+        title: "What's the first word that comes to mind when you hear 'teamwork'?",
         points: 0,
         timeLimit: 20,
         maxWords: 1,

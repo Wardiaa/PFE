@@ -602,15 +602,14 @@ export function useQuizBuilder() {
   };
 
   // ── Template helpers ───────────────────────────────────────────────────────
+  // UPDATED: handleTemplateSelect now applies template directly (no customization modal)
   const handleTemplateSelect = (templateId: string) => {
     const template = templates.find((t) => t.id === templateId);
     if (!template) return;
     setSelectedTemplate(templateId);
     setContextType(deriveContextType(templateId));
 
-    if (templateId !== "custom-blank") {
-      setShowTemplateCustomization(true);
-    } else {
+    if (templateId === "custom-blank") {
       handleTitleChange("Untitled Context");
       dispatch({ type: "SET_QUESTIONS", payload: [] });
       dispatch({ type: "SET_GAME_MODE", payload: "standard" });
@@ -621,7 +620,50 @@ export function useQuizBuilder() {
         title: "Blank canvas selected",
         description: "Start creating from scratch!",
       });
+      return;
     }
+
+    // Apply template data directly (skip customization modal)
+    // Title
+    handleTitleChange(template.name);
+    // Description
+    if (template.description) {
+      dispatch({ type: "SET_DESCRIPTION", payload: template.description });
+    }
+    // Questions – clone deeply to avoid reference issues
+    if (template.questions?.length) {
+      const clonedQuestions = JSON.parse(JSON.stringify(template.questions));
+      dispatch({ type: "SET_QUESTIONS", payload: clonedQuestions });
+    } else {
+      dispatch({ type: "SET_QUESTIONS", payload: [] });
+    }
+    // Settings
+    if (template.settings) {
+      dispatch({
+        type: "SET_SETTINGS",
+        payload: { ...DEFAULT_SETTINGS, ...template.settings },
+      });
+    }
+    // Game mode & theme (for elimination templates like 100% Logique)
+    const gameMode = (template as any).gameMode === "elimination" ? "elimination" : "standard";
+    const themeId = (template as any).themeId || "default";
+    dispatch({ type: "SET_GAME_MODE", payload: gameMode });
+    dispatch({ type: "SET_THEME_ID", payload: themeId });
+    dispatch({ type: "SET_THEME", payload: themeId });
+    // Category (optional)
+    if (template.category) {
+      dispatch({ type: "SET_CATEGORY", payload: template.category });
+    }
+    // Cover image (if present)
+    if ((template as any).coverImage) {
+      dispatch({ type: "SET_COVER_IMAGE", payload: (template as any).coverImage });
+    }
+
+    setStep(2);
+    toast({
+      title: "Template loaded",
+      description: `"${template.name}" is ready for customization.`,
+    });
   };
 
   const handleTemplateCustomize = (options: any) => {
