@@ -139,7 +139,7 @@ export function ModeSelection({ selectedMode, onSelectMode, onContinue }: ModeSe
             className={cn(
               "flex items-center gap-2 px-8 py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all",
               selectedMode
-                ? "bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-200"
+                ? "bg-indigo-600 text-white hover:bg-indigo-500 cursor-pointer"
                 : "bg-slate-100 text-slate-300 cursor-not-allowed"
             )}
           >
