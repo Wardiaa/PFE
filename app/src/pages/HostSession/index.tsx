@@ -1,5 +1,6 @@
 // src/pages/HostSession/index.tsx
 // Version avec UI de l'ancienne version ET timer wall-clock optimisé
+// OPTIMIZED: Added debounced response refreshes to reduce database queries with 100+ participants
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -241,6 +242,9 @@ const HostSession: React.FC = () => {
   const [isGameOver, setIsGameOver] = useState<boolean>(false);
   const isGameOverRef = useRef<boolean>(false);
   const [isRevealingWinner, setIsRevealingWinner] = useState<boolean>(false);
+  
+  // ── PRIORITY 1: Debounced refresh timeout ref ──────────────────────────────
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // ── Derived values ────────────────────────────────────────────────────────
   const isElimination = contextMeta.gameMode === "elimination";
@@ -293,19 +297,13 @@ const HostSession: React.FC = () => {
   const isEliminationRef = useRef<boolean>(false);
   const sendMessageRef = useRef<(msg: any) => void>(() => {});
   const currentQuestionTimeLimitRef = useRef<number | null | undefined>(null);
+  const questionEndsAtRef = useRef<number | null>(null);
 
   /**
    * OPTIMIZED: absolute epoch-ms when the current question timer expires.
    * Shared reference point so the host timer and all participant timers
    * compute remaining = ceil((endsAt - Date.now()) / 1000) from the
    * same anchor instead of running independent ±1s counters.
-   */
-  const questionEndsAtRef = useRef<number | null>(null);
-
-  /**
-   * OPTIMIZED: stores the wall-clock end time in questionEndsAtRef.
-   * Pass overrideEndsAtMs when restoring timer from DB after page refresh
-   * or when resuming from pause (endsAt = now + remaining).
    */
   const applyQuestionTimer = (question?: Question | null, overrideEndsAtMs?: number) => {
     const limit = getQuestionTimeLimit(question);
@@ -326,6 +324,27 @@ const HostSession: React.FC = () => {
     timerActiveRef.current = limit !== null;
     return limit;
   };
+
+  // ── PRIORITY 1: Debounced refresh function ─────────────────────────────────
+  const debouncedRefreshResponses = useCallback(async () => {
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+    }
+    
+    refreshTimeoutRef.current = setTimeout(async () => {
+      const q = currentQuestionRef.current;
+      const sess = sessionRef.current;
+      if (q && sess) {
+        const updated = await SessionService.getQuestionResponses(
+          sess.id,
+          q.id,
+          hideParticipantNamesRef.current,
+        );
+        setResponses((prev) => ({ ...prev, [q.id]: updated }));
+      }
+      refreshTimeoutRef.current = null;
+    }, 500);
+  }, []);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -362,13 +381,8 @@ const HostSession: React.FC = () => {
         const q = currentQuestionRef.current;
         const sess = sessionRef.current;
         if (q && sess) {
-          SessionService.getQuestionResponses(
-            sess.id,
-            q.id,
-            hideParticipantNamesRef.current,
-          ).then((updated) => {
-            setResponses((prev) => ({ ...prev, [q.id]: updated }));
-          });
+          // Use debounced refresh instead of direct refresh
+          debouncedRefreshResponses();
         }
         return;
       }
@@ -404,7 +418,7 @@ const HostSession: React.FC = () => {
         return;
       }
     },
-    [toast],
+    [debouncedRefreshResponses, toast],
   );
 
   const { sendMessage, connected: wsConnected } = useSessionSocket({
@@ -428,8 +442,6 @@ const HostSession: React.FC = () => {
   }, [isElimination, revealedWinner, showResults, gameState.alive.length, gameState.totalPlayers, sendMessage]);
 
   // ── OPTIMIZED: Wall-clock-anchored timer interval ─────────────────────────
-  // Fires every 500 ms for responsiveness. Computes remaining from the absolute
-  // endsAt epoch instead of decrementing a counter — eliminates accumulated drift.
   useEffect(() => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
@@ -464,6 +476,10 @@ const HostSession: React.FC = () => {
           setTimerActive(false);
           setShowResults(true);
           toast({ title: "Time's Up!", description: "Showing results..." });
+          
+          // ── PRIORITY 1: Force immediate refresh on timer end ──────────────
+          if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+          debouncedRefreshResponses();
 
           if (isEliminationRef.current) {
             window.setTimeout(() => {
@@ -487,7 +503,7 @@ const HostSession: React.FC = () => {
         timerIntervalRef.current = undefined;
       }
     };
-  }, [currentQuestionIndex, timerActive, toast]);
+  }, [currentQuestionIndex, timerActive, toast, debouncedRefreshResponses]);
 
   useEffect(
     () => () => {
@@ -621,7 +637,6 @@ const HostSession: React.FC = () => {
 
               const limit = getQuestionTimeLimit(currentQ);
               if (limit !== null) {
-                // OPTIMIZED: restore wall-clock endsAt from DB instead of a plain counter.
                 let endsAtMs: number | null = null;
 
                 if (existingSession.current_question_ends_at) {
@@ -844,6 +859,7 @@ const HostSession: React.FC = () => {
       )
       .subscribe();
 
+    // ── PRIORITY 1: UPDATED responses channel with debounced refresh ────────
     const responsesChannel = supabase
       .channel(`host-responses-${session.id}`)
       .on(
@@ -854,17 +870,9 @@ const HostSession: React.FC = () => {
           table: "responses",
           filter: `session_id=eq.${session.id}`,
         },
-        async () => {
-          const q = currentQuestionRef.current;
-          const sess = sessionRef.current;
-          if (q && sess) {
-            const updated = await SessionService.getQuestionResponses(
-              sess.id,
-              q.id,
-              hideParticipantNamesRef.current,
-            );
-            setResponses((prev) => ({ ...prev, [q.id]: updated }));
-          }
+        () => {
+          // Use debounced refresh instead of direct query
+          debouncedRefreshResponses();
         },
       )
       .subscribe();
@@ -873,7 +881,7 @@ const HostSession: React.FC = () => {
       supabase.removeChannel(participantsChannel);
       supabase.removeChannel(responsesChannel);
     };
-  }, [session, toast]);
+  }, [session, toast, debouncedRefreshResponses]);
 
   const applyQuestionSettings = (question?: Question) => {
     if (question?.showResultsInstantly) {
@@ -897,7 +905,6 @@ const HostSession: React.FC = () => {
     const timeLimit = getQuestionTimeLimit(firstQuestion);
 
     await SessionService.updateSessionStatus(session.id, "ACTIVE");
-    // OPTIMIZED: pass timeLimit so DB stores current_question_ends_at.
     const { startedAt, endsAt } = await SessionService.setCurrentQuestion(
       session.id,
       0,
@@ -919,7 +926,7 @@ const HostSession: React.FC = () => {
         questionIndex: 0,
         timeLimit,
         startedAt,
-        endsAt, // OPTIMIZED: absolute end time for wall-clock sync on participants
+        endsAt,
       },
     });
 
@@ -1041,12 +1048,6 @@ const HostSession: React.FC = () => {
     }
   };
 
-  /**
-   * FIXED and OPTIMIZED:
-   * - Event type is "PAUSE"/"RESUME" (audience listens for these)
-   * - Payload key is "remainingSeconds" (audience expects this)
-   * - On resume: questionEndsAtRef is recomputed and endsAt is broadcast
-   */
   const handlePause = async (): Promise<void> => {
     if (!session) return;
     const newPausedState = !isPaused;
@@ -1054,7 +1055,6 @@ const HostSession: React.FC = () => {
     isPausedRef.current = newPausedState;
 
     if (newPausedState) {
-      // Pausing
       setTimerActive(false);
       timerActiveRef.current = false;
 
@@ -1063,10 +1063,8 @@ const HostSession: React.FC = () => {
         payload: { remainingSeconds: timerRef.current },
       });
     } else {
-      // Resuming
       const hasTimer = getQuestionTimeLimit(currentQuestion) !== null;
       if (hasTimer && timerRef.current > 0) {
-        // Recompute wall-clock anchor from remaining seconds.
         const newEndsAtMs = Date.now() + timerRef.current * 1000;
         questionEndsAtRef.current = newEndsAtMs;
         setTimerActive(true);
@@ -1152,6 +1150,9 @@ const HostSession: React.FC = () => {
 
   const handleToggleQuestionResults = (): void => {
     setShowResults((prev) => !prev);
+    // Force immediate refresh when toggling results
+    if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+    debouncedRefreshResponses();
   };
 
   const handleToggleResultsWithNoTimer = (): void => {

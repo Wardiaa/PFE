@@ -20,25 +20,35 @@ interface OpenTextQuestionProps {
 const OpenTextQuestion: React.FC<OpenTextQuestionProps> = ({ question, onSubmit }) => {
   const [response, setResponse] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  // PRIORITY 2: Add hasSubmitted state to prevent double submissions
+  const [hasSubmitted, setHasSubmitted] = useState<boolean>(false);
   const questionImage = question?.image || question?.imageUrl;
 
   const maxLength = question?.maxLength || 500;
   const remainingChars = maxLength - response?.length;
 
+  // PRIORITY 2: Updated handleSubmit with guard clause and error recovery
   const handleSubmit = async (): Promise<void> => {
-  if (!response?.trim()) return;
-
-  setIsSubmitting(true);
-  try {
-    await onSubmit({ text: response.trim() });
-  } catch (error) {
-    console.error("Submission failed:", error);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+    if (!response?.trim()) return;
+    if (hasSubmitted) return; //  Guard against double submission
+    
+    setHasSubmitted(true);
+    setIsSubmitting(true);
+    
+    try {
+      await onSubmit({ text: response.trim() });
+      // Success - stay disabled
+    } catch (error) {
+      console.error("Submission failed:", error);
+      // On error, re-enable so user can retry
+      setHasSubmitted(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
+    if (hasSubmitted) return; // Don't allow changes after submission
     const value = e?.target?.value;
     if (value?.length <= maxLength) {
       setResponse(value);
@@ -81,7 +91,7 @@ const OpenTextQuestion: React.FC<OpenTextQuestionProps> = ({ question, onSubmit 
             value={response}
             onChange={handleChange}
             placeholder="Type your response here..."
-            disabled={isSubmitting}
+            disabled={isSubmitting || hasSubmitted}
             className="w-full min-h-[160px] md:min-h-[200px] px-4 py-3 rounded-xl border-2 border-border bg-background text-foreground placeholder:text-muted-foreground focus:!outline-none focus:!border-primary focus:!border-2 focus:!ring-0 resize-none transition-all duration-250 text-base md:text-lg"
           />
           <div className="flex items-center justify-between mt-2 px-1">
@@ -107,7 +117,7 @@ const OpenTextQuestion: React.FC<OpenTextQuestionProps> = ({ question, onSubmit 
           size="lg"
           fullWidth
           onClick={handleSubmit}
-          disabled={!response?.trim() || (question?.minLength ? response?.trim()?.length < question?.minLength : false)}
+          disabled={hasSubmitted || isSubmitting || !response?.trim() || (question?.minLength ? response?.trim()?.length < question?.minLength : false)} // 👈 Updated disabled condition
           loading={isSubmitting}
           iconName="Send"
           iconPosition="right"

@@ -32,6 +32,8 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
   const [hoveredRating, setHoveredRating] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  // PRIORITY 2: Add hasSubmitted state to prevent double submissions
+  const [hasSubmitted, setHasSubmitted] = useState<boolean>(false);
   const questionImage = question?.image || question?.imageUrl;
 
   // Min is fixed at 1, max is adjustable
@@ -48,23 +50,30 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
   const displayStyle = question?.displayStyle || 'numbers';
 
   const handleRatingSelect = (rating: number): void => {
-    if (!isSubmitting) {
+    if (!isSubmitting && !hasSubmitted) {
       setSelectedRating(rating);
     }
   };
 
+  // PRIORITY 2: Updated handleSubmit with guard clause and error recovery
   const handleSubmit = async (): Promise<void> => {
-  if (selectedRating === null) return;
-
-  setIsSubmitting(true);
-  try {
-    await onSubmit({ rating: selectedRating });
-  } catch (error) {
-    console.error("Submission failed:", error);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+    if (selectedRating === null) return;
+    if (hasSubmitted) return; // Guard against double submission
+    
+    setHasSubmitted(true);
+    setIsSubmitting(true);
+    
+    try {
+      await onSubmit({ rating: selectedRating });
+      // Success - stay disabled
+    } catch (error) {
+      console.error("Submission failed:", error);
+      // On error, re-enable so user can retry
+      setHasSubmitted(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const getRatingColor = (rating: number): string => {
     const percentage = ((rating - scale.min) / (scale.max - scale.min)) * 100;
@@ -83,7 +92,7 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
         : isHovered
         ? 'border-primary/70 bg-primary/10 scale-105 shadow-md'
         : 'border-border bg-background hover:border-primary/50 hover:bg-muted hover:scale-102'
-    } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`;
+    } ${isSubmitting || hasSubmitted ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`;
 
     if (displayStyle === 'stars') {
       return (
@@ -92,7 +101,7 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
           onClick={() => handleRatingSelect(rating)}
           onMouseEnter={() => setHoveredRating(rating)}
           onMouseLeave={() => setHoveredRating(null)}
-          disabled={isSubmitting}
+          disabled={isSubmitting || hasSubmitted}
           className={baseClass}
         >
           <AppIcon
@@ -112,7 +121,7 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
           onClick={() => handleRatingSelect(rating)}
           onMouseEnter={() => setHoveredRating(rating)}
           onMouseLeave={() => setHoveredRating(null)}
-          disabled={isSubmitting}
+          disabled={isSubmitting || hasSubmitted}
           className={baseClass}
         >
           <AppIcon
@@ -132,7 +141,7 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
           onClick={() => handleRatingSelect(rating)}
           onMouseEnter={() => setHoveredRating(rating)}
           onMouseLeave={() => setHoveredRating(null)}
-          disabled={isSubmitting}
+          disabled={isSubmitting || hasSubmitted}
           className={baseClass}
         >
           <AppIcon
@@ -152,7 +161,7 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
         onClick={() => handleRatingSelect(rating)}
         onMouseEnter={() => setHoveredRating(rating)}
         onMouseLeave={() => setHoveredRating(null)}
-        disabled={isSubmitting}
+        disabled={isSubmitting || hasSubmitted}
         className={baseClass}
       >
         <span
@@ -226,7 +235,7 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
           size="lg"
           fullWidth
           onClick={handleSubmit}
-          disabled={selectedRating === null}
+          disabled={hasSubmitted || isSubmitting || selectedRating === null} // 👈 Updated disabled condition
           loading={isSubmitting}
           iconName="Send"
           iconPosition="right"

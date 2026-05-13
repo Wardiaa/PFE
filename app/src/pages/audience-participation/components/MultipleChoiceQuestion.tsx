@@ -25,6 +25,8 @@ interface MultipleChoiceQuestionProps {
 const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({ question, onSubmit }) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  // PRIORITY 2: Add hasSubmitted state to prevent double submissions
+  const [hasSubmitted, setHasSubmitted] = useState<boolean>(false);
   const questionImage = question?.image || question?.imageUrl;
 
   // Check if an option has only an image and no text
@@ -36,23 +38,30 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({ questio
   };
 
   const handleOptionSelect = (optionId: string): void => {
-    if (!isSubmitting) {
+    if (!isSubmitting && !hasSubmitted) {
       setSelectedOption(optionId);
     }
   };
 
+  // PRIORITY 2: Updated handleSubmit with guard clause and error recovery
   const handleSubmit = async (): Promise<void> => {
-  if (selectedOption === null) return;
-
-  setIsSubmitting(true);
-  try {
-    await onSubmit({ optionId: selectedOption });
-  } catch (error) {
-    console.error("Submission failed:", error);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+    if (selectedOption === null) return;
+    if (hasSubmitted) return; // Guard against double submission
+    
+    setHasSubmitted(true);
+    setIsSubmitting(true);
+    
+    try {
+      await onSubmit({ optionId: selectedOption });
+      // Success - stay disabled
+    } catch (error) {
+      console.error("Submission failed:", error);
+      // On error, re-enable so user can retry
+      setHasSubmitted(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="w-full max-w-2xl mx-auto">
@@ -94,12 +103,12 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({ questio
               <button
                 key={option?.id}
                 onClick={() => handleOptionSelect(option?.id)}
-                disabled={isSubmitting}
+                disabled={isSubmitting || hasSubmitted}
                 className={`text-left transition-all duration-250 ${
                   selectedOption === option?.id
                     ? 'border-primary bg-primary/5 shadow-md'
                     : 'border-border bg-background hover:border-primary/50 hover:bg-muted'
-                } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${
+                } ${isSubmitting || hasSubmitted ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${
                   imageOnly ? 'rounded-xl border-2 overflow-hidden p-0' : 'rounded-xl border-2 p-4 md:p-5'
                 }`}
               >
@@ -164,7 +173,7 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({ questio
           size="lg"
           fullWidth
           onClick={handleSubmit}
-          disabled={selectedOption === null}
+          disabled={hasSubmitted || isSubmitting || selectedOption === null} // 👈 Updated disabled condition
           loading={isSubmitting}
           iconName="Send"
           iconPosition="right"

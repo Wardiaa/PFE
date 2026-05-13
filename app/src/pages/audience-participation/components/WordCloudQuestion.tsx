@@ -19,26 +19,36 @@ interface WordCloudQuestionProps {
 const WordCloudQuestion: React.FC<WordCloudQuestionProps> = ({ question, onSubmit }) => {
   const [words, setWords] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  // PRIORITY 2: Add hasSubmitted state to prevent double submissions
+  const [hasSubmitted, setHasSubmitted] = useState<boolean>(false);
   const questionImage = question?.image || question?.imageUrl;
 
   const maxWords = question?.maxWords || 5;
   const wordArray = words?.trim()?.split(/\s+/)?.filter(word => word?.length > 0);
   const remainingWords = maxWords - wordArray?.length;
 
+  // PRIORITY 2: Updated handleSubmit with guard clause and error recovery
   const handleSubmit = async (): Promise<void> => {
-  if (wordArray?.length === 0) return;
-
-  setIsSubmitting(true);
-  try {
-    await onSubmit({ words: wordArray });
-  } catch (error) {
-    console.error("Submission failed:", error);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+    if (wordArray?.length === 0) return;
+    if (hasSubmitted) return; // Guard against double submission
+    
+    setHasSubmitted(true);
+    setIsSubmitting(true);
+    
+    try {
+      await onSubmit({ words: wordArray });
+      // Success - stay disabled
+    } catch (error) {
+      console.error("Submission failed:", error);
+      // On error, re-enable so user can retry
+      setHasSubmitted(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    if (hasSubmitted) return; // Don't allow changes after submission
     const value = e?.target?.value;
     const newWordArray = value?.trim()?.split(/\s+/)?.filter(word => word?.length > 0);
 
@@ -48,6 +58,7 @@ const WordCloudQuestion: React.FC<WordCloudQuestionProps> = ({ question, onSubmi
   };
 
   const removeWord = (index: number): void => {
+    if (hasSubmitted) return; // Don't allow changes after submission
     const newWordArray = [...wordArray];
     newWordArray?.splice(index, 1);
     setWords(newWordArray?.join(' '));
@@ -90,7 +101,7 @@ const WordCloudQuestion: React.FC<WordCloudQuestionProps> = ({ question, onSubmi
             value={words}
             onChange={handleChange}
             placeholder="Type words separated by spaces..."
-            disabled={isSubmitting}
+            disabled={isSubmitting || hasSubmitted}
             className="w-full px-4 py-3 rounded-xl border-2 border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-250 text-base md:text-lg"
           />
           <div className="flex items-center justify-between mt-2 px-1">
@@ -124,7 +135,7 @@ const WordCloudQuestion: React.FC<WordCloudQuestionProps> = ({ question, onSubmi
                   </span>
                   <button
                     onClick={() => removeWord(index)}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || hasSubmitted}
                     className="flex items-center justify-center w-5 h-5 rounded-full hover:bg-destructive/10 transition-colors duration-250"
                     aria-label="Remove word"
                   >
@@ -141,7 +152,7 @@ const WordCloudQuestion: React.FC<WordCloudQuestionProps> = ({ question, onSubmi
           size="lg"
           fullWidth
           onClick={handleSubmit}
-          disabled={wordArray?.length === 0}
+          disabled={hasSubmitted || isSubmitting || wordArray?.length === 0} // 👈 Updated disabled condition
           loading={isSubmitting}
           iconName="Send"
           iconPosition="right"

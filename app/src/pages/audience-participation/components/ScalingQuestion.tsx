@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { SlidersHorizontal, SkipForward, RotateCcw, Send, Loader2 } from "lucide-react";
+import { SlidersHorizontal, SkipForward, RotateCcw } from "lucide-react";
 import Button from "../../../components/ui/Button2";
 
 interface ScalingStatement {
@@ -53,6 +53,8 @@ const ScalingQuestion: React.FC<ScalingQuestionProps> = ({ question, onSubmit })
   const [answers, setAnswers] = useState<Record<string, number | null>>({});
   const [skipped, setSkipped] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // PRIORITY 2: Add hasSubmitted state to prevent double submissions
+  const [hasSubmitted, setHasSubmitted] = useState(false);
 
   const minLabel = question.labels?.min ?? "Strongly disagree";
   const maxLabel = question.labels?.max ?? "Strongly agree";
@@ -64,6 +66,7 @@ const ScalingQuestion: React.FC<ScalingQuestionProps> = ({ question, onSubmit })
   const allAnswered = answeredCount === totalStatements;
 
   const handleSelect = (statementId: string, value: number) => {
+    if (hasSubmitted) return; // Don't allow changes after submission
     setAnswers((prev) => ({ ...prev, [statementId]: value }));
     setSkipped((prev) => {
       const next = { ...prev };
@@ -73,6 +76,7 @@ const ScalingQuestion: React.FC<ScalingQuestionProps> = ({ question, onSubmit })
   };
 
   const handleSkip = (statementId: string) => {
+    if (hasSubmitted) return; // Don't allow changes after submission
     setSkipped((prev) => ({ ...prev, [statementId]: true }));
     setAnswers((prev) => {
       const next = { ...prev };
@@ -81,17 +85,26 @@ const ScalingQuestion: React.FC<ScalingQuestionProps> = ({ question, onSubmit })
     });
   };
 
+  // PRIORITY 2: Updated handleSubmit with guard clause and error recovery
   const handleSubmit = async () => {
     if (!allAnswered || isSubmitting) return;
+    if (hasSubmitted) return; //  Guard against double submission
 
     const scalingAnswers: Record<string, number | null> = {};
     question.statements.forEach((s) => {
       scalingAnswers[s.id] = skipped[s.id] ? null : (answers[s.id] ?? null);
     });
 
+    setHasSubmitted(true);
     setIsSubmitting(true);
+    
     try {
       await onSubmit({ scalingAnswers });
+      // Success - stay disabled
+    } catch (error) {
+      console.error("Submission failed:", error);
+      // On error, re-enable so user can retry
+      setHasSubmitted(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -170,7 +183,7 @@ const ScalingQuestion: React.FC<ScalingQuestionProps> = ({ question, onSubmit })
                 isDone 
                   ? "border-primary/30 bg-card shadow-md" 
                   : "border-border bg-card/50"
-              }`}
+              } ${hasSubmitted ? "opacity-70" : ""}`}
             >
               {/* Active Indicator Bar */}
               <div 
@@ -190,32 +203,34 @@ const ScalingQuestion: React.FC<ScalingQuestionProps> = ({ question, onSubmit })
                     </h3>
                   </div>
 
-                  {isSkipped ? (
-                    <button
-                      onClick={() => {
-                        setSkipped((prev) => {
-                          const next = { ...prev };
-                          delete next[statement.id];
-                          return next;
-                        });
-                      }}
-                      className="shrink-0 text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors group"
-                    >
-                      <RotateCcw className="w-3 h-3 group-hover:rotate-12 transition-transform" />
-                      Undo
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleSkip(statement.id)}
-                      className="shrink-0 text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors group"
-                    >
-                      <SkipForward className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                      Skip
-                    </button>
+                  {!hasSubmitted && ( // Only show skip/undo if not submitted
+                    isSkipped ? (
+                      <button
+                        onClick={() => {
+                          setSkipped((prev) => {
+                            const next = { ...prev };
+                            delete next[statement.id];
+                            return next;
+                          });
+                        }}
+                        className="shrink-0 text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors group"
+                      >
+                        <RotateCcw className="w-3 h-3 group-hover:rotate-12 transition-transform" />
+                        Undo
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleSkip(statement.id)}
+                        className="shrink-0 text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors group"
+                      >
+                        <SkipForward className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                        Skip
+                      </button>
+                    )
                   )}
                 </div>
 
-                {!isSkipped ? (
+                {!isSkipped && !hasSubmitted ? (
                   <div className="space-y-6">
                     {/* Visual Button Row */}
                     <div className="relative pt-2 pb-2">
@@ -229,6 +244,7 @@ const ScalingQuestion: React.FC<ScalingQuestionProps> = ({ question, onSubmit })
                               key={step}
                               onClick={() => handleSelect(statement.id, step)}
                               className="relative z-10 group focus:outline-none"
+                              disabled={hasSubmitted}
                             >
                               <div
                                 className={`w-10 h-10 md:w-12 md:h-12 rounded-full border-2 flex items-center justify-center transition-colors duration-150 ${
@@ -269,11 +285,15 @@ const ScalingQuestion: React.FC<ScalingQuestionProps> = ({ question, onSubmit })
                       </span>
                     </div>
                   </div>
-                ) : (
+                ) : !hasSubmitted && isSkipped ? (
                   <div className="flex flex-col items-center justify-center py-4 bg-muted/30 rounded-xl">
                     <span className="text-sm font-medium text-muted-foreground">This item was skipped</span>
                   </div>
-                )}
+                ) : hasSubmitted ? (
+                  <div className="flex flex-col items-center justify-center py-4 bg-primary/5 rounded-xl">
+                    <span className="text-sm font-medium text-foreground">Response submitted</span>
+                  </div>
+                ) : null}
               </div>
             </motion.div>
           );
@@ -287,14 +307,14 @@ const ScalingQuestion: React.FC<ScalingQuestionProps> = ({ question, onSubmit })
           size="lg"
           fullWidth
           onClick={handleSubmit}
-          disabled={!allAnswered || isSubmitting}
+          disabled={hasSubmitted || !allAnswered || isSubmitting} // 👈 Updated disabled condition
           loading={isSubmitting}
           iconName="Send"
           iconPosition="right"
         >
-          {allAnswered ? "Submit All Ratings" : `Rated ${answeredCount} of ${totalStatements}`}
+          {hasSubmitted ? "Submitted!" : allAnswered ? "Submit All Ratings" : `Rated ${answeredCount} of ${totalStatements}`}
         </Button>
-        {!allAnswered && (
+        {!allAnswered && !hasSubmitted && (
           <p className="mt-3 text-center text-xs font-semibold text-muted-foreground">
              Please provide a rating or skip for every statement to continue.
           </p>
