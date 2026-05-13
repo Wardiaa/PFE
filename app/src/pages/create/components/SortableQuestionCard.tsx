@@ -295,13 +295,6 @@ export function SortableQuestionCard({
               <TypeIcon className="w-2.5 h-2.5" />
               <span className={cn(isGridView ? "hidden" : "inline")}>{meta.label}</span>
             </div>
-
-            {/* Lock badge */}
-            {question.locked && (
-              <span className="flex-shrink-0 inline-flex items-center px-1 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-600 text-[8px]">
-                <Lock className="w-2 h-2" />
-              </span>
-            )}
           </div>
 
           {/* SPACER */}

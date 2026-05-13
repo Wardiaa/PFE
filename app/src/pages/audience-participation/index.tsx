@@ -1,6 +1,7 @@
 // src/pages/audience-participation/index.tsx
 // Version avec UI de l'ancienne version ET timer wall-clock optimisé
 // (Je garde la même structure que la version restaurée mais avec le timer optimisé)
+// SKIP BUTTON UPDATE: Added skip functionality for elimination mode
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -141,6 +142,11 @@ const AudienceParticipation: React.FC = () => {
   );
   const [showAnswerReveal, setShowAnswerReveal] = useState<boolean>(false);
 
+  // ── SKIP BUTTON STATE ───────────────────────────────────────────────
+  const [skipsRemaining, setSkipsRemaining] = useState<number>(0);
+  const [maxSkipsPerParticipant, setMaxSkipsPerParticipant] = useState<number>(1);
+  const [isSkipping, setIsSkipping] = useState<boolean>(false);
+
   const participantSessionRef = useRef<ParticipantSession | null>(null);
   const currentQuestionRef = useRef<Question | null>(null);
   const sessionStateRef = useRef<SessionState>("join");
@@ -216,6 +222,25 @@ const AudienceParticipation: React.FC = () => {
     }
   }, []);
 
+  // ── Load skips data when participant joins ─────────────────────────
+  const loadSkipsData = useCallback(async () => {
+    if (!participantSessionRef.current) return;
+    
+    const sessionId = participantSessionRef.current.session.id;
+    const participantId = participantSessionRef.current.participantId;
+    
+    // Get max skips from context
+    const maxSkips = await SessionService.getMaxSkipsForSession(sessionId);
+    setMaxSkipsPerParticipant(maxSkips);
+    
+    // Get current skips used
+    const skipsUsed = await SessionService.getParticipantSkipsUsed(participantId);
+    const remaining = Math.max(0, maxSkips - skipsUsed);
+    setSkipsRemaining(remaining);
+    
+    console.log("[Skip] Loaded skips data:", { maxSkips, skipsUsed, remaining });
+  }, []);
+
   useEffect(() => {
     const sessionId = participantSession?.session?.id;
     if (!sessionId) return;
@@ -256,11 +281,12 @@ const AudienceParticipation: React.FC = () => {
     };
 
     loadMetadata();
+    loadSkipsData();
 
     return () => {
       cancelled = true;
     };
-  }, [participantSession?.session?.id]);
+  }, [participantSession?.session?.id, loadSkipsData]);
 
   useEffect(() => {
     if (!isElimination || !participantSession?.session.id) return;
@@ -503,6 +529,7 @@ const AudienceParticipation: React.FC = () => {
           points: questionData.points,
           image: questionData.image_url,
           displayStyle: questionData.display_style,
+          skipAllowed: questionData.skip_allowed ?? false,
         };
 
         applyQuestion(
@@ -953,6 +980,9 @@ const AudienceParticipation: React.FC = () => {
       setIsPaused(paused);
       isPausedRef.current = paused;
 
+      // Load skip data after joining
+      await loadSkipsData();
+
       if (
         result.session.status === "ACTIVE" &&
         result.session.currentQuestionIndex >= 0
@@ -1052,6 +1082,108 @@ const AudienceParticipation: React.FC = () => {
       sessionStateRef.current = "error";
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // ── Handle skip submission ─────────────────────────────────────────
+  const handleSkipResponse = async () => {
+    if (
+      !questionActiveRef.current ||
+      questionClosedRef.current ||
+      isPausedRef.current
+    ) {
+      toast({
+        title: "Cannot Skip",
+        description: isPausedRef.current
+          ? "The session is paused. Please wait for the presenter to resume."
+          : "The time for this question has expired.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const ps = participantSessionRef.current;
+    const q = currentQuestionRef.current;
+    if (!ps || !q) return;
+
+    if (isEliminated) {
+      toast({
+        title: "Cannot Skip",
+        description: "You have been eliminated.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (skipsRemaining <= 0) {
+      toast({
+        title: "No Skips Left",
+        description: "You have used all your skips for this session.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!q.skipAllowed) {
+      toast({
+        title: "Skip Not Allowed",
+        description: "This question does not allow skipping.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSkipping(true);
+
+    try {
+      const result = await SessionService.submitSkip({
+        sessionId: ps.session.id,
+        participantId: ps.participantId,
+        questionId: q.id,
+        participantToken: ps.participantToken,
+        maxSkipsPerParticipant: maxSkipsPerParticipant,
+      });
+
+      if (result.success) {
+        // Refresh skip count
+        const freshSkipsUsed = await SessionService.getParticipantSkipsUsed(ps.participantId);
+        const newRemaining = Math.max(0, maxSkipsPerParticipant - freshSkipsUsed);
+        setSkipsRemaining(newRemaining);
+        
+        setSessionState("submitted");
+        sessionStateRef.current = "submitted";
+        
+        toast({
+          title: "Question Skipped!",
+          description: `${newRemaining} skip${newRemaining !== 1 ? 's' : ''} remaining.`,
+        });
+
+        // Send message to host that this participant skipped
+        sendMessage({
+          type: SESSION_EVENTS.ANSWER_RECEIVED,
+          payload: {
+            participantId: ps.participantId,
+            questionId: q.id,
+            correct: false,
+            skipped: true,
+          },
+        });
+      } else {
+        toast({
+          title: "Skip Failed",
+          description: result.error || "Unable to skip this question.",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      console.error("Skip submission failed:", err);
+      toast({
+        title: "Error",
+        description: err.message || "Failed to skip question.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSkipping(false);
     }
   };
 
@@ -1212,6 +1344,10 @@ const AudienceParticipation: React.FC = () => {
     setShowAnswerReveal(false);
     setRevealedWinner(null);
     setIsGameOver(false);
+    // Reset skip state
+    setSkipsRemaining(0);
+    setMaxSkipsPerParticipant(1);
+    setIsSkipping(false);
   };
 
   const handleRetry = () => {
@@ -1311,8 +1447,13 @@ const AudienceParticipation: React.FC = () => {
                   image: getQuestionImage(currentQuestion),
                   options: currentQuestion.options,
                   responseCount: 0,
+                  skipAllowed: currentQuestion.skipAllowed,
                 }}
                 onSubmit={(r) => handleSubmitResponse({ optionId: r.optionId })}
+                onSkip={currentQuestion.skipAllowed && skipsRemaining > 0 ? handleSkipResponse : undefined}
+                skipsRemaining={skipsRemaining}
+                maxSkips={maxSkipsPerParticipant}
+                isSubmitting={isSkipping}
               />
             )}
             {currentQuestion.type === "open-text" && (

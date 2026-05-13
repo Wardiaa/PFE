@@ -5,8 +5,6 @@ import type { Question } from "../types";
 import {
   Copy,
   Trash2,
-  Lock,
-  Unlock,
   Shuffle,
   Download,
   Upload,
@@ -169,14 +167,6 @@ export function BulkActions({
         onClearSelection();
         toast({ title: "Deleted", description: `${selectedCount} questions removed` });
         break;
-      case "lock":
-        updated = updated.map((q, i) => selectedQuestions.includes(i) ? { ...q, locked: true } : q);
-        toast({ title: "Locked", description: `${selectedCount} questions locked` });
-        break;
-      case "unlock":
-        updated = updated.map((q, i) => selectedQuestions.includes(i) ? { ...q, locked: false } : q);
-        toast({ title: "Unlocked", description: `${selectedCount} questions unlocked` });
-        break;
       default:
         return;
     }
@@ -285,14 +275,6 @@ export function BulkActions({
         title: "Duplicate Questions", label: `Duplicate ${selectedCount}`, variant: "accent",
         body: <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">Create exact copies of <span className="text-slate-900 font-semibold">{selectedCount}</span> selected question{selectedCount > 1 ? "s" : ""}.</p>,
       },
-      lock: {
-        title: "Lock Questions", label: `Lock ${selectedCount}`, variant: "accent",
-        body: <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">Protect <span className="text-slate-900 font-semibold">{selectedCount}</span> question{selectedCount > 1 ? "s" : ""} from accidental edits.</p>,
-      },
-      unlock: {
-        title: "Unlock Questions", label: `Unlock ${selectedCount}`, variant: "accent",
-        body: <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">Allow <span className="text-slate-900 font-semibold">{selectedCount}</span> question{selectedCount > 1 ? "s" : ""} to be edited again.</p>,
-      },
       shuffle: {
         title: "Shuffle Answers", label: `Shuffle ${selectedCount}`, variant: "accent",
         body: <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">Randomize answer order for each of the <span className="text-slate-900 font-semibold">{selectedCount}</span> selected question{selectedCount > 1 ? "s" : ""}.</p>,
@@ -393,8 +375,6 @@ export function BulkActions({
             <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
               <StudioButton variant="accent" onClick={() => setActionType("duplicate")}><Copy className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Duplicate</StudioButton>
               <StudioButton onClick={() => setActionType("shuffle")}><Shuffle className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Shuffle</StudioButton>
-              <StudioButton onClick={() => setActionType("lock")}><Lock className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Lock</StudioButton>
-              <StudioButton onClick={() => setActionType("unlock")}><Unlock className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Unlock</StudioButton>
             </div>
           </div>
 

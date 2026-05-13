@@ -1,6 +1,9 @@
-// Step4.tsx — entire page disabled with a "Coming soon" overlay so the
+// Step4.tsx — with dynamic max skips based on total skippable questions
+// max = total number of questions with skipAllowed = true
+// min = 1 if at least one skippable question exists
+
 import { Slider } from "../../../../components/ui/slider";
-import { Globe, Lock, Copy, Check, Settings, Music, Bell, Users, Clock } from "lucide-react";
+import { Globe, Lock, Copy, Check, Settings, Music, Bell, Users, Clock, SkipForward } from "lucide-react";
 import type { ContextData } from "../../types";
 import { cn } from "../../../../lib/utils";
 import { motion } from "framer-motion";
@@ -8,6 +11,7 @@ import { motion } from "framer-motion";
 interface Step4Props {
   context: ContextData;
   onSettingsChange: (updates: any) => void;
+  onMaxSkipsChange?: (maxSkips: number) => void;
 }
 
 // ── Toggle ────────────────────────────────────────────────────────────────
@@ -28,7 +32,7 @@ const AppToggle = ({
     <div
       className={cn(
         "w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200",
-        checked ? "translate-x-4" : "translate-x-0"
+        checked ? "translate-x-4" : "translate-x-0",
       )}
     />
   </button>
@@ -97,21 +101,54 @@ const MUSIC_OPTS = [
   { value: "none",   label: "None" },
 ];
 
-export function Step4({ context, onSettingsChange }: Step4Props) {
+export function Step4({ context, onSettingsChange, onMaxSkipsChange }: Step4Props) {
+  const isEliminationMode = context.gameMode === "elimination";
+  
+  // Count skippable questions
+  const skippableQuestions = context.questions.filter(q => q.skipAllowed === true);
+  const totalSkippable = skippableQuestions.length;
+  
+  // Has at least one skippable question
+  const hasSkippableQuestion = totalSkippable > 0;
+  
+  // Calculate min and max
+  const minSkips = hasSkippableQuestion ? 1 : 0;
+  const maxSkips = hasSkippableQuestion ? totalSkippable : 3; // Max defaults to 3 if no skippable, but disabled anyway
+  
+  const currentSkips = context.maxSkipsPerParticipant ?? 1;
+  
+  // Clamp current value to valid range
+  let effectiveSkips = currentSkips;
+  if (hasSkippableQuestion) {
+    if (currentSkips < 1) effectiveSkips = 1;
+    if (currentSkips > totalSkippable) effectiveSkips = totalSkippable;
+  }
+  
+  // Setting is disabled if there are no skippable questions
+  const isDisabled = !hasSkippableQuestion;
+
+  // Handle slider change with validation
+  const handleMaxSkipsChange = (newValue: number) => {
+    if (isDisabled) return;
+    // Ensure value is within bounds
+    const clamped = Math.max(minSkips, Math.min(maxSkips, newValue));
+    onMaxSkipsChange?.(clamped);
+  };
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] py-10 px-4 sm:px-6">
       <div className="max-w-5xl mx-auto">
 
-        {/* ── Page header (always visible & sharp) ────────────────── */}
+        {/* ── Page header ────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-10"
         >
           <div className="flex items-center space-x-3 sm:space-x-4 mb-4 sm:mb-6 lg:mb-8">
-              <span className="text-indigo-600 font-black text-lg sm:text-xl tracking-tighter">04</span>
-              <div className="h-[2px] w-8 sm:w-12 bg-gradient-to-r from-indigo-500 to-transparent" />
-              <span className="text-slate-400 font-bold text-[8px] sm:text-[10px] uppercase tracking-[0.3em] sm:tracking-[0.4em]">Systems</span>
+            <span className="text-indigo-600 font-black text-lg sm:text-xl tracking-tighter">04</span>
+            <div className="h-[2px] w-8 sm:w-12 bg-gradient-to-r from-indigo-500 to-transparent" />
+            <span className="text-slate-400 font-bold text-[8px] sm:text-[10px] uppercase tracking-[0.3em] sm:tracking-[0.4em]">Systems</span>
           </div>
           <h1 className="text-4xl sm:text-[3.25rem] font-black text-slate-950 tracking-tighter leading-[0.95] mb-4">
             Configure<br />
@@ -120,32 +157,100 @@ export function Step4({ context, onSettingsChange }: Step4Props) {
           <p className="text-sm text-slate-500 max-w-sm">
             Set participation access, scoring, audio, and notification preferences.
           </p>
-
-          {/* Coming-soon banner */}
-          <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900 text-white text-[11px] font-black uppercase tracking-[0.15em] shadow-md">
-            <Clock className="w-3.5 h-3.5" />
-            Coming soon
-          </div>
-          <p className="mt-3 text-xs text-slate-400 max-w-md">
-            This step is still under construction. The interface is shown
-            for preview only — settings here are not yet saved.
-          </p>
         </motion.div>
 
-        {/* ── Disabled body ─────────────────────────────────────────── */}
+        {/* ── Active settings (not disabled) ─────────────────────────── */}
+        <div className="space-y-5 mb-8">
+          {/* Max Skips Setting - only show in elimination mode */}
+          {isEliminationMode && onMaxSkipsChange && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+            >
+              <SectionCard icon={SkipForward} label="Skip Settings">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">Max skips per participant</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        How many times a participant can skip a question
+                      </p>
+                      {hasSkippableQuestion && (
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          {totalSkippable} skippable question{totalSkippable !== 1 ? 's' : ''} available
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={minSkips}
+                        max={maxSkips}
+                        step="1"
+                        value={effectiveSkips}
+                        disabled={isDisabled}
+                        onChange={(e) => handleMaxSkipsChange(parseInt(e.target.value, 10))}
+                        className={cn(
+                          "w-32 h-2 rounded-lg appearance-none cursor-pointer",
+                          isDisabled 
+                            ? "bg-slate-100 cursor-not-allowed" 
+                            : "bg-slate-200 accent-indigo-600"
+                        )}
+                      />
+                      <span className={cn(
+                        "w-8 text-center font-bold text-lg",
+                        isDisabled ? "text-slate-300" : "text-indigo-600"
+                      )}>
+                        {effectiveSkips}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Warning when no skippable questions */}
+                  {isDisabled && (
+                    <div className="mt-2 p-3 bg-slate-100 rounded-xl border border-slate-200">
+                      <p className="text-[11px] text-slate-500 flex items-start gap-2">
+                        <SkipForward className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" />
+                        <span>
+                          No questions have "Skip allowed" enabled. 
+                          Go to <span className="font-semibold">Step 3 → Interactivity tab</span> to enable skipping on specific questions.
+                        </span>
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Info when skips are available */}
+                  {!isDisabled && (
+                    <div className="mt-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <p className="text-[11px] text-slate-600 flex items-start gap-2">
+                        <SkipForward className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" />
+                        <span>
+                          Each participant gets <span className="font-bold">{effectiveSkips}</span> skip{effectiveSkips !== 1 ? 's' : ''} for the entire session.
+                          {effectiveSkips === totalSkippable && effectiveSkips > 0 && " They can skip every skippable question if they want."}
+                          {effectiveSkips < totalSkippable && effectiveSkips > 0 && ` They'll need to choose wisely — only ${effectiveSkips} of the ${totalSkippable} skippable questions can be skipped.`}
+                        </span>
+                      </p>
+                    </div>
+                   )}
+                </div>
+              </SectionCard>
+            </motion.div>
+          )}
+        </div>
+
+        {/* ── Disabled body (Coming Soon features) ─────────────────────────── */}
         <div
           aria-hidden="true"
           className="space-y-5 opacity-40 pointer-events-none select-none filter grayscale"
         >
-
           {/* Row 1 — Participation (full width) */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
+            transition={{ delay: 0.08 }}
           >
             <SectionCard icon={Users} label="Participation">
-              {/* Mode picker */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-5">
                 {MODES.map(({ value, label, desc, Icon }) => {
                   const active = context.settings.participationMode === value;
@@ -173,7 +278,6 @@ export function Step4({ context, onSettingsChange }: Step4Props) {
                 })}
               </div>
 
-              {/* Toggle group */}
               <div className="border border-slate-200 rounded-xl px-4 mb-5">
                 <ToggleRow
                   label="Require account"
@@ -196,7 +300,6 @@ export function Step4({ context, onSettingsChange }: Step4Props) {
                 />
               </div>
 
-              {/* Slider */}
               <div>
                 <div className="flex items-baseline justify-between mb-3">
                   <p className="text-sm font-semibold text-slate-800">Max participants</p>
@@ -221,15 +324,12 @@ export function Step4({ context, onSettingsChange }: Step4Props) {
           </motion.div>
 
           <div className="grid sm:grid-cols-2 gap-5 items-start">
-
-            {/* Game rules */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.08 }}
+              transition={{ delay: 0.11 }}
             >
               <SectionCard icon={Settings} label="Game rules">
-                {/* Time limit */}
                 <div className="flex items-center justify-between py-3.5 border-b border-slate-100">
                   <div>
                     <p className="text-sm font-semibold text-slate-800">Time limit</p>
@@ -246,7 +346,6 @@ export function Step4({ context, onSettingsChange }: Step4Props) {
                   </div>
                 </div>
 
-                {/* Validation */}
                 <div className="py-3.5 border-b border-slate-100">
                   <p className="text-sm font-semibold text-slate-800 mb-2">Answer validation</p>
                   <div className="flex gap-1">
@@ -267,7 +366,6 @@ export function Step4({ context, onSettingsChange }: Step4Props) {
                   </div>
                 </div>
 
-                {/* Toggles */}
                 <ToggleRow
                   label="Show leaderboard"
                   description="Display scores live"
@@ -296,12 +394,11 @@ export function Step4({ context, onSettingsChange }: Step4Props) {
               </SectionCard>
             </motion.div>
 
-            {/* Audio + Notifications stacked */}
             <div className="space-y-5">
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.11 }}
+                transition={{ delay: 0.14 }}
               >
                 <SectionCard icon={Music} label="Audio & effects">
                   <ToggleRow
@@ -335,7 +432,7 @@ export function Step4({ context, onSettingsChange }: Step4Props) {
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.14 }}
+                transition={{ delay: 0.17 }}
               >
                 <SectionCard icon={Bell} label="Notifications">
                   <ToggleRow

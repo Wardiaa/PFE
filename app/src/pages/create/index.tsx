@@ -1,13 +1,18 @@
 // EnhancedCreate.tsx
+// MODE SELECTION UPDATE: Added ModeSelection screen for blank templates
+// SKIP UPDATE: Added onMaxSkipsChange prop
+
 import { useState } from "react";
 import { useQuizBuilder } from "./hooks/useQuizBuilder";
 import { renderStep } from "./components/steps";
 import { Header } from "./components/Header";
 import { PreviewModal } from "./components/PreviewModal";
+import { ModeSelection, type GameMode } from "./components/ModeSelection";
 import DeleteQuestionConfirmModal from "./components/DeleteQuestionConfirmModal";
 
 export default function EnhancedCreate() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
 
   const {
     step,
@@ -62,7 +67,27 @@ export default function EnhancedCreate() {
     handleUndo,
     handleRedo,
     handleGameModeChange,
+    handleMaxSkipsChange,
+    showModeSelection,
+    setShowModeSelection,
   } = useQuizBuilder();
+
+  // If we're showing mode selection screen (only for blank template)
+  if (showModeSelection && selectedTemplate === "custom-blank") {
+    return (
+      <ModeSelection
+        selectedMode={selectedMode}
+        onSelectMode={(mode) => {
+          setSelectedMode(mode);
+          handleGameModeChange(mode);
+        }}
+        onContinue={() => {
+          setShowModeSelection(false);
+          setStep(2);
+        }}
+      />
+    );
+  }
 
   const currentStep = renderStep({
     step,
@@ -114,6 +139,7 @@ export default function EnhancedCreate() {
     onHandleCreate: handleCreate,
     onSaveDraft: handleSaveDraft,
     onGameModeChange: handleGameModeChange,
+    onMaxSkipsChange: handleMaxSkipsChange,
   });
 
   const currentQuestion = context.questions[currentQuestionIndex] || null;
@@ -150,7 +176,6 @@ export default function EnhancedCreate() {
         currentQuestionIndex={currentQuestionIndex}
       />
 
-      {/* Delete confirmation modal */}
       <DeleteQuestionConfirmModal
         isOpen={!!pendingDeleteQuestion}
         questionTitle={pendingDeleteQuestion?.title || ""}

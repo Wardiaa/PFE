@@ -15,23 +15,34 @@ interface Question {
   imageUrl?: string | null;
   options?: Option[];
   responseCount?: number;
+  skipAllowed?: boolean;
 }
 
 interface MultipleChoiceQuestionProps {
   question: Question;
   onSubmit: (response: { optionId: string }) => void;
+  onSkip?: () => void;
+  skipsRemaining?: number;
+  maxSkips?: number;
+  isSubmitting?: boolean;
 }
 
-const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({ question, onSubmit }) => {
+const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
+  question,
+  onSubmit,
+  onSkip,
+  skipsRemaining = 0,
+  maxSkips = 1,
+  isSubmitting = false,
+}) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   // PRIORITY 2: Add hasSubmitted state to prevent double submissions
   const [hasSubmitted, setHasSubmitted] = useState<boolean>(false);
+  const [isSkipping, setIsSkipping] = useState<boolean>(false);
   const questionImage = question?.image || question?.imageUrl;
 
   // Check if an option has only an image and no text
   const isImageOnlyOption = (option: Option): boolean => {
-    // Check if imageUrl exists AND text is either undefined, null, or empty string
     const hasImage = !!option.imageUrl;
     const hasNoText = !option.text || option.text.trim() === '';
     return hasImage && hasNoText;
@@ -49,7 +60,6 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({ questio
     if (hasSubmitted) return; // Guard against double submission
     
     setHasSubmitted(true);
-    setIsSubmitting(true);
     
     try {
       await onSubmit({ optionId: selectedOption });
@@ -58,10 +68,26 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({ questio
       console.error("Submission failed:", error);
       // On error, re-enable so user can retry
       setHasSubmitted(false);
-    } finally {
-      setIsSubmitting(false);
     }
   };
+
+  // Skip handler
+  const handleSkip = async (): Promise<void> => {
+    if (!onSkip) return;
+    if (hasSubmitted || isSubmitting || isSkipping) return;
+    
+    setIsSkipping(true);
+    try {
+      await onSkip();
+      setHasSubmitted(true); // Mark as submitted so UI updates
+    } catch (error) {
+      console.error("Skip failed:", error);
+    } finally {
+      setIsSkipping(false);
+    }
+  };
+
+  const showSkipButton = question.skipAllowed && onSkip && skipsRemaining > 0 && !hasSubmitted && !isSubmitting;
 
   return (
     <div className="w-full max-w-2xl mx-auto">
@@ -74,6 +100,12 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({ questio
             <span className="text-sm font-medium text-muted-foreground">
               Multiple Choice
             </span>
+            {/* Skip counter badge */}
+            {showSkipButton && (
+              <span className="ml-auto text-xs text-muted-foreground">
+                {skipsRemaining} skip{skipsRemaining !== 1 ? 's' : ''} left
+              </span>
+            )}
           </div>
           <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground leading-tight">
             {question?.text}
@@ -168,18 +200,36 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({ questio
           })}
         </div>
 
-        <Button
-          variant="default"
-          size="lg"
-          fullWidth
-          onClick={handleSubmit}
-          disabled={hasSubmitted || isSubmitting || selectedOption === null} // 👈 Updated disabled condition
-          loading={isSubmitting}
-          iconName="Send"
-          iconPosition="right"
-        >
-          Submit Answer
-        </Button>
+        {/* Button row with Skip + Submit - unified styling */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          {showSkipButton && (
+            <Button
+              variant="default"
+              size="lg"
+              onClick={handleSkip}
+              disabled={hasSubmitted || isSubmitting || isSkipping}
+              loading={isSkipping}
+              iconName="SkipForward"
+              iconPosition="left"
+              className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              Skip Question
+            </Button>
+          )}
+          <Button
+            variant="default"
+            size="lg"
+            fullWidth={!showSkipButton}
+            onClick={handleSubmit}
+            disabled={hasSubmitted || isSubmitting || selectedOption === null}
+            loading={isSubmitting}
+            iconName="Send"
+            iconPosition="right"
+            className={showSkipButton ? "flex-1" : "w-full bg-indigo-600 hover:bg-indigo-700 text-white"}
+          >
+            Submit Answer
+          </Button>
+        </div>
       </div>
     </div>
   );

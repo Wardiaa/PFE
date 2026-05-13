@@ -1,4 +1,5 @@
 // presentation.types.ts — Updated to include SCALING and RANKING question types.
+// SKIP BUTTON UPDATE: Added skipAllowed to Question interface
 
 export type QuestionType =
   | "multiple-choice"
@@ -67,6 +68,9 @@ export interface Question {
 
   /** per-question override; defaults to the session's gameMode. */
   gameMode?: GameMode;
+  
+  /** whether participants can skip this question (elimination mode only) */
+  skipAllowed?: boolean;
 }
 
 export interface Presentation {
@@ -108,6 +112,8 @@ export interface Participant {
   isAlive?: boolean;
   eliminatedAtRound?: number | null;
   eliminatedAtQuestionId?: string | null;
+  /** number of skips used by this participant */
+  skipsUsed?: number;
 }
 
 export interface IndividualChoiceResponse {

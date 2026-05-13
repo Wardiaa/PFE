@@ -56,8 +56,10 @@ interface StepsProps {
   onRedo: () => void;
   onHandleCreate: () => void;
   onSaveDraft: () => void;
-  // ── NEW: game mode toggle callback ───────────────────────────────────────
+  // ── Game mode toggle callback ───────────────────────────────────────
   onGameModeChange?: (mode: "standard" | "elimination") => void;
+  // ── Max skips per participant callback ──────────────────────────────
+  onMaxSkipsChange?: (maxSkips: number) => void;
 }
 
 export function renderStep({
@@ -109,17 +111,15 @@ export function renderStep({
   onRedo,
   onHandleCreate,
   onSaveDraft,
-  onGameModeChange, // <-- NEW
+  onGameModeChange,
+  onMaxSkipsChange,
 }: StepsProps) {
   switch (step) {
     case 1:
       return (
         <Step1
           selectedTemplate={selectedTemplate}
-          showTemplateCustomization={showTemplateCustomization}
-          setShowTemplateCustomization={setShowTemplateCustomization}
           onTemplateSelect={onTemplateSelect}
-          onTemplateCustomize={onTemplateCustomize}
         />
       );
 
@@ -134,7 +134,7 @@ export function renderStep({
           onCategoryChange={onCategoryChange}
           onTagsChange={onTagsChange}
           onCoverImageChange={onCoverImageChange}
-          onGameModeChange={onGameModeChange} // <-- NEW
+          onGameModeChange={onGameModeChange}
         />
       );
 
@@ -179,6 +179,7 @@ export function renderStep({
         <Step4
           context={context}
           onSettingsChange={onSettingsChange}
+          onMaxSkipsChange={onMaxSkipsChange}
         />
       );
 

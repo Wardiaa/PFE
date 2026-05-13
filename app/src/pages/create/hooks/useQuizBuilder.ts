@@ -1,4 +1,6 @@
 // useQuizBuilder.ts — COMPLETE FILE WITH RANKING + SCALING + 100% Logique INTEGRATION
+// MODE SELECTION UPDATE: Added showModeSelection state, updated handleTemplateSelect
+// SKIP UPDATE: Added maxSkipsPerParticipant to ContextData and reducer
 //
 // This version includes:
 //  - creator_id (not user_id) for contexts
@@ -7,6 +9,8 @@
 //  - scaling statements persistence
 //  - original deletion logic (forceDeleteIds + orphan cleanup)
 //  - no unused applyQuestionSettings function
+//  - MODE SELECTION: showModeSelection for blank templates
+//  - SKIP: maxSkipsPerParticipant storage
 
 import { useState, useEffect, useCallback, useReducer, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -47,6 +51,8 @@ function historyReducer(
       return { ...state, gameMode: action.payload };
     case "SET_THEME_ID":
       return { ...state, themeId: action.payload };
+    case "SET_MAX_SKIPS":
+      return { ...state, maxSkipsPerParticipant: action.payload };
     case "UPDATE_QUESTION":
       return {
         ...state,
@@ -96,6 +102,7 @@ const INITIAL_STATE: ContextData = {
   settings: DEFAULT_SETTINGS,
   gameMode: "standard",
   themeId: "default",
+  maxSkipsPerParticipant: 1, // NEW: default 1 skip per participant
 };
 
 // ---------------------------------------------------------------------------
@@ -142,10 +149,8 @@ function toDbQuestionType(localType: string): DbQuestionType {
     IMAGE_CHOICE: "IMAGE_CHOICE",
     SCALING: "SCALING",
     scaling: "SCALING",
-    // RANKING support
     RANKING: "RANKING",
     ranking: "RANKING",
-    // local aliases
     QUIZ: "MULTIPLE_CHOICE",
     OPEN: "OPEN_TEXT",
     "multiple-choice": "MULTIPLE_CHOICE",
@@ -181,6 +186,7 @@ function toDbQuestion(q: Question, contextId: string, questionOrder: number) {
     show_results_instantly: q.showResultsInstantly ?? false,
     hide_participant_names: q.hideParticipantNames ?? false,
     statements: (q as any).statements ?? null,
+    skip_allowed: q.skipAllowed ?? false, // NEW: persist skip_allowed
   };
 }
 
@@ -228,6 +234,8 @@ export function useQuizBuilder() {
   const [leftPanelTab, setLeftPanelTab] = useState<"types" | "bulk">("types");
   const [isPublishing, setIsPublishing] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  // NEW: mode selection state
+  const [showModeSelection, setShowModeSelection] = useState(false);
 
   const [context, dispatch] = useReducer(historyReducer, INITIAL_STATE);
   const [history, setHistory] = useState<ContextData[]>([INITIAL_STATE]);
@@ -291,6 +299,7 @@ export function useQuizBuilder() {
         const dbGameMode = (ctx as any).game_mode === "elimination" ? "elimination" : "standard";
         dispatch({ type: "SET_GAME_MODE", payload: dbGameMode });
         dispatch({ type: "SET_THEME_ID", payload: (ctx as any).theme || "default" });
+        dispatch({ type: "SET_MAX_SKIPS", payload: (ctx as any).max_skips_per_participant ?? 1 });
 
         const localQuestions: Question[] = (questions ?? []).map((q: any) => ({
           id: q.id,
@@ -311,6 +320,7 @@ export function useQuizBuilder() {
           showResultsInstantly: q.show_results_instantly ?? false,
           hideParticipantNames: q.hide_participant_names ?? false,
           statements: q.statements ?? undefined,
+          skipAllowed: q.skip_allowed ?? false, // NEW
         }));
         dispatch({ type: "SET_QUESTIONS", payload: localQuestions });
 
@@ -328,6 +338,7 @@ export function useQuizBuilder() {
           settings: ctx.settings || DEFAULT_SETTINGS,
           gameMode: dbGameMode,
           themeId: (ctx as any).theme || "default",
+          maxSkipsPerParticipant: (ctx as any).max_skips_per_participant ?? 1,
         };
         setHistory([loadedState]);
         setHistoryIndex(0);
@@ -367,6 +378,9 @@ export function useQuizBuilder() {
         }
         if (parsed.themeId) {
           dispatch({ type: "SET_THEME_ID", payload: parsed.themeId });
+        }
+        if (parsed.maxSkipsPerParticipant) {
+          dispatch({ type: "SET_MAX_SKIPS", payload: parsed.maxSkipsPerParticipant });
         }
         if (parsed.contextType) setContextType(parsed.contextType);
         toast({
@@ -433,6 +447,7 @@ export function useQuizBuilder() {
       dispatch({ type: "SET_COVER_IMAGE", payload: prev.coverImage || null });
       dispatch({ type: "SET_GAME_MODE", payload: prev.gameMode ?? "standard" });
       dispatch({ type: "SET_THEME_ID", payload: prev.themeId ?? "default" });
+      dispatch({ type: "SET_MAX_SKIPS", payload: prev.maxSkipsPerParticipant ?? 1 });
       setHistoryIndex(historyIndex - 1);
       toast({ title: "Undo", description: "Last action undone", duration: 1500 });
     }
@@ -451,6 +466,7 @@ export function useQuizBuilder() {
       dispatch({ type: "SET_COVER_IMAGE", payload: next.coverImage || null });
       dispatch({ type: "SET_GAME_MODE", payload: next.gameMode ?? "standard" });
       dispatch({ type: "SET_THEME_ID", payload: next.themeId ?? "default" });
+      dispatch({ type: "SET_MAX_SKIPS", payload: next.maxSkipsPerParticipant ?? 1 });
       setHistoryIndex(historyIndex + 1);
       toast({ title: "Redo", description: "Action restored", duration: 1500 });
     }
@@ -496,6 +512,7 @@ export function useQuizBuilder() {
     const newQuestion: Question = {
       ...(raw as any),
       text: (raw as any).text ?? (raw as any).title ?? "",
+      skipAllowed: false, // NEW: default
     };
     dispatch({ type: "ADD_QUESTION", payload: newQuestion });
     setCurrentQuestionIndex(context.questions.length);
@@ -601,8 +618,13 @@ export function useQuizBuilder() {
     markUnsaved();
   };
 
+  const handleMaxSkipsChange = (maxSkips: number) => {
+    dispatch({ type: "SET_MAX_SKIPS", payload: maxSkips });
+    markUnsaved();
+  };
+
   // ── Template helpers ───────────────────────────────────────────────────────
-  // UPDATED: handleTemplateSelect now applies template directly (no customization modal)
+  // UPDATED: handleTemplateSelect now shows mode selection for blank template
   const handleTemplateSelect = (templateId: string) => {
     const template = templates.find((t) => t.id === templateId);
     if (!template) return;
@@ -610,55 +632,47 @@ export function useQuizBuilder() {
     setContextType(deriveContextType(templateId));
 
     if (templateId === "custom-blank") {
+      // For blank template, show mode selection screen
+      setShowModeSelection(true);
       handleTitleChange("Untitled Context");
       dispatch({ type: "SET_QUESTIONS", payload: [] });
       dispatch({ type: "SET_GAME_MODE", payload: "standard" });
       dispatch({ type: "SET_THEME_ID", payload: "default" });
       dispatch({ type: "SET_THEME", payload: "default" });
-      setStep(2);
-      toast({
-        title: "Blank canvas selected",
-        description: "Start creating from scratch!",
-      });
+      // Don't proceed to step 2 yet - wait for mode selection
       return;
     }
 
-    // Apply template data directly (skip customization modal)
-    // Title
+    // For templates, auto-detect mode from template
+    const templateGameMode = (template as any).gameMode === "elimination" ? "elimination" : "standard";
+    dispatch({ type: "SET_GAME_MODE", payload: templateGameMode });
+    dispatch({ type: "SET_THEME_ID", payload: (template as any).themeId || "default" });
+    
+    // Apply template data directly
     handleTitleChange(template.name);
-    // Description
     if (template.description) {
       dispatch({ type: "SET_DESCRIPTION", payload: template.description });
     }
-    // Questions – clone deeply to avoid reference issues
     if (template.questions?.length) {
       const clonedQuestions = JSON.parse(JSON.stringify(template.questions));
       dispatch({ type: "SET_QUESTIONS", payload: clonedQuestions });
     } else {
       dispatch({ type: "SET_QUESTIONS", payload: [] });
     }
-    // Settings
     if (template.settings) {
       dispatch({
         type: "SET_SETTINGS",
         payload: { ...DEFAULT_SETTINGS, ...template.settings },
       });
     }
-    // Game mode & theme (for elimination templates like 100% Logique)
-    const gameMode = (template as any).gameMode === "elimination" ? "elimination" : "standard";
-    const themeId = (template as any).themeId || "default";
-    dispatch({ type: "SET_GAME_MODE", payload: gameMode });
-    dispatch({ type: "SET_THEME_ID", payload: themeId });
-    dispatch({ type: "SET_THEME", payload: themeId });
-    // Category (optional)
     if (template.category) {
       dispatch({ type: "SET_CATEGORY", payload: template.category });
     }
-    // Cover image (if present)
     if ((template as any).coverImage) {
       dispatch({ type: "SET_COVER_IMAGE", payload: (template as any).coverImage });
     }
 
+    setShowModeSelection(false);
     setStep(2);
     toast({
       title: "Template loaded",
@@ -692,7 +706,7 @@ export function useQuizBuilder() {
     });
   };
 
-  // ── Core Supabase upsert (original logic + Ranking support) ─────────────────
+  // ── Core Supabase upsert (original logic + Ranking support + skip_allowed) ──
   async function saveToSupabase(status: "ACTIVE" | "DRAFT"): Promise<string> {
     if (!user) throw new Error("You must be signed in to save.");
 
@@ -715,6 +729,7 @@ export function useQuizBuilder() {
           settings: context.settings,
           cover_image: context.coverImage || null,
           game_mode: persistedGameMode,
+          max_skips_per_participant: context.maxSkipsPerParticipant ?? 1, // NEW
         })
         .eq("id", draftContextId);
 
@@ -750,6 +765,7 @@ export function useQuizBuilder() {
             show_results_instantly: q.showResultsInstantly ?? false,
             hide_participant_names: q.hideParticipantNames ?? false,
             statements: (q as any).statements ?? null,
+            skip_allowed: q.skipAllowed ?? false, // NEW
           })
           .eq("id", q.id);
         if (error) throw new Error(error.message);
@@ -829,6 +845,7 @@ export function useQuizBuilder() {
         settings: context.settings,
         cover_image: context.coverImage || null,
         game_mode: persistedGameMode,
+        max_skips_per_participant: context.maxSkipsPerParticipant ?? 1, // NEW
       })
       .select("id")
       .single();
@@ -998,6 +1015,7 @@ export function useQuizBuilder() {
         ...current,
         id: `q${Date.now()}`,
         title: `${current.title} (Copy)`,
+        skipAllowed: current.skipAllowed ?? false,
       };
       const newQuestions = [...context.questions];
       newQuestions.splice(currentQuestionIndex + 1, 0, duplicate);
@@ -1094,6 +1112,9 @@ export function useQuizBuilder() {
     isSavingDraft,
     isLoadingEdit,
     isEditMode: !!editId,
+    // NEW: mode selection
+    showModeSelection,
+    setShowModeSelection,
 
     pendingDeleteQuestion,
     confirmDeleteQuestion,
@@ -1110,6 +1131,7 @@ export function useQuizBuilder() {
     handleCoverImageChange,
     handleSettingsChange,
     handleGameModeChange,
+    handleMaxSkipsChange, // NEW
     toggleQuestionSelection,
     handleTemplateSelect,
     handleTemplateCustomize,

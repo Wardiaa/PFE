@@ -1,3 +1,6 @@
+// QuestionSidePanel.tsx - UPDATED with Skip toggle for elimination mode
+// Added skipAllowed toggle in Interactivity panel when isEliminationMode is true
+
 import { useState, useEffect, type ChangeEvent, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../../../lib/utils";
@@ -18,10 +21,7 @@ import {
   Check,
   BarChart2,
   HelpCircle,
-  Lock,
-  Unlock,
   RefreshCw,
-  Image as ImageIcon,
   Loader2,
   Plus,
   ArrowLeft,
@@ -33,7 +33,7 @@ import {
   Upload,
   SlidersHorizontal,
   GripVertical,
-  ListOrdered,       // ✅ added for ranking
+  ListOrdered,       // ✅ NEW: for skip toggle
 } from "lucide-react";
 
 // Local interactivity settings state
@@ -56,6 +56,10 @@ interface QuestionSidePanelProps {
   onToggle: () => void;
   /** When true, renders as a flat inline panel (no absolute positioning — for mobile bottom sheets) */
   inline?: boolean;
+  /** NEW: whether elimination mode is active (shows skip toggle) */
+  isEliminationMode?: boolean;
+  /** NEW: global max skips per participant */
+  maxSkipsPerParticipant?: number;
 }
 
 interface UploadState {
@@ -282,6 +286,8 @@ export function QuestionSidePanel({
   onToggle,
   isOpen,
   inline = false,
+  isEliminationMode = false,
+  maxSkipsPerParticipant = 1,
 }: QuestionSidePanelProps) {
   const [activeMenu, setActiveMenu] = useState<string>("edit");
   const [uploadStates, setUploadStates] = useState<Record<number, UploadState>>({});
@@ -863,50 +869,7 @@ export function QuestionSidePanel({
           </div>
         </div>
 
-        {/* Time Limit (hidden for ranking/scaling) */}
-        {!isRankingType && !isScalingType && (
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5" /> Time Limit
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                value={currentQuestion.timeLimit ?? 60}
-                min={0}
-                max={300}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10);
-                  onUpdateQuestion({ timeLimit: isNaN(val) ? null : val });
-                }}
-                className="w-full px-4 py-2.5 bg-[#F1F3F5] rounded-xl border border-transparent focus:border-slate-200 outline-none text-sm font-medium"
-              />
-              <span className="text-xs text-slate-400 shrink-0">seconds</span>
-            </div>
-            <p className="text-[11px] text-slate-400">Set to 0 for no time limit</p>
-          </div>
-        )}
-
-        {/* Points (hidden for ranking/scaling) */}
-        {!isRankingType && !isScalingType && (
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Points
-            </label>
-            <input
-              type="number"
-              value={currentQuestion.points ?? 10}
-              min={0}
-              max={1000}
-              step={5}
-              onChange={(e) => {
-                const val = parseInt(e.target.value, 10);
-                onUpdateQuestion({ points: isNaN(val) ? 0 : val });
-              }}
-              className="w-full px-4 py-2.5 bg-[#F1F3F5] rounded-xl border border-transparent focus:border-slate-200 outline-none text-sm font-medium"
-            />
-          </div>
-        )}
+      
       </div>
     );
   };
@@ -932,7 +895,7 @@ export function QuestionSidePanel({
     </div>
   );
 
-  // ── Interactivity Panel (unchanged from your original) ─────────────────────
+  // ── Interactivity Panel (UPDATED with Skip toggle for elimination mode) ───
   const renderInteractivityPanel = () => {
     const q = currentQuestion;
     if (!q) {
@@ -1009,9 +972,6 @@ export function QuestionSidePanel({
         <section className="space-y-3">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-800">Participant names</h3>
-            <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold uppercase">
-              Pro
-            </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-slate-600">Hide participant names</span>
@@ -1023,6 +983,46 @@ export function QuestionSidePanel({
               }}
             />
           </div>
+        </section>
+        
+        <div className="h-px bg-slate-100" />
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-bold text-slate-800">Settings</h3>
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BarChart2 className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-xs text-slate-600">Show results instantly</span>
+              </div>
+              <MentiToggle
+                checked={interactivitySettings.showResultsInstantly}
+                onChange={(val) => {
+                  setInteractivitySettings((prev) => ({ ...prev, showResultsInstantly: val }));
+                  onUpdateQuestion({ showResultsInstantly: val });
+                }}
+              />
+            </div>  
+          </div>
+
+          {/* ── SKIP SETTINGS (Elimination mode only) ─────────────────────── */}
+          {isEliminationMode && (
+            <>
+              <div className="h-px bg-slate-100 mt-2" />
+              <div className="flex items-center justify-between pt-2">
+                <div>
+                  <span className="text-xs text-slate-600 font-medium">Allow skip on this question</span>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Participants can skip without elimination
+                  </p>
+                </div>
+                <MentiToggle
+                  checked={q.skipAllowed ?? false}
+                  onChange={(val) => onUpdateQuestion({ skipAllowed: val })}
+                />
+              </div>
+            </>
+          )}
         </section>
 
         <div className="h-px bg-slate-100" />
@@ -1082,60 +1082,6 @@ export function QuestionSidePanel({
           </section>
         </ComingSoon>
 
-        <div className="h-px bg-slate-100" />
-
-        <section className="space-y-3">
-          <h3 className="text-sm font-bold text-slate-800">Settings</h3>
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BarChart2 className="w-3.5 h-3.5 text-slate-400" />
-                <span className="text-xs text-slate-600">Show results instantly</span>
-              </div>
-              <MentiToggle
-                checked={interactivitySettings.showResultsInstantly}
-                onChange={(val) => {
-                  setInteractivitySettings((prev) => ({ ...prev, showResultsInstantly: val }));
-                  onUpdateQuestion({ showResultsInstantly: val });
-                }}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {q.locked ? (
-                  <Lock className="w-3.5 h-3.5 text-amber-500" />
-                ) : (
-                  <Unlock className="w-3.5 h-3.5 text-slate-400" />
-                )}
-                <span className="text-xs text-slate-600">Lock question</span>
-              </div>
-              <MentiToggle
-                checked={q.locked || false}
-                onChange={(val) => onUpdateQuestion({ locked: val })}
-              />
-            </div>
-
-            <ComingSoon label="Soon">
-              <div className="space-y-2.5 pt-1">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <BarChart2 className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="text-xs text-slate-600">Allow skip</span>
-                  </div>
-                  <MentiToggle checked={false} onChange={() => {}} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <BarChart2 className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="text-xs text-slate-600">Shuffle options</span>
-                  </div>
-                  <MentiToggle checked={false} onChange={() => {}} />
-                </div>
-              </div>
-            </ComingSoon>
-          </div>
-        </section>
       </div>
     );
   };

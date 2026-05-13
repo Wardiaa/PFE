@@ -3,6 +3,7 @@
 // incrementScore uses DB arithmetic to avoid read-modify-write race conditions.
 // getGameState uses Promise.all to run queries in parallel.
 // All console.log/console.error calls retained for debugging but can be swapped for a logger.
+// SKIP BUTTON UPDATE: Added submitSkip method with atomic increment, getMaxSkipsForSession, getParticipantSkipsUsed
 
 import { supabase } from "../lib/supabase";
 import type {
@@ -89,7 +90,8 @@ export class SessionService {
             image_url,
             question_order,
             hide_participant_names,
-            statements
+            statements,
+            skip_allowed
           )
         `,
         )
@@ -132,6 +134,7 @@ export class SessionService {
           image: q.image_url || undefined,
           displayStyle: q.display_style,
           hideParticipantNames: q.hide_participant_names ?? false,
+          skipAllowed: q.skip_allowed ?? false,
         }));
 
       return {
@@ -187,7 +190,7 @@ export class SessionService {
         supabase
           .from("questions")
           .select(
-            "id, title, description, type, points, time_limit, options, scale, labels, display_style, image_url, question_order, hide_participant_names, statements",
+            "id, title, description, type, points, time_limit, options, scale, labels, display_style, image_url, question_order, hide_participant_names, statements, skip_allowed",
           )
           .eq("context_id", session.context_id)
           .order("question_order", { ascending: true }),
@@ -208,6 +211,7 @@ export class SessionService {
           is_anonymous: isAnonymous,
           is_alive: true,
           score: 0,
+          skips_used: 0,
         })
         .select("id, token")
         .single();
@@ -242,6 +246,7 @@ export class SessionService {
           image: q.image_url || undefined,
           displayStyle: q.display_style,
           hideParticipantNames: q.hide_participant_names ?? false,
+          skipAllowed: q.skip_allowed ?? false,
         }));
 
       return {
@@ -304,6 +309,161 @@ export class SessionService {
     } catch (error) {
       console.error("Submit response error:", error);
       return false;
+    }
+  }
+
+  /**
+   * NEW: Submit a skip for a question (elimination mode only)
+   * Uses atomic increment to prevent race conditions and ensures
+   * participant hasn't already responded.
+   */
+  static async submitSkip({
+    sessionId,
+    participantId,
+    questionId,
+    participantToken,
+    maxSkipsPerParticipant = 1,
+  }: {
+    sessionId: string;
+    participantId: string;
+    questionId: string;
+    participantToken: string;
+    maxSkipsPerParticipant?: number;
+  }): Promise<{ success: boolean; error?: string }> {
+    try {
+      // First verify the participant exists and is alive
+      const { data: participant, error: participantError } = await supabase
+        .from("participants")
+        .select("is_alive, skips_used, session_id")
+        .eq("id", participantId)
+        .single();
+
+      if (participantError || !participant) {
+        return { success: false, error: "Participant not found" };
+      }
+
+      if (!participant.is_alive) {
+        return { success: false, error: "You have already been eliminated" };
+      }
+
+      if (participant.skips_used >= maxSkipsPerParticipant) {
+        return { success: false, error: "No skips remaining" };
+      }
+
+      // Verify the question allows skipping
+      const { data: question, error: questionError } = await supabase
+        .from("questions")
+        .select("skip_allowed")
+        .eq("id", questionId)
+        .single();
+
+      if (questionError || !question?.skip_allowed) {
+        return { success: false, error: "This question does not allow skipping" };
+      }
+
+      // Check if already responded
+      const { data: existingResponse, error: responseCheckError } = await supabase
+        .from("responses")
+        .select("id")
+        .eq("session_id", sessionId)
+        .eq("participant_id", participantId)
+        .eq("question_id", questionId)
+        .maybeSingle();
+
+      if (existingResponse) {
+        return { success: false, error: "You have already responded to this question" };
+      }
+
+      // Atomically increment skips using RPC (prevents race conditions)
+      const { data: incrementSuccess, error: rpcError } = await supabase.rpc(
+        "increment_participant_skips",
+        {
+          p_participant_id: participantId,
+          p_max_skips: maxSkipsPerParticipant,
+        }
+      );
+
+      if (rpcError || !incrementSuccess) {
+        console.error("Skip increment failed:", rpcError);
+        return { success: false, error: "Failed to record skip" };
+      }
+
+      // Insert skip response
+      const { error: insertError } = await supabase.from("responses").insert({
+        session_id: sessionId,
+        participant_id: participantId,
+        question_id: questionId,
+        answer: { skipped: true, timestamp: new Date().toISOString() },
+        is_skip: true,
+        submitted_at: new Date().toISOString(),
+      });
+
+      if (insertError) {
+        console.error("Failed to insert skip response:", insertError);
+        return { success: false, error: "Failed to record response" };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error("submitSkip error:", error);
+      return { success: false, error: "An unexpected error occurred" };
+    }
+  }
+
+  /**
+   * Get max skips per participant for a session
+   * Reads from the context via session context_id
+   */
+  static async getMaxSkipsForSession(sessionId: string): Promise<number> {
+    try {
+      const { data: session, error: sessionError } = await supabase
+        .from("sessions")
+        .select("context_id")
+        .eq("id", sessionId)
+        .single();
+      
+      if (sessionError || !session) {
+        console.error("Failed to get session:", sessionError);
+        return 1;
+      }
+      
+      const { data: context, error: contextError } = await supabase
+        .from("contexts")
+        .select("max_skips_per_participant")
+        .eq("id", session.context_id)
+        .single();
+      
+      if (contextError || !context) {
+        console.error("Failed to get context:", contextError);
+        return 1;
+      }
+      
+      return context.max_skips_per_participant ?? 1;
+    } catch (error) {
+      console.error("getMaxSkipsForSession error:", error);
+      return 1;
+    }
+  }
+
+  /**
+   * Get current skips used by a participant
+   */
+  static async getParticipantSkipsUsed(participantId: string): Promise<number> {
+    try {
+      const { data: participant, error } = await supabase
+        .from("participants")
+        .select("skips_used")
+        .eq("id", participantId)
+        .single();
+      
+      if (error || !participant) {
+        return 0;
+      }
+      
+      return participant.skips_used ?? 0;
+    } catch (error) {
+      console.error("getParticipantSkipsUsed error:", error);
+      return 0;
     }
   }
 
@@ -454,6 +614,7 @@ export class SessionService {
         isAlive: p.is_alive ?? true,
         eliminatedAtRound: p.eliminated_at_round ?? null,
         eliminatedAtQuestionId: p.eliminated_at_question_id ?? null,
+        skipsUsed: p.skips_used ?? 0,
       }));
     } catch (error) {
       console.error("Get participants error:", error);
@@ -485,6 +646,16 @@ export class SessionService {
         const participantName = response.participants?.name;
 
         if (typeof answer !== "object" || answer === null) return;
+
+        // Skip responses are handled differently
+        if (answer.skipped === true) {
+          aggregated.skippedCount = (aggregated.skippedCount || 0) + 1;
+          if (!hideParticipantNames && participantName) {
+            aggregated.skippedParticipants = aggregated.skippedParticipants || [];
+            aggregated.skippedParticipants.push(participantName);
+          }
+          return;
+        }
 
         // ── Scaling answers ────────────────────────────────────────────────
         if (answer.scalingAnswers && typeof answer.scalingAnswers === "object") {
@@ -751,7 +922,7 @@ export class SessionService {
           supabase
             .from("participants")
             .select(
-              "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id",
+              "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id, skips_used",
             )
             .eq("session_id", sessionId),
           supabase
@@ -776,6 +947,7 @@ export class SessionService {
         isAlive: p.is_alive === true,
         eliminatedAtRound: p.eliminated_at_round ?? null,
         eliminatedAtQuestionId: p.eliminated_at_question_id ?? null,
+        skipsUsed: p.skips_used ?? 0,
       }));
 
       const alive = allParticipants.filter((p) => p.isAlive);
@@ -857,7 +1029,7 @@ export class SessionService {
       const { data: aliveRows } = await supabase
         .from("participants")
         .select(
-          "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id",
+          "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id, skips_used",
         )
         .eq("session_id", sessionId)
         .eq("is_alive", true);
@@ -872,6 +1044,7 @@ export class SessionService {
         isAlive: p.is_alive === true,
         eliminatedAtRound: p.eliminated_at_round ?? null,
         eliminatedAtQuestionId: p.eliminated_at_question_id ?? null,
+        skipsUsed: p.skips_used ?? 0,
       });
 
       const alive = (aliveRows || []).map(toParticipant);
@@ -905,7 +1078,7 @@ export class SessionService {
       const { data: elimRows } = await supabase
         .from("participants")
         .select(
-          "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id",
+          "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id, skips_used",
         )
         .eq("session_id", sessionId)
         .eq("is_alive", false)
@@ -989,4 +1162,28 @@ export class SessionService {
 //   $$;
 //
 //   GRANT EXECUTE ON FUNCTION public.increment_participant_score(uuid, integer)
+//     TO authenticated, anon;
+
+// ── RPC: Atomic skip increment (prevents race conditions)
+// Run in Supabase SQL Editor:
+//
+//   CREATE OR REPLACE FUNCTION public.increment_participant_skips(
+//     p_participant_id uuid,
+//     p_max_skips integer
+//   ) RETURNS boolean LANGUAGE plpgsql AS $$
+//   DECLARE
+//     current_skips integer;
+//   BEGIN
+//     SELECT COALESCE(skips_used, 0) INTO current_skips FROM participants WHERE id = p_participant_id;
+//     
+//     IF current_skips >= p_max_skips THEN
+//       RETURN FALSE;
+//     END IF;
+//     
+//     UPDATE participants SET skips_used = COALESCE(skips_used, 0) + 1 WHERE id = p_participant_id;
+//     RETURN TRUE;
+//   END;
+//   $$;
+//
+//   GRANT EXECUTE ON FUNCTION public.increment_participant_skips(uuid, integer)
 //     TO authenticated, anon;

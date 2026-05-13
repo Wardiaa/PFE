@@ -21,7 +21,7 @@ interface Step2Props {
   onCategoryChange: (value: string) => void;
   onTagsChange: (tags: string[]) => void;
   onCoverImageChange: (imageUrl: string | null) => void;
-  // ── NEW: game mode toggle callback ───────────────────────────────────────
+  // ── Game mode toggle callback ───────────────────────────────────────
   onGameModeChange?: (mode: "standard" | "elimination") => void;
 }
 
@@ -245,7 +245,6 @@ export function Step2({
                 </div>
               )}
             </section>
-
 
             <section className="space-y-4 sm:space-y-6">
               <div className="flex items-center gap-2 mb-2">

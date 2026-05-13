@@ -1,4 +1,6 @@
 // Step3.tsx - FULLY RESPONSIVE (mobile + desktop) WITH ALL FUNCTIONALITIES
+// UPDATED: Passes isEliminationMode and maxSkipsPerParticipant to QuestionSidePanel
+
 import { QuestionTypeSelector } from "../../../../components/ui/question-type-selector";
 import {
   DndContext,
@@ -202,8 +204,6 @@ export function Step3({
       {/* Mobile Top Bar */}
       <div className="border-b border-slate-200/80 bg-white/90 backdrop-blur-sm z-20 shrink-0">
         <div className="px-3 py-2.5 flex items-center gap-2">
-          
-
           {/* Search toggle */}
           <button
             onClick={() => setMobileSearchOpen((v) => !v)}
@@ -444,7 +444,7 @@ export function Step3({
         </div>
       </MobileBottomSheet>
 
-      {/* ── Edit Sheet ── */}
+      {/* ── Edit Sheet (UPDATED with elimination props) ── */}
       <MobileBottomSheet
         isOpen={mobileSheet === "edit"}
         onClose={() => setMobileSheet("none")}
@@ -468,6 +468,8 @@ export function Step3({
           }}
           isOpen={true}
           onToggle={() => setMobileSheet("none")}
+          isEliminationMode={context.gameMode === "elimination"}
+          maxSkipsPerParticipant={context.maxSkipsPerParticipant ?? 1}
         />
       </MobileBottomSheet>
 
@@ -542,8 +544,6 @@ export function Step3({
       {/* Top Bar */}
       <div className="border-b border-slate-200/80 bg-white/80 backdrop-blur-sm z-20 shrink-0">
         <div className="px-6 py-3 flex items-center justify-between">
-          
-
           <div className="flex-1 max-w-md mx-4">
             <div className="relative">
               <input
@@ -815,7 +815,7 @@ export function Step3({
           </div>
         </div>
 
-        {/* Right Side Panel (desktop only) */}
+        {/* Right Side Panel (desktop only) - UPDATED with elimination props */}
         <QuestionSidePanel
           currentQuestion={currentQuestion}
           onUpdateQuestion={(updates) => {
@@ -830,6 +830,8 @@ export function Step3({
           onDeleteQuestion={onDeleteCurrentQuestion}
           isOpen={isSidePanelOpen}
           onToggle={() => setIsSidePanelOpen(!isSidePanelOpen)}
+          isEliminationMode={context.gameMode === "elimination"}
+          maxSkipsPerParticipant={context.maxSkipsPerParticipant ?? 1}
         />
       </div>
 

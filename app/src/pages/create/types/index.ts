@@ -1,4 +1,5 @@
 // builder/types/index.ts — Updated to include statements (Scaling) and ranking items support.
+// MODE SELECTION UPDATE: Added maxSkipsPerParticipant to ContextData, skipAllowed to Question
 import type { GameMode } from "../../../lib/presentation.types";
 
 export interface QuestionOption {
@@ -59,6 +60,8 @@ export interface Question {
   hideParticipantNames?: boolean;
   /** Used by Scaling questions — list of statements to rate. */
   statements?: ScalingStatement[];
+  /**  whether participants can skip this question (elimination mode only) */
+  skipAllowed?: boolean;
 }
 
 export interface ContextData {
@@ -72,9 +75,11 @@ export interface ContextData {
   questions: Question[];
   settings: any;
 
-  // NEW: elimination mode & visual theme for live session
+  //  elimination mode & visual theme for live session
   gameMode?: GameMode;             // "standard" | "elimination"
   themeId?: SessionThemeId;        // e.g. "default" | "cent-pour-cent-logique"
+  //  global skip limit per participant
+  maxSkipsPerParticipant?: number;
 }
 
 export type HistoryAction =
@@ -89,6 +94,7 @@ export type HistoryAction =
   // ── NEW: 100% Logique support ────────────────────────────────────────────
   | { type: "SET_GAME_MODE"; payload: GameMode }
   | { type: "SET_THEME_ID"; payload: SessionThemeId }
+  | { type: "SET_MAX_SKIPS"; payload: number }
   | {
       type: "UPDATE_QUESTION";
       payload: { id: string; updates: Partial<Question> };
