@@ -1624,18 +1624,6 @@ const AudienceParticipation: React.FC = () => {
               </div>
             )}
 
-            {/* Speed question badge */}
-            {isSpeed && !showResults && (
-              <div className="fixed top-20 right-4 z-50">
-                <div className="flex items-center gap-1.5 rounded-full bg-amber-500/20 backdrop-blur-sm px-3 py-1.5 border border-amber-500/30">
-                  <AppIcon name="Zap" size={12} className="text-amber-400" />
-                  <span className="text-xs font-bold text-amber-400">
-                    Speed: Top {currentQuestion.speedMaxAdvance ?? 3} advance
-                  </span>
-                </div>
-              </div>
-            )}
-
             {currentQuestion.type === "multiple-choice" && (
               <MultipleChoiceQuestion
                 question={{
@@ -1651,6 +1639,8 @@ const AudienceParticipation: React.FC = () => {
                 skipsRemaining={skipsRemaining}
                 maxSkips={maxSkipsPerParticipant}
                 isSubmitting={isSkipping}
+                isSpeedQuestion={isSpeed}
+                speedMaxAdvance={currentQuestion.speedMaxAdvance ?? 3}
               />
             )}
             {currentQuestion.type === "open-text" && (

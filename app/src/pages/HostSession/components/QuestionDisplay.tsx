@@ -551,9 +551,16 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
               {question.number}
             </span>
           </div>
-          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-foreground leading-tight">
-            {question.text}
-          </h2>
+          <div className="flex-1">
+            <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-foreground leading-tight">
+              {question.text}
+            </h2>
+            {(question as any).isSpeedQuestion && (
+              <p className="mt-1.5 text-sm font-semibold text-primary">
+                Speed · Top {(question as any).speedMaxAdvance ?? 3} advance
+              </p>
+            )}
+          </div>
         </div>
 
         {question.description && (

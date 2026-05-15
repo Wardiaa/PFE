@@ -25,6 +25,8 @@ interface MultipleChoiceQuestionProps {
   skipsRemaining?: number;
   maxSkips?: number;
   isSubmitting?: boolean;
+  isSpeedQuestion?: boolean;
+  speedMaxAdvance?: number;
 }
 
 const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
@@ -34,6 +36,8 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
   skipsRemaining = 0,
   maxSkips = 1,
   isSubmitting = false,
+  isSpeedQuestion = false,
+  speedMaxAdvance,
 }) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   // PRIORITY 2: Add hasSubmitted state to prevent double submissions
@@ -110,6 +114,11 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
           <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground leading-tight">
             {question?.text}
           </h2>
+          {isSpeedQuestion && (
+            <p className="mt-1.5 text-sm font-semibold text-primary">
+              Speed · Top {speedMaxAdvance ?? 3} advance
+            </p>
+          )}
           {question?.description && (
             <p className="mt-3 text-sm md:text-base text-muted-foreground">
               {question?.description}
