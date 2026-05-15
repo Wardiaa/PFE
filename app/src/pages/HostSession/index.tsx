@@ -29,6 +29,8 @@ import PauseOverlay from "./components/PauseOverlay";
 import EndSessionModal from "./components/EndSessionModal";
 import { EliminationHistory } from "./components/EliminationHistory";
 import { RoundEliminationsOverlay } from "./components/RoundEliminationsOverlay";
+import { SpeedQuestionAdvancingOverlay } from "./components/SpeedQuestionAdvancingOverlay";
+import { FinalRoundWaitingOverlay } from "./components/FinalRoundWaitingOverlay";
 import { GameOverOverlay } from "../audience-participation/components/GameOverOverlay";
 import WinnerReveal from "./components/WinnerReveal";
 import { SessionService } from "../../service/session.service.ts";
@@ -246,6 +248,8 @@ const HostSession: React.FC = () => {
   const [continuingParticipants, setContinuingParticipants] = useState<Participant[]>([]);
   const [finalRoundStarted, setFinalRoundStarted] = useState<boolean>(false);
   const [pendingFinalRoundStart, setPendingFinalRoundStart] = useState<boolean>(false);
+  // Countdown displayed in the FinalRoundWaitingOverlay
+  const [finalRoundDecisionSecondsLeft, setFinalRoundDecisionSecondsLeft] = useState<number>(0);
   
   // ── Debounced refresh timeout ref ─────────────────────────────────────────
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -406,6 +410,19 @@ const HostSession: React.FC = () => {
       setIsFullscreen(false);
     }
   }, []);
+
+  // ── Final round decision countdown (for FinalRoundWaitingOverlay) ─────────
+  useEffect(() => {
+    if (!isFinalRoundDecision) {
+      setFinalRoundDecisionSecondsLeft(0);
+      return;
+    }
+    setFinalRoundDecisionSecondsLeft(finalRoundDecisionTimer);
+    const interval = window.setInterval(() => {
+      setFinalRoundDecisionSecondsLeft((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isFinalRoundDecision, finalRoundDecisionTimer]);
 
   // ── Keep refs in sync ─────────────────────────────────────────────────────
   useEffect(() => { sessionRef.current = session; }, [session]);
@@ -1926,6 +1943,30 @@ const HostSession: React.FC = () => {
             onClose={() => setRoundEliminationCount(null)}
           />
         )}
+
+        {/* Speed question advancing overlay — shown after timer ends and results are processed */}
+        {isElimination && isSpeedQuestion && (
+          <SpeedQuestionAdvancingOverlay
+            count={speedQuestionResults ? speedQuestionResults.advancingParticipantIds.length : null}
+            questionNumber={currentQuestionIndex + 1}
+            advancingNames={
+              speedQuestionResults
+                ? speedQuestionResults.advancingParticipantIds
+                    .map((pid) => participants.find((p) => p.id === pid)?.name ?? "")
+                    .filter(Boolean)
+                : []
+            }
+            onClose={() => setSpeedQuestionResults(null)}
+          />
+        )}
+
+        {/* Final round decision overlay — prevents host screen from appearing frozen */}
+        <FinalRoundWaitingOverlay
+          visible={isFinalRoundDecision}
+          totalDeciding={gameState.alive.length}
+          decidedCount={continuingParticipants.length}
+          secondsRemaining={finalRoundDecisionSecondsLeft}
+        />
       </div>
 
       <LeaveWarningModal
