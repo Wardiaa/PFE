@@ -1,6 +1,7 @@
 // useQuizBuilder.ts — COMPLETE FILE WITH RANKING + SCALING + 100% Logique INTEGRATION
 // MODE SELECTION UPDATE: Added showModeSelection state, updated handleTemplateSelect
 // SKIP UPDATE: Added maxSkipsPerParticipant to ContextData and reducer
+// SPEED QUESTION UPDATE: Added isSpeedQuestion, speedMaxAdvance, finalRoundDecisionTimer
 //
 // This version includes:
 //  - creator_id (not user_id) for contexts
@@ -11,6 +12,8 @@
 //  - no unused applyQuestionSettings function
 //  - MODE SELECTION: showModeSelection for blank templates
 //  - SKIP: maxSkipsPerParticipant storage
+//  - SPEED QUESTION: isSpeedQuestion, speedMaxAdvance storage
+//  - FINAL ROUND: finalRoundDecisionTimer storage
 
 import { useState, useEffect, useCallback, useReducer, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -20,8 +23,7 @@ import { supabase } from "../../../lib/supabase";
 import { templates } from "../../../lib/templates";
 import { getDefaultQuestion } from "../../../lib/question-types";
 import { QUESTION_TYPE_DETAILS } from "../../../lib/question-types";
-import type { ContextData, HistoryAction, Question, SessionThemeId } from "../types";
-import type { GameMode } from "../../../lib/presentation.types";
+import type { ContextData, HistoryAction, Question } from "../types";
 
 // ---------------------------------------------------------------------------
 // Reducer
@@ -53,6 +55,8 @@ function historyReducer(
       return { ...state, themeId: action.payload };
     case "SET_MAX_SKIPS":
       return { ...state, maxSkipsPerParticipant: action.payload };
+    case "SET_FINAL_ROUND_TIMER":
+      return { ...state, finalRoundDecisionTimer: action.payload };
     case "UPDATE_QUESTION":
       return {
         ...state,
@@ -102,7 +106,8 @@ const INITIAL_STATE: ContextData = {
   settings: DEFAULT_SETTINGS,
   gameMode: "standard",
   themeId: "default",
-  maxSkipsPerParticipant: 1, // NEW: default 1 skip per participant
+  maxSkipsPerParticipant: 1,
+  finalRoundDecisionTimer: 20,
 };
 
 // ---------------------------------------------------------------------------
@@ -186,7 +191,9 @@ function toDbQuestion(q: Question, contextId: string, questionOrder: number) {
     show_results_instantly: q.showResultsInstantly ?? false,
     hide_participant_names: q.hideParticipantNames ?? false,
     statements: (q as any).statements ?? null,
-    skip_allowed: q.skipAllowed ?? false, // NEW: persist skip_allowed
+    skip_allowed: q.skipAllowed ?? false,
+    is_speed_question: q.isSpeedQuestion ?? false,
+    speed_max_advance: q.speedMaxAdvance ?? null,
   };
 }
 
@@ -234,7 +241,6 @@ export function useQuizBuilder() {
   const [leftPanelTab, setLeftPanelTab] = useState<"types" | "bulk">("types");
   const [isPublishing, setIsPublishing] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
-  // NEW: mode selection state
   const [showModeSelection, setShowModeSelection] = useState(false);
 
   const [context, dispatch] = useReducer(historyReducer, INITIAL_STATE);
@@ -300,6 +306,7 @@ export function useQuizBuilder() {
         dispatch({ type: "SET_GAME_MODE", payload: dbGameMode });
         dispatch({ type: "SET_THEME_ID", payload: (ctx as any).theme || "default" });
         dispatch({ type: "SET_MAX_SKIPS", payload: (ctx as any).max_skips_per_participant ?? 1 });
+        dispatch({ type: "SET_FINAL_ROUND_TIMER", payload: (ctx as any).final_round_decision_timer ?? 20 });
 
         const localQuestions: Question[] = (questions ?? []).map((q: any) => ({
           id: q.id,
@@ -320,7 +327,9 @@ export function useQuizBuilder() {
           showResultsInstantly: q.show_results_instantly ?? false,
           hideParticipantNames: q.hide_participant_names ?? false,
           statements: q.statements ?? undefined,
-          skipAllowed: q.skip_allowed ?? false, // NEW
+          skipAllowed: q.skip_allowed ?? false,
+          isSpeedQuestion: q.is_speed_question ?? false,
+          speedMaxAdvance: q.speed_max_advance ?? undefined,
         }));
         dispatch({ type: "SET_QUESTIONS", payload: localQuestions });
 
@@ -339,6 +348,7 @@ export function useQuizBuilder() {
           gameMode: dbGameMode,
           themeId: (ctx as any).theme || "default",
           maxSkipsPerParticipant: (ctx as any).max_skips_per_participant ?? 1,
+          finalRoundDecisionTimer: (ctx as any).final_round_decision_timer ?? 20,
         };
         setHistory([loadedState]);
         setHistoryIndex(0);
@@ -381,6 +391,9 @@ export function useQuizBuilder() {
         }
         if (parsed.maxSkipsPerParticipant) {
           dispatch({ type: "SET_MAX_SKIPS", payload: parsed.maxSkipsPerParticipant });
+        }
+        if (parsed.finalRoundDecisionTimer) {
+          dispatch({ type: "SET_FINAL_ROUND_TIMER", payload: parsed.finalRoundDecisionTimer });
         }
         if (parsed.contextType) setContextType(parsed.contextType);
         toast({
@@ -448,6 +461,7 @@ export function useQuizBuilder() {
       dispatch({ type: "SET_GAME_MODE", payload: prev.gameMode ?? "standard" });
       dispatch({ type: "SET_THEME_ID", payload: prev.themeId ?? "default" });
       dispatch({ type: "SET_MAX_SKIPS", payload: prev.maxSkipsPerParticipant ?? 1 });
+      dispatch({ type: "SET_FINAL_ROUND_TIMER", payload: prev.finalRoundDecisionTimer ?? 20 });
       setHistoryIndex(historyIndex - 1);
       toast({ title: "Undo", description: "Last action undone", duration: 1500 });
     }
@@ -467,6 +481,7 @@ export function useQuizBuilder() {
       dispatch({ type: "SET_GAME_MODE", payload: next.gameMode ?? "standard" });
       dispatch({ type: "SET_THEME_ID", payload: next.themeId ?? "default" });
       dispatch({ type: "SET_MAX_SKIPS", payload: next.maxSkipsPerParticipant ?? 1 });
+      dispatch({ type: "SET_FINAL_ROUND_TIMER", payload: next.finalRoundDecisionTimer ?? 20 });
       setHistoryIndex(historyIndex + 1);
       toast({ title: "Redo", description: "Action restored", duration: 1500 });
     }
@@ -512,7 +527,9 @@ export function useQuizBuilder() {
     const newQuestion: Question = {
       ...(raw as any),
       text: (raw as any).text ?? (raw as any).title ?? "",
-      skipAllowed: false, // NEW: default
+      skipAllowed: false,
+      isSpeedQuestion: false,
+      speedMaxAdvance: undefined,
     };
     dispatch({ type: "ADD_QUESTION", payload: newQuestion });
     setCurrentQuestionIndex(context.questions.length);
@@ -623,8 +640,12 @@ export function useQuizBuilder() {
     markUnsaved();
   };
 
+  const handleFinalRoundTimerChange = (timer: number) => {
+    dispatch({ type: "SET_FINAL_ROUND_TIMER", payload: timer });
+    markUnsaved();
+  };
+
   // ── Template helpers ───────────────────────────────────────────────────────
-  // UPDATED: handleTemplateSelect now shows mode selection for blank template
   const handleTemplateSelect = (templateId: string) => {
     const template = templates.find((t) => t.id === templateId);
     if (!template) return;
@@ -632,23 +653,19 @@ export function useQuizBuilder() {
     setContextType(deriveContextType(templateId));
 
     if (templateId === "custom-blank") {
-      // For blank template, show mode selection screen
       setShowModeSelection(true);
       handleTitleChange("Untitled Context");
       dispatch({ type: "SET_QUESTIONS", payload: [] });
       dispatch({ type: "SET_GAME_MODE", payload: "standard" });
       dispatch({ type: "SET_THEME_ID", payload: "default" });
       dispatch({ type: "SET_THEME", payload: "default" });
-      // Don't proceed to step 2 yet - wait for mode selection
       return;
     }
 
-    // For templates, auto-detect mode from template
     const templateGameMode = (template as any).gameMode === "elimination" ? "elimination" : "standard";
     dispatch({ type: "SET_GAME_MODE", payload: templateGameMode });
     dispatch({ type: "SET_THEME_ID", payload: (template as any).themeId || "default" });
     
-    // Apply template data directly
     handleTitleChange(template.name);
     if (template.description) {
       dispatch({ type: "SET_DESCRIPTION", payload: template.description });
@@ -706,7 +723,7 @@ export function useQuizBuilder() {
     });
   };
 
-  // ── Core Supabase upsert (original logic + Ranking support + skip_allowed) ──
+  // ── Core Supabase upsert ───────────────────────────────────────────────────
   async function saveToSupabase(status: "ACTIVE" | "DRAFT"): Promise<string> {
     if (!user) throw new Error("You must be signed in to save.");
 
@@ -714,7 +731,6 @@ export function useQuizBuilder() {
       context.gameMode === "elimination" ? "elimination" : "standard";
     const persistedTheme = context.themeId || context.theme || "default";
 
-    // ── UPDATE existing context ────────────────────────────────────────────
     if (draftContextId) {
       const { error: ctxError } = await supabase
         .from("contexts")
@@ -729,20 +745,18 @@ export function useQuizBuilder() {
           settings: context.settings,
           cover_image: context.coverImage || null,
           game_mode: persistedGameMode,
-          max_skips_per_participant: context.maxSkipsPerParticipant ?? 1, // NEW
+          max_skips_per_participant: context.maxSkipsPerParticipant ?? 1,
+          final_round_decision_timer: context.finalRoundDecisionTimer ?? 20,
         })
         .eq("id", draftContextId);
 
       if (ctxError) throw new Error(ctxError.message);
 
       const localQuestions = context.questions;
-
-      // Split questions: ones with real DB UUIDs vs. newly created (temp IDs)
       const existingDbQuestions = localQuestions.filter((q) => isDbUUID(q.id));
       const newLocalQuestions = localQuestions.filter((q) => !isDbUUID(q.id));
       const currentDbIds = new Set(existingDbQuestions.map((q) => q.id));
 
-      // 1. UPDATE existing questions in-place
       for (let i = 0; i < existingDbQuestions.length; i++) {
         const q = existingDbQuestions[i];
         const { error } = await supabase
@@ -765,13 +779,14 @@ export function useQuizBuilder() {
             show_results_instantly: q.showResultsInstantly ?? false,
             hide_participant_names: q.hideParticipantNames ?? false,
             statements: (q as any).statements ?? null,
-            skip_allowed: q.skipAllowed ?? false, // NEW
+            skip_allowed: q.skipAllowed ?? false,
+            is_speed_question: q.isSpeedQuestion ?? false,
+            speed_max_advance: q.speedMaxAdvance ?? null,
           })
           .eq("id", q.id);
         if (error) throw new Error(error.message);
       }
 
-      // 2. INSERT new questions and patch local state with real DB IDs
       if (newLocalQuestions.length > 0) {
         const { data: inserted, error: insertErr } = await supabase
           .from("questions")
@@ -797,7 +812,6 @@ export function useQuizBuilder() {
         }
       }
 
-      // 3. Find questions that were removed in the editor
       const { data: dbRows, error: fetchErr } = await supabase
         .from("questions")
         .select("id")
@@ -830,7 +844,6 @@ export function useQuizBuilder() {
       return draftContextId;
     }
 
-    // ── INSERT new row (with creator_id and rollback) ──────────────────────
     const { data: contextRow, error: ctxError } = await supabase
       .from("contexts")
       .insert({
@@ -845,7 +858,8 @@ export function useQuizBuilder() {
         settings: context.settings,
         cover_image: context.coverImage || null,
         game_mode: persistedGameMode,
-        max_skips_per_participant: context.maxSkipsPerParticipant ?? 1, // NEW
+        max_skips_per_participant: context.maxSkipsPerParticipant ?? 1,
+        final_round_decision_timer: context.finalRoundDecisionTimer ?? 20,
       })
       .select("id")
       .single();
@@ -910,7 +924,6 @@ export function useQuizBuilder() {
     }
   };
 
-  // Keep the refs current so the keyboard shortcut always calls the latest version
   handleBackgroundSaveRef.current = handleBackgroundSave;
   handleUndoRef.current = handleUndo;
   handleRedoRef.current = handleRedo;
@@ -1016,6 +1029,8 @@ export function useQuizBuilder() {
         id: `q${Date.now()}`,
         title: `${current.title} (Copy)`,
         skipAllowed: current.skipAllowed ?? false,
+        isSpeedQuestion: current.isSpeedQuestion ?? false,
+        speedMaxAdvance: current.speedMaxAdvance ?? undefined,
       };
       const newQuestions = [...context.questions];
       newQuestions.splice(currentQuestionIndex + 1, 0, duplicate);
@@ -1112,7 +1127,6 @@ export function useQuizBuilder() {
     isSavingDraft,
     isLoadingEdit,
     isEditMode: !!editId,
-    // NEW: mode selection
     showModeSelection,
     setShowModeSelection,
 
@@ -1131,7 +1145,8 @@ export function useQuizBuilder() {
     handleCoverImageChange,
     handleSettingsChange,
     handleGameModeChange,
-    handleMaxSkipsChange, // NEW
+    handleMaxSkipsChange,
+    handleFinalRoundTimerChange,
     toggleQuestionSelection,
     handleTemplateSelect,
     handleTemplateCustomize,

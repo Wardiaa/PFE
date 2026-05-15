@@ -1,5 +1,6 @@
 // presentation.types.ts — Updated to include SCALING and RANKING question types.
 // SKIP BUTTON UPDATE: Added skipAllowed to Question interface
+// SPEED QUESTION UPDATE: Added isSpeedQuestion, speedMaxAdvance to Question, choseContinue to Participant
 
 export type QuestionType =
   | "multiple-choice"
@@ -71,6 +72,12 @@ export interface Question {
   
   /** whether participants can skip this question (elimination mode only) */
   skipAllowed?: boolean;
+  
+  /** NEW: whether this is a speed question (elimination mode only) */
+  isSpeedQuestion?: boolean;
+  
+  /** NEW: max number of participants who can advance (only for speed questions) */
+  speedMaxAdvance?: number;
 }
 
 export interface Presentation {
@@ -114,6 +121,8 @@ export interface Participant {
   eliminatedAtQuestionId?: string | null;
   /** number of skips used by this participant */
   skipsUsed?: number;
+  /** NEW: whether participant chose to continue in final round (NULL = no decision yet) */
+  choseContinue?: boolean | null;
 }
 
 export interface IndividualChoiceResponse {
@@ -256,4 +265,8 @@ export type GameSocketMessage =
   | { type: "PLAYER_ELIMINATED"; payload: EliminationEvent }
   | { type: "GAME_STATE_UPDATE"; payload: GameState }
   | { type: "GAME_END"; payload: { winner: Participant | null } }
-  | { type: "ANSWER_RECEIVED"; payload: { participantId: string; questionId: string; correct: boolean } };
+  | { type: "ANSWER_RECEIVED"; payload: { participantId: string; questionId: string; correct: boolean } }
+  | { type: "FINAL_ROUND_DECISION"; payload: { decisionTimer: number } }
+  | { type: "FINAL_ROUND_DECISION_RESPONSE"; payload: { participantId: string; choseContinue: boolean } }
+  | { type: "FINAL_ROUND_START"; payload: { questionId: string; timeLimit: number } }
+  | { type: "FINAL_ROUND_RESULTS"; payload: { winner: Participant | null } };

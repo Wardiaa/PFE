@@ -1,5 +1,7 @@
 // builder/types/index.ts — Updated to include statements (Scaling) and ranking items support.
 // MODE SELECTION UPDATE: Added maxSkipsPerParticipant to ContextData, skipAllowed to Question
+// SPEED QUESTION UPDATE: Added isSpeedQuestion, speedMaxAdvance to Question
+
 import type { GameMode } from "../../../lib/presentation.types";
 
 export interface QuestionOption {
@@ -60,26 +62,29 @@ export interface Question {
   hideParticipantNames?: boolean;
   /** Used by Scaling questions — list of statements to rate. */
   statements?: ScalingStatement[];
-  /**  whether participants can skip this question (elimination mode only) */
+  /** Whether participants can skip this question (elimination mode only) */
   skipAllowed?: boolean;
+  /** NEW: Whether this is a speed question (elimination mode only) */
+  isSpeedQuestion?: boolean;
+  /** NEW: Max number of participants who can advance (only for speed questions) */
+  speedMaxAdvance?: number;
 }
 
 export interface ContextData {
-  id?: string;                     // optional, for existing contexts
+  id?: string;
   title: string;
-  description: string;             // kept as required (existing behaviour)
+  description: string;
   theme: string;
   category: string;
   tags: string[];
   coverImage?: string | null;
   questions: Question[];
   settings: any;
-
-  //  elimination mode & visual theme for live session
-  gameMode?: GameMode;             // "standard" | "elimination"
-  themeId?: SessionThemeId;        // e.g. "default" | "cent-pour-cent-logique"
-  //  global skip limit per participant
+  gameMode?: GameMode;
+  themeId?: SessionThemeId;
   maxSkipsPerParticipant?: number;
+  /** NEW: Final round decision timer in seconds */
+  finalRoundDecisionTimer?: number;
 }
 
 export type HistoryAction =
@@ -91,10 +96,10 @@ export type HistoryAction =
   | { type: "SET_CATEGORY"; payload: string }
   | { type: "SET_TAGS"; payload: string[] }
   | { type: "SET_COVER_IMAGE"; payload: string | null }
-  // ── NEW: 100% Logique support ────────────────────────────────────────────
   | { type: "SET_GAME_MODE"; payload: GameMode }
   | { type: "SET_THEME_ID"; payload: SessionThemeId }
   | { type: "SET_MAX_SKIPS"; payload: number }
+  | { type: "SET_FINAL_ROUND_TIMER"; payload: number }
   | {
       type: "UPDATE_QUESTION";
       payload: { id: string; updates: Partial<Question> };

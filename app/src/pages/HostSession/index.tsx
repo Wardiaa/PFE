@@ -1,6 +1,9 @@
 // src/pages/HostSession/index.tsx
 // Version avec UI de l'ancienne version ET timer wall-clock optimisé
 // OPTIMIZED: Added debounced response refreshes to reduce database queries with 100+ participants
+// SPEED QUESTION UPDATE: Added speed question processing and final round handling
+//  Final round decision now triggers BEFORE the last question is shown.
+//      handleNext now checks if the *next* question would be the last one (not the current).
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -224,27 +227,28 @@ const HostSession: React.FC = () => {
   });
 
   const [showEliminationPanel, setShowEliminationPanel] = useState<boolean>(false);
-
-  const [displayedGameState, setDisplayedGameState] = useState<GameState>({
-    alive: [],
-    eliminated: [],
-    winner: null,
-    totalPlayers: 0,
-    currentRound: 0,
-    history: [],
-  });
-
+  const [displayedGameState, setDisplayedGameState] = useState<GameState>(gameState);
   const roundStartEliminatedCountRef = useRef<number>(0);
   const [roundEliminationCount, setRoundEliminationCount] = useState<number | null>(null);
   const [overlayRoundNumber, setOverlayRoundNumber] = useState<number>(0);
-
   const [revealedWinner, setRevealedWinner] = useState<Participant | null>(null);
   const [isGameOver, setIsGameOver] = useState<boolean>(false);
   const isGameOverRef = useRef<boolean>(false);
   const [isRevealingWinner, setIsRevealingWinner] = useState<boolean>(false);
   
-  // ── PRIORITY 1: Debounced refresh timeout ref ──────────────────────────────
-  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // ── Speed Question state ───────────────────────────────────────────────────
+  const [isProcessingSpeedQuestion, setIsProcessingSpeedQuestion] = useState<boolean>(false);
+  const [speedQuestionResults, setSpeedQuestionResults] = useState<{ advancingParticipantIds: string[]; eliminatedCount: number } | null>(null);
+  
+  // ── Final Round state ─────────────────────────────────────────────────────
+  const [isFinalRoundDecision, setIsFinalRoundDecision] = useState<boolean>(false);
+  const [finalRoundDecisionTimer, setFinalRoundDecisionTimer] = useState<number>(20);
+  const [continuingParticipants, setContinuingParticipants] = useState<Participant[]>([]);
+  const [finalRoundStarted, setFinalRoundStarted] = useState<boolean>(false);
+  const [pendingFinalRoundStart, setPendingFinalRoundStart] = useState<boolean>(false);
+  
+  // ── Debounced refresh timeout ref ─────────────────────────────────────────
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Derived values ────────────────────────────────────────────────────────
   const isElimination = contextMeta.gameMode === "elimination";
@@ -277,6 +281,12 @@ const HostSession: React.FC = () => {
     : {};
 
   const isCurrentMultipleChoice = currentQuestion?.type === "multiple-choice";
+  const isSpeedQuestion = currentQuestion?.isSpeedQuestion === true;
+  const speedMaxAdvance = currentQuestion?.speedMaxAdvance ?? 3;
+
+  //  isLastQuestion is kept for display purposes only (ControlPanel prop).
+  // The final-round decision trigger now uses isNextLastQuestion inside handleNext.
+  const isLastQuestion = currentQuestionIndex === (session?.presentation.questions.length ?? 0) - 1;
 
   const getQuestionTimeLimit = (question?: Question | null): number | null => {
     if (!question || question.timeLimit == null || question.timeLimit <= 0)
@@ -287,7 +297,7 @@ const HostSession: React.FC = () => {
   // ── All useRef hooks ──────────────────────────────────────────────────────
   const timerRef = useRef<number>(0);
   const timerActiveRef = useRef<boolean>(false);
-  const timerIntervalRef = useRef<number | undefined>(undefined);
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const isPausedRef = useRef<boolean>(false);
   const sessionRef = useRef<Session | null>(null);
   const currentQuestionRef = useRef<Question | undefined>(undefined);
@@ -299,12 +309,6 @@ const HostSession: React.FC = () => {
   const currentQuestionTimeLimitRef = useRef<number | null | undefined>(null);
   const questionEndsAtRef = useRef<number | null>(null);
 
-  /**
-   * OPTIMIZED: absolute epoch-ms when the current question timer expires.
-   * Shared reference point so the host timer and all participant timers
-   * compute remaining = ceil((endsAt - Date.now()) / 1000) from the
-   * same anchor instead of running independent ±1s counters.
-   */
   const applyQuestionTimer = (question?: Question | null, overrideEndsAtMs?: number) => {
     const limit = getQuestionTimeLimit(question);
 
@@ -325,7 +329,7 @@ const HostSession: React.FC = () => {
     return limit;
   };
 
-  // ── PRIORITY 1: Debounced refresh function ─────────────────────────────────
+  // ── Debounced refresh function ────────────────────────────────────────────
   const debouncedRefreshResponses = useCallback(async () => {
     if (refreshTimeoutRef.current) {
       clearTimeout(refreshTimeoutRef.current);
@@ -345,6 +349,53 @@ const HostSession: React.FC = () => {
       refreshTimeoutRef.current = null;
     }, 500);
   }, []);
+
+  const processSpeedQuestionEnd = useCallback(async () => {
+    if (!session || !currentQuestion || isProcessingSpeedQuestion || showResults) return;
+    
+    console.log("[HOST] Processing speed question end...");
+    setIsProcessingSpeedQuestion(true);
+    
+    try {
+      const roundNumber = currentQuestionIndex + 1;
+      const result = await SessionService.processSpeedQuestion(
+        session.id,
+        currentQuestion.id,
+        roundNumber,
+        speedMaxAdvance
+      );
+      
+      console.log("[HOST] Speed question results:", result);
+      setSpeedQuestionResults(result);
+      
+      // Broadcast results to all participants
+      sendMessageRef.current({
+        type: SESSION_EVENTS.SPEED_QUESTION_RESULTS,
+        payload: {
+          advancingParticipantIds: result.advancingParticipantIds,
+          eliminatedCount: result.eliminatedCount,
+          maxAdvance: speedMaxAdvance,
+        },
+      });
+      
+      // Refresh game state
+      const newState = await SessionService.getGameState(session.id);
+      setGameState(newState);
+      
+      // Show results
+      setShowResults(true);
+      
+      toast({
+        title: "Speed Question Complete",
+        description: `${result.eliminatedCount} participant(s) eliminated. ${result.advancingParticipantIds.length} advance.`,
+      });
+    } catch (error) {
+      console.error("Failed to process speed question:", error);
+      toast({ title: "Error", description: "Failed to process speed question", variant: "destructive" });
+    } finally {
+      setIsProcessingSpeedQuestion(false);
+    }
+  }, [session, currentQuestion, currentQuestionIndex, speedMaxAdvance, isProcessingSpeedQuestion, showResults, toast]);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -381,7 +432,6 @@ const HostSession: React.FC = () => {
         const q = currentQuestionRef.current;
         const sess = sessionRef.current;
         if (q && sess) {
-          // Use debounced refresh instead of direct refresh
           debouncedRefreshResponses();
         }
         return;
@@ -417,8 +467,14 @@ const HostSession: React.FC = () => {
         }
         return;
       }
+      
+      // Final round decision response
+      if (msg.type === SESSION_EVENTS.FINAL_ROUND_DECISION_RESPONSE) {
+        refreshFinalRoundParticipants();
+        return;
+      }
     },
-    [debouncedRefreshResponses, toast],
+    [debouncedRefreshResponses],
   );
 
   const { sendMessage, connected: wsConnected } = useSessionSocket({
@@ -429,6 +485,103 @@ const HostSession: React.FC = () => {
   });
 
   useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
+
+  // ── Refresh final round participants ──────────────────────────────────────
+  const refreshFinalRoundParticipants = useCallback(async () => {
+    if (!session) return;
+    const continuing = await SessionService.getContinuingParticipants(session.id);
+    setContinuingParticipants(continuing);
+    console.log("[HOST] Continuing participants:", continuing.length);
+    
+    // If no one continues, end session
+    if (continuing.length === 0 && !finalRoundStarted) {
+      sendMessage({ type: SESSION_EVENTS.GAME_OVER, payload: {} });
+      setIsGameOver(true);
+      isGameOverRef.current = true;
+      setIsFinalRoundDecision(false);
+    }
+  }, [session, finalRoundStarted, sendMessage]);
+
+  // ── Start final round decision ────────────────────────────────────────────
+  //  This is now triggered BEFORE navigating to the last question (from handleNext),
+  // so participants see the decision screen before the final question appears.
+  const startFinalRoundDecision = useCallback(async () => {
+    if (!session) return;
+    
+    console.log("[HOST] Starting final round decision for", gameState.alive.length, "alive participants");
+    setIsFinalRoundDecision(true);
+    const decisionTime = finalRoundDecisionTimer;
+    
+    // Show decision screen to ALL ALIVE participants
+    sendMessage({
+      type: SESSION_EVENTS.FINAL_ROUND_DECISION,
+      payload: { decisionTimer: decisionTime },
+    });
+    
+    // After the decision timer, advance to the final question
+    setTimeout(async () => {
+      console.log("[HOST] Decision timer expired, moving to final question");
+      setIsFinalRoundDecision(false);
+      
+      const continuing = await SessionService.getContinuingParticipants(session.id);
+      console.log("[HOST] Continuing participants after decision:", continuing.length);
+      setContinuingParticipants(continuing);
+      
+      if (continuing.length === 0) {
+        // No one wants to continue - game over
+        sendMessage({ type: SESSION_EVENTS.GAME_OVER, payload: {} });
+        setIsGameOver(true);
+        isGameOverRef.current = true;
+      } else {
+        setPendingFinalRoundStart(true);
+        await advanceToFinalQuestion();
+      }
+    }, decisionTime * 1000);
+  }, [session, finalRoundDecisionTimer, sendMessage, gameState.alive.length]);
+
+  // ── Advance to final question ─────────────────────────────────────────────
+  const advanceToFinalQuestion = useCallback(async () => {
+    if (!session) return;
+    if (!pendingFinalRoundStart && finalRoundStarted) return;
+    
+    setPendingFinalRoundStart(false);
+    setFinalRoundStarted(true);
+    
+    const lastIndex = session.presentation.questions.length - 1;
+    const lastQuestion = session.presentation.questions[lastIndex];
+    
+    if (!lastQuestion) {
+      console.error("[HOST] No final question found");
+      return;
+    }
+    
+    const timeLimit = getQuestionTimeLimit(lastQuestion);
+    const { startedAt, endsAt } = await SessionService.setCurrentQuestion(
+      session.id,
+      lastIndex,
+      lastQuestion.id,
+      timeLimit,
+    );
+    
+    setCurrentQuestionIndex(lastIndex);
+    applyQuestionTimer(lastQuestion, endsAt ?? undefined);
+    applyQuestionSettings(lastQuestion);
+    setIsPaused(false);
+    isPausedRef.current = false;
+    
+    sendMessage({
+      type: SESSION_EVENTS.FINAL_ROUND_START,
+      payload: {
+        questionId: lastQuestion.id,
+        timeLimit,
+        startedAt,
+        endsAt,
+      },
+    });
+    
+    setShowResults(false);
+    toast({ title: "Final Round", description: "The final question has started!" });
+  }, [session, finalRoundStarted, pendingFinalRoundStart, sendMessage, toast, getQuestionTimeLimit, applyQuestionTimer]);
 
   // ── All players eliminated ─────────────────────────────────────────────────
   useEffect(() => {
@@ -451,7 +604,8 @@ const HostSession: React.FC = () => {
     if (
       currentQuestionIndex >= 0 &&
       timerActiveRef.current &&
-      questionEndsAtRef.current !== null
+      questionEndsAtRef.current !== null &&
+      !isFinalRoundDecision
     ) {
       timerIntervalRef.current = window.setInterval(() => {
         if (
@@ -474,18 +628,23 @@ const HostSession: React.FC = () => {
           timerIntervalRef.current = undefined;
           timerActiveRef.current = false;
           setTimerActive(false);
-          setShowResults(true);
-          toast({ title: "Time's Up!", description: "Showing results..." });
           
-          // ── PRIORITY 1: Force immediate refresh on timer end ──────────────
+          // Handle speed question when timer ends
+          if (isSpeedQuestion && !isProcessingSpeedQuestion && !showResults) {
+            console.log("[HOST] Speed question timer ended, processing...");
+            processSpeedQuestionEnd();
+          } else {
+            setShowResults(true);
+            toast({ title: "Time's Up!", description: "Showing results..." });
+          }
+          
           if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
           debouncedRefreshResponses();
 
-          if (isEliminationRef.current) {
+          if (isEliminationRef.current && !isSpeedQuestion) {
             window.setTimeout(() => {
               const latest = gameStateRef.current;
-              const count =
-                latest.eliminated.length - roundStartEliminatedCountRef.current;
+              const count = latest.eliminated.length - roundStartEliminatedCountRef.current;
               setDisplayedGameState(latest);
               if (count > 0) {
                 setRoundEliminationCount(count);
@@ -503,7 +662,7 @@ const HostSession: React.FC = () => {
         timerIntervalRef.current = undefined;
       }
     };
-  }, [currentQuestionIndex, timerActive, toast, debouncedRefreshResponses]);
+  }, [currentQuestionIndex, timerActive, toast, debouncedRefreshResponses, isSpeedQuestion, isProcessingSpeedQuestion, showResults, processSpeedQuestionEnd, isFinalRoundDecision]);
 
   useEffect(
     () => () => {
@@ -524,6 +683,7 @@ const HostSession: React.FC = () => {
     roundStartEliminatedCountRef.current = gameStateRef.current.eliminated.length;
     setDisplayedGameState(gameStateRef.current);
     setRoundEliminationCount(null);
+    setSpeedQuestionResults(null);
   }, [currentQuestionIndex]);
 
   // ── Reload responses when hideParticipantNames or showResults changes ─────
@@ -548,12 +708,11 @@ const HostSession: React.FC = () => {
       setError(null);
 
       try {
-        const { data: existingSession, error: sessionFetchError } =
-          await supabase
-            .from("sessions")
-            .select("*")
-            .eq("id", id)
-            .maybeSingle();
+        const { data: existingSession, error: sessionFetchError } = await supabase
+          .from("sessions")
+          .select("*")
+          .eq("id", id)
+          .maybeSingle();
 
         if (!sessionFetchError && existingSession) {
           const { data: contextData } = await supabase
@@ -565,7 +724,7 @@ const HostSession: React.FC = () => {
                 id, title, description, type, points, time_limit,
                 options, scale, labels, display_style, image_url, question_order,
                 show_results_instantly, hide_participant_names,
-                statements
+                statements, skip_allowed, is_speed_question, speed_max_advance
               )
             `,
             )
@@ -579,6 +738,11 @@ const HostSession: React.FC = () => {
           const ctxThemeId: string =
             (contextData as any)?.theme || "default";
           setContextMeta({ gameMode: ctxGameMode, themeId: ctxThemeId });
+          
+          // Load final round timer from context
+          if ((contextData as any)?.final_round_decision_timer) {
+            setFinalRoundDecisionTimer((contextData as any).final_round_decision_timer);
+          }
 
           const questionsArray = contextData?.questions || [];
           const questions: Question[] = questionsArray
@@ -599,6 +763,9 @@ const HostSession: React.FC = () => {
               displayStyle: q.display_style,
               showResultsInstantly: q.show_results_instantly ?? false,
               hideParticipantNames: q.hide_participant_names ?? false,
+              skipAllowed: q.skip_allowed ?? false,
+              isSpeedQuestion: q.is_speed_question ?? false,
+              speedMaxAdvance: q.speed_max_advance ?? null,
             }));
 
           const sessionData: Session = {
@@ -820,6 +987,8 @@ const HostSession: React.FC = () => {
                 isAlive: p.is_alive ?? true,
                 eliminatedAtRound: p.eliminated_at_round ?? null,
                 eliminatedAtQuestionId: p.eliminated_at_question_id ?? null,
+                skipsUsed: p.skips_used ?? 0,
+                choseContinue: p.chose_continue ?? null,
               },
             ];
           });
@@ -848,6 +1017,8 @@ const HostSession: React.FC = () => {
                       p.eliminated_at_question_id ??
                       existing.eliminatedAtQuestionId ??
                       null,
+                    skipsUsed: p.skips_used ?? existing.skipsUsed ?? 0,
+                    choseContinue: p.chose_continue ?? existing.choseContinue ?? null,
                   }
                 : existing,
             ),
@@ -859,7 +1030,6 @@ const HostSession: React.FC = () => {
       )
       .subscribe();
 
-    // ── PRIORITY 1: UPDATED responses channel with debounced refresh ────────
     const responsesChannel = supabase
       .channel(`host-responses-${session.id}`)
       .on(
@@ -871,7 +1041,6 @@ const HostSession: React.FC = () => {
           filter: `session_id=eq.${session.id}`,
         },
         () => {
-          // Use debounced refresh instead of direct query
           debouncedRefreshResponses();
         },
       )
@@ -881,7 +1050,7 @@ const HostSession: React.FC = () => {
       supabase.removeChannel(participantsChannel);
       supabase.removeChannel(responsesChannel);
     };
-  }, [session, toast, debouncedRefreshResponses]);
+  }, [session, debouncedRefreshResponses]);
 
   const applyQuestionSettings = (question?: Question) => {
     if (question?.showResultsInstantly) {
@@ -965,22 +1134,37 @@ const HostSession: React.FC = () => {
     });
   };
 
+  //  handleNext now triggers the final round decision when the NEXT question
+  // would be the last one — not when the current question already IS the last one.
+  // This ensures participants see the FinalRoundDecision screen BEFORE the last question loads.
   const handleNext = async (): Promise<void> => {
     if (!session) return;
 
-    if (currentQuestionIndex < session.presentation.questions.length - 1) {
-      const newIndex = currentQuestionIndex + 1;
-      const nextQuestion = session.presentation.questions[newIndex];
+    const nextIndex = currentQuestionIndex + 1;
+    const totalQuestions = session.presentation.questions.length;
+
+    // In elimination mode: if the next question is the last one, show decision screen first.
+    const nextIsLastQuestion = isElimination && nextIndex === totalQuestions - 1;
+
+    if (nextIsLastQuestion && !finalRoundStarted && !isFinalRoundDecision && !pendingFinalRoundStart) {
+      console.log("[HOST] Next question is the last — starting final round decision. Alive:", gameState.alive.length);
+      await startFinalRoundDecision();
+      return;
+    }
+
+    // Normal navigation to next question (not the final-round trigger case)
+    if (nextIndex < totalQuestions) {
+      const nextQuestion = session.presentation.questions[nextIndex];
       const timeLimit = getQuestionTimeLimit(nextQuestion);
 
       const { startedAt, endsAt } = await SessionService.setCurrentQuestion(
         session.id,
-        newIndex,
+        nextIndex,
         nextQuestion?.id,
         timeLimit,
       );
 
-      setCurrentQuestionIndex(newIndex);
+      setCurrentQuestionIndex(nextIndex);
       applyQuestionTimer(nextQuestion, endsAt ?? undefined);
       applyQuestionSettings(nextQuestion);
       setIsPaused(false);
@@ -990,14 +1174,14 @@ const HostSession: React.FC = () => {
         type: "QUESTION_CHANGE",
         payload: {
           questionId: nextQuestion?.id,
-          questionIndex: newIndex,
+          questionIndex: nextIndex,
           timeLimit,
           startedAt,
           endsAt,
         },
       });
     } else {
-      if (isElimination) return;
+      // End of session (non-elimination, or elimination after final round)
       if (session) {
         sendMessage({ type: "SESSION_END", payload: {} });
         await SessionService.updateSessionStatus(session.id, "ENDED");
@@ -1150,7 +1334,6 @@ const HostSession: React.FC = () => {
 
   const handleToggleQuestionResults = (): void => {
     setShowResults((prev) => !prev);
-    // Force immediate refresh when toggling results
     if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
     debouncedRefreshResponses();
   };
@@ -1227,7 +1410,7 @@ const HostSession: React.FC = () => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center  ">
+          <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
             <AppIcon name="Loader2" size={28} className="text-primary animate-spin" />
           </div>
           <p className="text-muted-foreground text-sm">Setting up your session...</p>
@@ -1511,7 +1694,7 @@ const HostSession: React.FC = () => {
     );
   }
 
-  // ── ACTIVE QUESTION VIEW (UI de l'ancienne version + timer optimisé) ─────────
+  // ── ACTIVE QUESTION VIEW ────────────────────────────────────────────────────
   return (
     <>
       {/* Timer progress bar */}
@@ -1535,6 +1718,18 @@ const HostSession: React.FC = () => {
               style={{ transformOrigin: "left" }}
             />
           ) : null}
+        </div>
+      )}
+
+      {/* Speed question badge */}
+      {isSpeedQuestion && !showResults && (
+        <div className="fixed top-2 right-4 z-[9999]">
+          <div className="flex items-center gap-1.5 rounded-full bg-amber-500/20 backdrop-blur-sm px-3 py-1.5 border border-amber-500/30">
+            <AppIcon name="Zap" size={12} className="text-amber-400" />
+            <span className="text-xs font-bold text-amber-400">
+              Speed: Top {speedMaxAdvance} advance
+            </span>
+          </div>
         </div>
       )}
 
@@ -1632,7 +1827,7 @@ const HostSession: React.FC = () => {
             navigate(`/results/${session.id}`);
           }}
           onShowWinner={handleShowWinner}
-          isLastQuestion={currentQuestionIndex === session.presentation.questions.length - 1}
+          isLastQuestion={isLastQuestion}
           isRevealingWinner={isRevealingWinner}
           hasWinner={!!revealedWinner}
         />

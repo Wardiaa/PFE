@@ -4,6 +4,7 @@
 // getGameState uses Promise.all to run queries in parallel.
 // All console.log/console.error calls retained for debugging but can be swapped for a logger.
 // SKIP BUTTON UPDATE: Added submitSkip method with atomic increment, getMaxSkipsForSession, getParticipantSkipsUsed
+// SPEED QUESTION : only correct answers can advance. Wrong answers are immediately eliminated.
 
 import { supabase } from "../lib/supabase";
 import type {
@@ -1145,24 +1146,212 @@ export class SessionService {
       return { correct: false, eliminated: null, newScore: null };
     }
   }
-}
+  
+  /**
+   * Process speed question results
+   * ONLY correct answers can advance. The RPC get_speed_question_results
+   * filters by is_correct = true, so only participants who answered correctly
+   * are considered for advancement. Wrong answers are automatically eliminated.
+   * 
+   * @param sessionId - The session ID
+   * @param questionId - The speed question ID
+   * @param roundNumber - Current round number
+   * @param maxAdvance - Maximum number of participants who can advance (must have answered correctly)
+   * @returns Object containing advancing participant IDs and eliminated count
+   */
+  static async processSpeedQuestion(
+    sessionId: string,
+    questionId: string,
+    roundNumber: number,
+    maxAdvance: number
+  ): Promise<{ advancingParticipantIds: string[]; eliminatedCount: number }> {
+    try {
+      console.log("[processSpeedQuestion] Starting with maxAdvance:", maxAdvance);
+      
+      // Get the fastest participants who answered CORRECTLY (RPC now filters is_correct = true)
+      const { data: correctFastestParticipants, error: speedError } = await supabase
+        .rpc("get_speed_question_results", {
+          p_session_id: sessionId,
+          p_question_id: questionId,
+          p_max_advance: maxAdvance,
+        });
 
-// ── Optional: Add this RPC function to Supabase to replace the read-modify-write
-// increment pattern above with an atomic server-side update.
-//
-// Run in Supabase SQL Editor:
-//
-//   CREATE OR REPLACE FUNCTION public.increment_participant_score(
-//     p_participant_id uuid,
-//     p_delta integer
-//   ) RETURNS void LANGUAGE sql AS $$
-//     UPDATE public.participants
-//     SET score = score + p_delta
-//     WHERE id = p_participant_id;
-//   $$;
-//
-//   GRANT EXECUTE ON FUNCTION public.increment_participant_score(uuid, integer)
-//     TO authenticated, anon;
+      if (speedError) {
+        console.error("[processSpeedQuestion] RPC error:", speedError);
+        return { advancingParticipantIds: [], eliminatedCount: 0 };
+      }
+
+      const advancingIds = (correctFastestParticipants || []).map((p: any) => p.participant_id);
+      console.log("[processSpeedQuestion] Advancing participants (correct answers only):", advancingIds);
+
+      // Get all participants who answered this question
+      const { data: allResponses, error: responsesError } = await supabase
+        .from("responses")
+        .select("participant_id, is_correct")
+        .eq("session_id", sessionId)
+        .eq("question_id", questionId)
+        .eq("is_skip", false);
+
+      if (responsesError) {
+        console.error("[processSpeedQuestion] Failed to get responses:", responsesError);
+        return { advancingParticipantIds: advancingIds, eliminatedCount: 0 };
+      }
+
+      // Find participants who answered WRONG (they are eliminated regardless of speed)
+      const wrongAnswerIds = (allResponses || [])
+        .filter(r => !r.is_correct)
+        .map(r => r.participant_id);
+      
+      console.log("[processSpeedQuestion] Wrong answer participants:", wrongAnswerIds);
+
+      // Find participants who answered CORRECT but didn't make the top maxAdvance
+      const correctResponseIds = (allResponses || [])
+        .filter(r => r.is_correct)
+        .map(r => r.participant_id);
+      
+      const correctNotAdvancingIds = correctResponseIds.filter(
+        id => !advancingIds.includes(id)
+      );
+      
+      console.log("[processSpeedQuestion] Correct but not fast enough:", correctNotAdvancingIds);
+
+      // All participants to eliminate = wrong answers + correct but not fast enough
+      const allIdsToEliminate = [...new Set([...wrongAnswerIds, ...correctNotAdvancingIds])];
+      
+      console.log("[processSpeedQuestion] Total to eliminate:", allIdsToEliminate.length);
+
+      // Eliminate all non-advancing participants
+      if (allIdsToEliminate.length > 0) {
+        for (const participantId of allIdsToEliminate) {
+          const { data: participant } = await supabase
+            .from("participants")
+            .select("name")
+            .eq("id", participantId)
+            .single();
+
+          await supabase
+            .from("participants")
+            .update({
+              is_alive: false,
+              eliminated_at_round: roundNumber,
+              eliminated_at_question_id: questionId,
+            })
+            .eq("id", participantId);
+
+          await supabase.from("elimination_log").insert({
+            session_id: sessionId,
+            participant_id: participantId,
+            participant_name: participant?.name || "Unknown",
+            question_id: questionId,
+            round_number: roundNumber,
+            eliminated_at: new Date().toISOString(),
+          });
+        }
+      }
+
+      const eliminatedCount = allIdsToEliminate.length;
+
+      return { advancingParticipantIds: advancingIds, eliminatedCount };
+    } catch (error) {
+      console.error("[processSpeedQuestion] Error:", error);
+      return { advancingParticipantIds: [], eliminatedCount: 0 };
+    }
+  }
+
+  /**
+  * Get count of alive participants
+  */
+  static async getAliveCount(sessionId: string): Promise<number> {
+    const { count, error } = await supabase
+      .from("participants")
+      .select("*", { count: "exact", head: true })
+      .eq("session_id", sessionId)
+      .eq("is_alive", true);
+
+    if (error) {
+      console.error("[getAliveCount] Error:", error);
+      return 0;
+    }
+    return count || 0;
+  }
+
+  /**
+  * Get eliminated count for a specific round
+  */
+  static async getEliminatedCountThisRound(sessionId: string, roundNumber: number): Promise<number> {
+    const { count, error } = await supabase
+      .from("elimination_log")
+      .select("*", { count: "exact", head: true })
+      .eq("session_id", sessionId)
+      .eq("round_number", roundNumber);
+
+    if (error) {
+      console.error("[getEliminatedCountThisRound] Error:", error);
+      return 0;
+    }
+    return count || 0;
+  }
+
+  /**
+  * Record participant's final round decision
+  */
+  static async recordFinalRoundDecision(
+    participantId: string,
+    choseContinue: boolean
+  ): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from("participants")
+        .update({ chose_continue: choseContinue })
+        .eq("id", participantId);
+
+      if (error) {
+        console.error("[recordFinalRoundDecision] Error:", error);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error("[recordFinalRoundDecision] Exception:", error);
+      return false;
+    }
+  }
+
+  /**
+  * Get participants who chose to continue in final round
+  */
+  static async getContinuingParticipants(sessionId: string): Promise<Participant[]> {
+    try {
+      const { data, error } = await supabase
+        .from("participants")
+        .select("*")
+        .eq("session_id", sessionId)
+        .eq("is_alive", true)
+        .eq("chose_continue", true);
+
+      if (error) {
+        console.error("[getContinuingParticipants] Error:", error);
+        return [];
+      }
+
+      return (data || []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        score: p.score ?? 0,
+        avatar: p.avatar_url,
+        isAnonymous: p.is_anonymous,
+        joinedAt: new Date(p.joined_at),
+        isAlive: p.is_alive ?? true,
+        eliminatedAtRound: p.eliminated_at_round ?? null,
+        eliminatedAtQuestionId: p.eliminated_at_question_id ?? null,
+        skipsUsed: p.skips_used ?? 0,
+        choseContinue: p.chose_continue ?? null,
+      }));
+    } catch (error) {
+      console.error("[getContinuingParticipants] Exception:", error);
+      return [];
+    }
+  }
+}
 
 // ── RPC: Atomic skip increment (prevents race conditions)
 // Run in Supabase SQL Editor:

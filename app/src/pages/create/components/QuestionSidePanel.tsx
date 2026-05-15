@@ -1,5 +1,6 @@
 // QuestionSidePanel.tsx - UPDATED with Skip toggle for elimination mode
 // Added skipAllowed toggle in Interactivity panel when isEliminationMode is true
+// SPEED QUESTION UPDATE: Added isSpeedQuestion toggle and speedMaxAdvance input
 
 import { useState, useEffect, type ChangeEvent, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -33,7 +34,8 @@ import {
   Upload,
   SlidersHorizontal,
   GripVertical,
-  ListOrdered,       // ✅ NEW: for skip toggle
+  ListOrdered,
+  Zap, // NEW: for speed question icon
 } from "lucide-react";
 
 // Local interactivity settings state
@@ -56,9 +58,9 @@ interface QuestionSidePanelProps {
   onToggle: () => void;
   /** When true, renders as a flat inline panel (no absolute positioning — for mobile bottom sheets) */
   inline?: boolean;
-  /** NEW: whether elimination mode is active (shows skip toggle) */
+  /** whether elimination mode is active (shows skip toggle) */
   isEliminationMode?: boolean;
-  /** NEW: global max skips per participant */
+  /** global max skips per participant */
   maxSkipsPerParticipant?: number;
 }
 
@@ -448,7 +450,7 @@ export function QuestionSidePanel({
     onUpdateQuestion({ labels: { ...current, [key]: value } } as any);
   };
 
-  // ── Ranking item helpers (NEW) ─────────────────────────────────────────────
+  // ── Ranking item helpers ─────────────────────────────────────────────
   const getRankingItems = (): Array<{ id: string; text: string; isCorrect: boolean }> => {
     return (currentQuestion as any)?.options ?? [];
   };
@@ -547,7 +549,7 @@ export function QuestionSidePanel({
           />
         </div>
 
-        {/* ── Ranking: items editor (NEW) ──────────────────────────────────── */}
+        {/* ── Ranking: items editor ──────────────────────────────────── */}
         {isRankingType && (
           <div className="space-y-4">
             <div className="space-y-3">
@@ -868,13 +870,11 @@ export function QuestionSidePanel({
             )}
           </div>
         </div>
-
-      
       </div>
     );
   };
 
-  // ── Comments Panel (unchanged from your original) ──────────────────────────
+  // ── Comments Panel ──────────────────────────────────────────
   const renderCommentsPanel = () => (
     <div className="flex flex-col items-center justify-center py-20 text-center px-6">
       <div className="relative w-16 h-16 mb-5">
@@ -895,7 +895,7 @@ export function QuestionSidePanel({
     </div>
   );
 
-  // ── Interactivity Panel (UPDATED with Skip toggle for elimination mode) ───
+  // ── Interactivity Panel (UPDATED with Skip toggle + Speed Question) ───
   const renderInteractivityPanel = () => {
     const q = currentQuestion;
     if (!q) {
@@ -907,6 +907,10 @@ export function QuestionSidePanel({
         </div>
       );
     }
+
+    // Calculate max possible advance (cannot exceed total participants, but we don't know yet)
+    // Use a reasonable upper bound of 100
+    const maxAdvance = Math.min(100, Math.max(1, q.speedMaxAdvance ?? 3));
 
     return (
       <div className="space-y-6">
@@ -1023,6 +1027,53 @@ export function QuestionSidePanel({
               </div>
             </>
           )}
+
+          {/* ── SPEED QUESTION SETTINGS (Elimination mode only) ─────────────────────── */}
+          {isEliminationMode && (
+            <>
+              <div className="h-px bg-slate-100 mt-2" />
+              <div className="flex items-center justify-between pt-2">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-500" />
+                    <span className="text-xs text-slate-600 font-medium">Speed Question</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Only the fastest X participants advance. Others eliminated immediately.
+                  </p>
+                </div>
+                <MentiToggle
+                  checked={q.isSpeedQuestion ?? false}
+                  onChange={(val) => onUpdateQuestion({ isSpeedQuestion: val })}
+                />
+              </div>
+
+              {q.isSpeedQuestion && (
+                <div className="mt-3 p-3 bg-amber-50/30 rounded-xl border border-amber-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-700">Max participants to advance</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={maxAdvance}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          onUpdateQuestion({ speedMaxAdvance: isNaN(val) ? 3 : Math.max(1, val) });
+                        }}
+                        className="w-16 px-2 py-1.5 text-center text-sm font-bold text-slate-900 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400"
+                      />
+                      <span className="text-xs text-slate-400">participants</span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-amber-600 mt-2">
+                    ⚡ Once {maxAdvance} participants answer OR timer ends, only the fastest {maxAdvance} advance. Others are eliminated.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
         </section>
 
         <div className="h-px bg-slate-100" />
@@ -1081,12 +1132,11 @@ export function QuestionSidePanel({
             </div>
           </section>
         </ComingSoon>
-
       </div>
     );
   };
 
-  // ── Themes Panel (unchanged) ───────────────────────────────────────────────
+  // ── Themes Panel ───────────────────────────────────────────────
   const renderThemesPanel = () => {
     if (!currentQuestion) {
       return (

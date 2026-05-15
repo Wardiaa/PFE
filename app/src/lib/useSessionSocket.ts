@@ -15,9 +15,16 @@
  *   GAME_STATE_UPDATE  { alive, eliminated, totalPlayers, currentRound, history }
  *   GAME_END           { winner }
  *   ANSWER_RECEIVED    { participantId, questionId, correct }
- *   WINNER_REVEAL      { winner }   ← NEW: broadcast when host clicks "Show Winner"
- *   FORCE_QUESTION_CLOSE {}         ← for no‑timer questions, host forces round end
- *   GAME_OVER          {}           ← all players eliminated; no winner this session
+ *   WINNER_REVEAL      { winner }         ← broadcast when host clicks "Show Winner"
+ *   FORCE_QUESTION_CLOSE {}               ← for no‑timer questions, host forces round end
+ *   GAME_OVER          {}                 ← all players eliminated; no winner this session
+ *
+ * Speed Question + Final Round message types:
+ *   SPEED_QUESTION_RESULTS  { advancingParticipantIds, eliminatedCount }
+ *   FINAL_ROUND_DECISION    { decisionTimer }
+ *   FINAL_ROUND_DECISION_RESPONSE { participantId, choseContinue }
+ *   FINAL_ROUND_START       { questionId, timeLimit }
+ *   FINAL_ROUND_RESULTS     { winner }
  */
 
 import { useEffect, useRef, useCallback, useState } from "react";
@@ -60,10 +67,16 @@ export const SESSION_EVENTS = {
   WINNER_REVEAL: "WINNER_REVEAL",
   // late-joiner support
   REQUEST_GAME_STATE: "REQUEST_GAME_STATE",
-  // ── force round end for no‑timer questions ──
+  // force round end for no‑timer questions
   FORCE_QUESTION_CLOSE: "FORCE_QUESTION_CLOSE",
-  // ── all players eliminated — no winner ──
+  // all players eliminated — no winner
   GAME_OVER: "GAME_OVER",
+  // ── NEW: Speed Question + Final Round ────────────────────────────────────
+  SPEED_QUESTION_RESULTS: "SPEED_QUESTION_RESULTS",
+  FINAL_ROUND_DECISION: "FINAL_ROUND_DECISION",
+  FINAL_ROUND_DECISION_RESPONSE: "FINAL_ROUND_DECISION_RESPONSE",
+  FINAL_ROUND_START: "FINAL_ROUND_START",
+  FINAL_ROUND_RESULTS: "FINAL_ROUND_RESULTS",
 } as const;
 
 export function useSessionSocket({

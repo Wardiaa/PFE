@@ -1,7 +1,15 @@
 // src/pages/audience-participation/index.tsx
 // Version avec UI de l'ancienne version ET timer wall-clock optimisé
-// (Je garde la même structure que la version restaurée mais avec le timer optimisé)
 // SKIP BUTTON UPDATE: Added skip functionality for elimination mode
+// SPEED QUESTION UPDATE: Added speed question waiting state and final round decision
+//   SpeedQuestionWaiting now shows correctly even when participant is eliminated
+//       (isEliminatedSpectator no longer fires during speed_waiting state)
+// SPEED QUESTION BUG FIXES:
+//   • Track speedAnsweredCorrectly so we distinguish "correct-but-slow" eliminations
+//     (show rank in overlay) from "wrong-answer" eliminations (default overlay, no rank).
+//   • "Vous passez" screen no longer auto-dismisses — it persists until the next
+//     question resets the speed state, satisfying the "don't disappear until next
+//     question" requirement.
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -20,6 +28,8 @@ import WaitingState from "./components/WaitingState";
 import SubmissionConfirmation from "./components/SubmissionConfirmation";
 import SessionEndedState from "./components/SessionEndedState";
 import ErrorState from "./components/ErrorState";
+import { FinalRoundDecision } from "./components/FinalRoundDecision";
+import { SpeedQuestionWaiting } from "./components/SpeedQuestionWaiting";
 import type {
   Question,
   Session,
@@ -44,7 +54,9 @@ type SessionState =
   | "submitted"
   | "waiting"
   | "ended"
-  | "error";
+  | "error"
+  | "speed_waiting"
+  | "final_decision";
 
 interface ParticipantSession {
   session: Session;
@@ -115,6 +127,7 @@ const AudienceParticipation: React.FC = () => {
   const [questionActive, setQuestionActive] = useState<boolean>(true);
   const [questionClosed, setQuestionClosed] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [showResults, setShowResults] = useState<boolean>(false);
 
   const [gameState, setGameState] = useState<GameState>({
     alive: [],
@@ -147,6 +160,24 @@ const AudienceParticipation: React.FC = () => {
   const [maxSkipsPerParticipant, setMaxSkipsPerParticipant] = useState<number>(1);
   const [isSkipping, setIsSkipping] = useState<boolean>(false);
 
+  // ── SPEED QUESTION STATE ────────────────────────────────────────────
+  const [isSpeedWaiting, setIsSpeedWaiting] = useState<boolean>(false);
+  const [speedRank, setSpeedRank] = useState<number | null>(null);
+  const [speedMaxAdvance, setSpeedMaxAdvance] = useState<number>(3);
+  const [hasSubmittedThisRound, setHasSubmittedThisRound] = useState<boolean>(false);
+  const [showSpeedEliminationOverlay, setShowSpeedEliminationOverlay] = useState<boolean>(false);
+  const [speedEliminationRank, setSpeedEliminationRank] = useState<number | null>(null);
+  // NEW: whether the participant answered correctly on the current speed question.
+  // Used to decide if the elimination overlay should show rank info.
+  //   true  → correct but too slow → show rank in overlay
+  //   false → wrong answer         → show default overlay (no rank)
+  const [speedAnsweredCorrectly, setSpeedAnsweredCorrectly] = useState<boolean>(false);
+
+  // ── FINAL ROUND STATE ───────────────────────────────────────────────
+  const [isFinalDecision, setIsFinalDecision] = useState<boolean>(false);
+  const [finalDecisionTimer, setFinalDecisionTimer] = useState<number>(20);
+  const [hasMadeDecision, setHasMadeDecision] = useState<boolean>(false);
+
   const participantSessionRef = useRef<ParticipantSession | null>(null);
   const currentQuestionRef = useRef<Question | null>(null);
   const sessionStateRef = useRef<SessionState>("join");
@@ -154,11 +185,13 @@ const AudienceParticipation: React.FC = () => {
   const isPausedRef = useRef<boolean>(false);
   const questionActiveRef = useRef<boolean>(true);
   const timerRemainingRef = useRef<number>(0);
-  const timerIntervalRef = useRef<number | undefined>(undefined);
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const toastRef = useRef(toast);
   const isEliminatedRef = useRef<boolean>(false);
-  const answerRevealTimeoutRef = useRef<number | undefined>(undefined);
+  const answerRevealTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const eliminationOverlayShownRef = useRef<boolean>(false);
+  // Ref mirror of speedAnsweredCorrectly — safe to read inside broadcast callbacks.
+  const speedAnsweredCorrectlyRef = useRef<boolean>(false);
 
   // OPTIMIZED: wall-clock anchor reference
   const questionEndsAtRef = useRef<number | null>(null);
@@ -190,6 +223,9 @@ const AudienceParticipation: React.FC = () => {
   useEffect(() => {
     isEliminatedRef.current = isEliminated;
   }, [isEliminated]);
+  useEffect(() => {
+    speedAnsweredCorrectlyRef.current = speedAnsweredCorrectly;
+  }, [speedAnsweredCorrectly]);
 
   const prefilledCode = (searchParams.get("code") || "").toUpperCase();
 
@@ -205,7 +241,6 @@ const AudienceParticipation: React.FC = () => {
 
   const isEliminationRef = useRef<boolean>(false);
 
-  const sessionAny = participantSession?.session as any;
   const isElimination: boolean = contextMeta.gameMode === "elimination";
 
   useEffect(() => {
@@ -229,16 +264,12 @@ const AudienceParticipation: React.FC = () => {
     const sessionId = participantSessionRef.current.session.id;
     const participantId = participantSessionRef.current.participantId;
     
-    // Get max skips from context
     const maxSkips = await SessionService.getMaxSkipsForSession(sessionId);
     setMaxSkipsPerParticipant(maxSkips);
     
-    // Get current skips used
     const skipsUsed = await SessionService.getParticipantSkipsUsed(participantId);
     const remaining = Math.max(0, maxSkips - skipsUsed);
     setSkipsRemaining(remaining);
-    
-    console.log("[Skip] Loaded skips data:", { maxSkips, skipsUsed, remaining });
   }, []);
 
   useEffect(() => {
@@ -259,7 +290,7 @@ const AudienceParticipation: React.FC = () => {
 
         const { data: ctx, error: ctxErr } = await supabase
           .from("contexts")
-          .select("game_mode, theme")
+          .select("game_mode, theme, final_round_decision_timer")
           .eq("id", sessionRow.context_id)
           .maybeSingle();
 
@@ -275,6 +306,10 @@ const AudienceParticipation: React.FC = () => {
         });
 
         isEliminationRef.current = gameModeValue === "elimination";
+        
+        if (ctx.final_round_decision_timer) {
+          setFinalDecisionTimer(ctx.final_round_decision_timer);
+        }
       } catch (err) {
         console.error("[Metadata] Error:", err);
       }
@@ -354,18 +389,11 @@ const AudienceParticipation: React.FC = () => {
     }
   }, []);
 
-  /**
-   * OPTIMIZED: Wall-clock-anchored countdown.
-   * Runs every 500 ms so the display is responsive, but computes the remaining
-   * time from the absolute `endsAtMs` epoch value rather than decrementing a
-   * counter. This means even if a tick fires late (e.g. tab throttling), the
-   * next tick corrects it automatically.
-   */
   const startWallClockCountdown = useCallback(
     (endsAtMs: number) => {
       stopLocalCountdown();
 
-      timerIntervalRef.current = window.setInterval(() => {
+      timerIntervalRef.current = setInterval(() => {
         if (isPausedRef.current || !questionActiveRef.current) return;
 
         const remaining = Math.max(
@@ -377,8 +405,10 @@ const AudienceParticipation: React.FC = () => {
         setTimerRemaining(remaining);
 
         if (remaining <= 0) {
-          clearInterval(timerIntervalRef.current);
-          timerIntervalRef.current = undefined;
+          if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = undefined;
+          }
           timerRemainingRef.current = 0;
           setTimerRemaining(0);
           setQuestionActive(false);
@@ -399,12 +429,6 @@ const AudienceParticipation: React.FC = () => {
   useEffect(() => () => stopLocalCountdown(), [stopLocalCountdown]);
   useEffect(() => () => clearAnswerRevealTimeout(), [clearAnswerRevealTimeout]);
 
-  /**
-   * OPTIMIZED: accepts `endsAtMs` (absolute epoch ms from the host) instead of
-   * `startedAt` + `useElapsed`. When `endsAtMs` is provided the timer is
-   * anchored to the same wall-clock moment as the host's timer, eliminating
-   * drift from network latency and independent `setInterval` jitter.
-   */
   const applyQuestion = useCallback(
     (
       question: Question,
@@ -419,12 +443,10 @@ const AudienceParticipation: React.FC = () => {
 
       if (limit !== null) {
         if (endsAtMs && endsAtMs > Date.now()) {
-          // Use the host-provided absolute end time (most accurate).
           actualEndsAtMs = endsAtMs;
           remaining = Math.max(0, Math.ceil((endsAtMs - Date.now()) / 1000));
           questionEndsAtRef.current = endsAtMs;
         } else {
-          // Fallback: start a fresh local timer (late-join without endsAt).
           actualEndsAtMs = Date.now() + limit * 1000;
           remaining = limit;
           questionEndsAtRef.current = actualEndsAtMs;
@@ -449,7 +471,23 @@ const AudienceParticipation: React.FC = () => {
       setShowAnswerReveal(false);
       clearAnswerRevealTimeout();
       setShowEliminationOverlay(false);
+      setShowSpeedEliminationOverlay(false);
+      setSpeedEliminationRank(null);
       eliminationOverlayShownRef.current = false;
+      
+      if (question.showResultsInstantly) {
+        setShowResults(true);
+      } else {
+        setShowResults(false);
+      }
+      
+      // Reset ALL speed state for the new question — this is what clears the
+      // "vous passez" screen for advancing participants.
+      setIsSpeedWaiting(false);
+      setSpeedRank(null);
+      setHasSubmittedThisRound(false);
+      setSpeedAnsweredCorrectly(false);
+      speedAnsweredCorrectlyRef.current = false;
 
       if (hasAlreadyResponded) {
         setSessionState("submitted");
@@ -487,21 +525,8 @@ const AudienceParticipation: React.FC = () => {
         console.error('Failed to check existing response:', err);
       }
 
-      const cachedQ =
-        participantSessionRef.current.session.presentation.questions.find(
-          (q) => q.id === questionId,
-        );
-
-      if (cachedQ) {
-        applyQuestion(
-          cachedQ,
-          cachedQ.timeLimit ?? timeLimit ?? null,
-          endsAtMs,
-          hasAlreadyResponded,
-        );
-        return;
-      }
-
+      // Always fetch from the DB so that is_speed_question and speed_max_advance
+      // are guaranteed accurate.
       try {
         const { data: questionData, error: questionError } = await supabase
           .from("questions")
@@ -510,8 +535,21 @@ const AudienceParticipation: React.FC = () => {
           .maybeSingle();
 
         if (questionError || !questionData) {
-          setSessionState("waiting");
-          sessionStateRef.current = "waiting";
+          const cachedQ =
+            participantSessionRef.current.session.presentation.questions.find(
+              (q) => q.id === questionId,
+            );
+          if (cachedQ) {
+            applyQuestion(
+              cachedQ,
+              cachedQ.timeLimit ?? timeLimit ?? null,
+              endsAtMs,
+              hasAlreadyResponded,
+            );
+          } else {
+            setSessionState("waiting");
+            sessionStateRef.current = "waiting";
+          }
           return;
         }
 
@@ -530,7 +568,14 @@ const AudienceParticipation: React.FC = () => {
           image: questionData.image_url,
           displayStyle: questionData.display_style,
           skipAllowed: questionData.skip_allowed ?? false,
+          isSpeedQuestion: questionData.is_speed_question ?? false,
+          speedMaxAdvance: questionData.speed_max_advance ?? null,
+          showResultsInstantly: questionData.show_results_instantly ?? false,
         };
+
+        if (newQuestion.isSpeedQuestion && newQuestion.speedMaxAdvance) {
+          setSpeedMaxAdvance(newQuestion.speedMaxAdvance);
+        }
 
         applyQuestion(
           newQuestion,
@@ -579,7 +624,6 @@ const AudienceParticipation: React.FC = () => {
           const questionId = payload?.questionId as string | undefined;
           const questionIndex = (payload?.questionIndex as number) ?? 0;
           const timeLimit = payload?.timeLimit as number | null | undefined;
-          // OPTIMIZED: use host-broadcast absolute end time for clock synchronisation.
           const endsAt = payload?.endsAt as number | undefined;
 
           if (questionId) {
@@ -587,7 +631,10 @@ const AudienceParticipation: React.FC = () => {
             clearAnswerRevealTimeout();
             setShowAnswerReveal(false);
             setShowEliminationOverlay(false);
+            setShowSpeedEliminationOverlay(false);
             eliminationOverlayShownRef.current = false;
+            setIsFinalDecision(false);
+            setHasMadeDecision(false);
             loadQuestion(questionId, questionIndex, timeLimit ?? null, endsAt);
           }
           break;
@@ -607,7 +654,6 @@ const AudienceParticipation: React.FC = () => {
         case "RESUME": {
           const remaining =
             (payload?.remainingSeconds as number) ?? timerRemainingRef.current;
-          // OPTIMIZED: host now sends endsAt on resume so we re-anchor the clock.
           const endsAt = payload?.endsAt as number | undefined;
 
           setIsPaused(false);
@@ -636,7 +682,9 @@ const AudienceParticipation: React.FC = () => {
           clearAnswerRevealTimeout();
           setShowAnswerReveal(false);
           setShowEliminationOverlay(false);
+          setShowSpeedEliminationOverlay(false);
           eliminationOverlayShownRef.current = false;
+          setIsFinalDecision(false);
           setSessionState("ended");
           sessionStateRef.current = "ended";
           break;
@@ -694,13 +742,89 @@ const AudienceParticipation: React.FC = () => {
             clearAnswerRevealTimeout();
             setShowAnswerReveal(false);
             setShowEliminationOverlay(false);
+            setShowSpeedEliminationOverlay(false);
             eliminationOverlayShownRef.current = false;
+            setIsFinalDecision(false);
           }
           break;
         }
 
         case "GAME_OVER": {
           setIsGameOver(true);
+          break;
+        }
+
+        case SESSION_EVENTS.FINAL_ROUND_DECISION: {
+          // Only alive participants get the decision screen.
+          if (isEliminatedRef.current) break;
+
+          const decisionPayload = payload as { decisionTimer: number };
+          console.log("[FINAL] Decision screen received, timer:", decisionPayload.decisionTimer);
+          setFinalDecisionTimer(decisionPayload.decisionTimer);
+          setIsFinalDecision(true);
+          setHasMadeDecision(false);
+          setSessionState("final_decision");
+          sessionStateRef.current = "final_decision";
+
+          stopLocalCountdown();
+          clearAnswerRevealTimeout();
+          break;
+        }
+
+        case SESSION_EVENTS.SPEED_QUESTION_RESULTS: {
+          const results = payload as {
+            advancingParticipantIds: string[];
+            eliminatedCount: number;
+            maxAdvance: number;
+          };
+
+          console.log("[SPEED] Results received:", results);
+          console.log("[SPEED] My participant ID:", participantSessionRef.current?.participantId);
+
+          if (participantSessionRef.current) {
+            const myId = participantSessionRef.current.participantId;
+            const isAdvancing = results.advancingParticipantIds.includes(myId);
+
+            // Rank among all submitters (1-indexed). Non-advancing participants
+            // who answered correctly will have a rank > maxAdvance.
+            const rankIndex = results.advancingParticipantIds.findIndex(
+              (id) => id === myId,
+            );
+            const rank = rankIndex !== -1 ? rankIndex + 1 : results.maxAdvance + 1;
+
+            console.log("[SPEED] Am I advancing?", isAdvancing, "Rank:", rank, "Answered correctly:", speedAnsweredCorrectlyRef.current);
+
+            setSpeedRank(rank);
+            setSpeedMaxAdvance(results.maxAdvance);
+
+            if (!isAdvancing) {
+              // Only propagate rank to the EliminationOverlay when the participant
+              // answered CORRECTLY but was too slow. Wrong-answer eliminations
+              // should show the default overlay without rank information.
+              setSpeedEliminationRank(
+                speedAnsweredCorrectlyRef.current ? rank : null,
+              );
+            }
+          }
+          break;
+        }
+
+        case SESSION_EVENTS.FINAL_ROUND_START: {
+          const finalPayload = payload as {
+            questionId: string;
+            timeLimit: number;
+            startedAt: string;
+            endsAt: number;
+          };
+          console.log("[FINAL] Final round starting");
+          setIsFinalDecision(false);
+          setHasMadeDecision(false);
+          loadQuestion(
+            finalPayload.questionId,
+            (participantSession?.session.presentation.questions.length ?? 1) - 1,
+            finalPayload.timeLimit,
+            finalPayload.endsAt,
+          );
           break;
         }
 
@@ -713,6 +837,7 @@ const AudienceParticipation: React.FC = () => {
       startWallClockCountdown,
       stopLocalCountdown,
       clearAnswerRevealTimeout,
+      gameState.currentRound,
     ],
   );
 
@@ -723,17 +848,22 @@ const AudienceParticipation: React.FC = () => {
     enabled: !!participantSession,
   });
 
-  // ── Timer-end effect: determine what to show when a question closes ────────
+  // ── Timer-end effect: determine what to show when a question closes ───────
   useEffect(() => {
     if (!questionClosed) return;
     if (!isElimination) return;
     if (!participantSession || !currentQuestion) return;
     if (revealedWinner) return;
+    if (isFinalDecision) return;
 
     const ps = participantSession;
     const q = currentQuestion;
 
-    // ── CHECK 1: Already-eliminated spectator ─────────────────────────────
+    // For speed questions the results arrive via broadcast; nothing extra needed here.
+    if (q.isSpeedQuestion) {
+      return;
+    }
+
     if (isEliminatedRef.current) {
       const liveRoundNumber =
         currentQuestionRef.current?.number ?? gameState.currentRound ?? 0;
@@ -741,7 +871,7 @@ const AudienceParticipation: React.FC = () => {
       if (eliminatedAtRound === liveRoundNumber && sessionStateRef.current !== "submitted") {
         setShowAnswerReveal(true);
         clearAnswerRevealTimeout();
-        answerRevealTimeoutRef.current = window.setTimeout(() => {
+        answerRevealTimeoutRef.current = setTimeout(() => {
           setShowAnswerReveal(false);
           setShowEliminationOverlay(true);
           answerRevealTimeoutRef.current = undefined;
@@ -752,13 +882,11 @@ const AudienceParticipation: React.FC = () => {
       return;
     }
 
-    // ── CHECK 2: Active player who submitted a correct answer ──────────────
     if (sessionStateRef.current === "submitted") {
       setShowCorrectAnswerFeedback(true);
       return;
     }
 
-    // ── CHECK 3: Active player who never submitted ────────────────────────
     const roundNumber =
       currentQuestionRef.current?.number ?? gameState.currentRound ?? 0;
     (async () => {
@@ -780,7 +908,7 @@ const AudienceParticipation: React.FC = () => {
         }
         setShowAnswerReveal(true);
         clearAnswerRevealTimeout();
-        answerRevealTimeoutRef.current = window.setTimeout(() => {
+        answerRevealTimeoutRef.current = setTimeout(() => {
           setShowAnswerReveal(false);
           setShowEliminationOverlay(true);
           answerRevealTimeoutRef.current = undefined;
@@ -900,6 +1028,7 @@ const AudienceParticipation: React.FC = () => {
             clearAnswerRevealTimeout();
             setShowAnswerReveal(false);
             setShowEliminationOverlay(false);
+            setShowSpeedEliminationOverlay(false);
             eliminationOverlayShownRef.current = false;
             const endsAtMs = updatedSession.current_question_ends_at
               ? new Date(updatedSession.current_question_ends_at).getTime()
@@ -980,7 +1109,6 @@ const AudienceParticipation: React.FC = () => {
       setIsPaused(paused);
       isPausedRef.current = paused;
 
-      // Load skip data after joining
       await loadSkipsData();
 
       if (
@@ -994,12 +1122,10 @@ const AudienceParticipation: React.FC = () => {
         if (currentQ?.id) {
           const timeLimit = currentQ.timeLimit ?? null;
           
-          // OPTIMIZED: use endsAt from DB if available
           let endsAtMs: number | undefined = undefined;
           if (sessionExists.current_question_ends_at) {
             endsAtMs = new Date(sessionExists.current_question_ends_at).getTime();
           } else {
-            // Fallback: compute remaining from other fields
             const remaining = computeRemainingFromDbRow(
               {
                 is_paused: paused,
@@ -1085,7 +1211,75 @@ const AudienceParticipation: React.FC = () => {
     }
   };
 
-  // ── Handle skip submission ─────────────────────────────────────────
+  // ── Handle final round decision ─────────────────────────────────────────
+  const handleFinalRoundContinue = async () => {
+    if (hasMadeDecision) return;
+    setHasMadeDecision(true);
+    
+    if (participantSessionRef.current) {
+      await SessionService.recordFinalRoundDecision(
+        participantSessionRef.current.participantId,
+        true,
+      );
+      sendMessage({
+        type: SESSION_EVENTS.FINAL_ROUND_DECISION_RESPONSE,
+        payload: {
+          participantId: participantSessionRef.current.participantId,
+          choseContinue: true,
+        },
+      });
+    }
+    
+    setSessionState("waiting");
+    sessionStateRef.current = "waiting";
+    setIsFinalDecision(false);
+  };
+
+  const handleFinalRoundWithdraw = async () => {
+    if (hasMadeDecision) return;
+    setHasMadeDecision(true);
+    
+    if (participantSessionRef.current) {
+      await SessionService.recordFinalRoundDecision(
+        participantSessionRef.current.participantId,
+        false,
+      );
+      sendMessage({
+        type: SESSION_EVENTS.FINAL_ROUND_DECISION_RESPONSE,
+        payload: {
+          participantId: participantSessionRef.current.participantId,
+          choseContinue: false,
+        },
+      });
+    }
+    
+    setSessionState("ended");
+    sessionStateRef.current = "ended";
+    setIsFinalDecision(false);
+  };
+
+  // ── Handle speed waiting screen callbacks ───────────────────────────────
+  // NOTE: handleSpeedAdvanced is intentionally never called automatically.
+  // The "vous passez" screen persists until applyQuestion resets speed state
+  // when the next QUESTION_CHANGE broadcast arrives.
+  const handleSpeedAdvanced = useCallback(() => {
+    console.log("[SPEED] Participant advanced - waiting for next question to reset state");
+    // No-op: state reset happens in applyQuestion on next question load.
+  }, []);
+
+  const handleSpeedEliminated = useCallback(() => {
+    console.log("[SPEED] Participant eliminated - showing elimination overlay");
+    setIsSpeedWaiting(false);
+    setSpeedRank(null);
+    // Must move out of "speed_waiting" so the early return no longer blocks the
+    // EliminationOverlay render. "submitted" is correct — the participant did submit.
+    setSessionState("submitted");
+    sessionStateRef.current = "submitted";
+    // Show the speed elimination overlay (rank info already set in SPEED_QUESTION_RESULTS)
+    setShowSpeedEliminationOverlay(true);
+  }, []);
+
+  // ── Handle skip submission ──────────────────────────────────────────
   const handleSkipResponse = async () => {
     if (
       !questionActiveRef.current ||
@@ -1106,33 +1300,6 @@ const AudienceParticipation: React.FC = () => {
     const q = currentQuestionRef.current;
     if (!ps || !q) return;
 
-    if (isEliminated) {
-      toast({
-        title: "Cannot Skip",
-        description: "You have been eliminated.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (skipsRemaining <= 0) {
-      toast({
-        title: "No Skips Left",
-        description: "You have used all your skips for this session.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!q.skipAllowed) {
-      toast({
-        title: "Skip Not Allowed",
-        description: "This question does not allow skipping.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsSkipping(true);
 
     try {
@@ -1141,24 +1308,17 @@ const AudienceParticipation: React.FC = () => {
         participantId: ps.participantId,
         questionId: q.id,
         participantToken: ps.participantToken,
-        maxSkipsPerParticipant: maxSkipsPerParticipant,
+        maxSkipsPerParticipant,
       });
 
       if (result.success) {
-        // Refresh skip count
-        const freshSkipsUsed = await SessionService.getParticipantSkipsUsed(ps.participantId);
-        const newRemaining = Math.max(0, maxSkipsPerParticipant - freshSkipsUsed);
-        setSkipsRemaining(newRemaining);
-        
+        setSkipsRemaining((prev) => Math.max(0, prev - 1));
         setSessionState("submitted");
         sessionStateRef.current = "submitted";
-        
         toast({
-          title: "Question Skipped!",
-          description: `${newRemaining} skip${newRemaining !== 1 ? 's' : ''} remaining.`,
+          title: "Question Skipped",
+          description: `You have ${Math.max(0, skipsRemaining - 1)} skip(s) remaining.`,
         });
-
-        // Send message to host that this participant skipped
         sendMessage({
           type: SESSION_EVENTS.ANSWER_RECEIVED,
           payload: {
@@ -1229,6 +1389,18 @@ const AudienceParticipation: React.FC = () => {
       const pts = (q as any).points ?? 0;
 
       setSubmittedOptionId(chosenOptionId);
+      setHasSubmittedThisRound(true);
+
+      // For speed questions: immediately show the waiting screen and record
+      // whether the answer was correct. This is used later when SPEED_QUESTION_RESULTS
+      // arrives to decide whether to show rank info in the elimination overlay.
+      if (q.isSpeedQuestion) {
+        setSpeedAnsweredCorrectly(isCorrect);
+        speedAnsweredCorrectlyRef.current = isCorrect;
+        setIsSpeedWaiting(true);
+        setSessionState("speed_waiting");
+        sessionStateRef.current = "speed_waiting";
+      }
 
       try {
         const liveRoundNumber =
@@ -1251,6 +1423,8 @@ const AudienceParticipation: React.FC = () => {
           });
           setEliminatedAtRound(result.eliminated.roundNumber);
           setIsEliminated(true);
+          // NOTE: We do NOT override sessionState here for speed questions —
+          // SpeedQuestionWaiting must remain visible so the participant sees their result.
         }
 
         sendMessage({
@@ -1262,7 +1436,7 @@ const AudienceParticipation: React.FC = () => {
           },
         });
 
-        if (result.correct) {
+        if (result.correct && !q.isSpeedQuestion) {
           setSessionState("submitted");
           sessionStateRef.current = "submitted";
         }
@@ -1316,6 +1490,7 @@ const AudienceParticipation: React.FC = () => {
     timerRemainingRef.current = 0;
     eliminationOverlayShownRef.current = false;
     questionEndsAtRef.current = null;
+    speedAnsweredCorrectlyRef.current = false;
 
     setParticipantSession(null);
     setCurrentQuestion(null);
@@ -1339,15 +1514,23 @@ const AudienceParticipation: React.FC = () => {
     setIsEliminated(false);
     setEliminatedAtRound(0);
     setShowEliminationOverlay(false);
+    setShowSpeedEliminationOverlay(false);
+    setSpeedEliminationRank(null);
     setShowCorrectAnswerFeedback(false);
     setSubmittedOptionId(null);
     setShowAnswerReveal(false);
     setRevealedWinner(null);
     setIsGameOver(false);
-    // Reset skip state
     setSkipsRemaining(0);
     setMaxSkipsPerParticipant(1);
     setIsSkipping(false);
+    setIsSpeedWaiting(false);
+    setSpeedRank(null);
+    setHasSubmittedThisRound(false);
+    setSpeedAnsweredCorrectly(false);
+    setIsFinalDecision(false);
+    setHasMadeDecision(false);
+    setShowResults(false);
   };
 
   const handleRetry = () => {
@@ -1416,6 +1599,8 @@ const AudienceParticipation: React.FC = () => {
 
       case "question": {
         if (!currentQuestion) return null;
+        const isSpeed = currentQuestion.isSpeedQuestion === true;
+        
         return (
           <div className="relative">
             {isPaused && (
@@ -1435,6 +1620,18 @@ const AudienceParticipation: React.FC = () => {
                     The presenter has paused the session. Please wait for them
                     to resume.
                   </p>
+                </div>
+              </div>
+            )}
+
+            {/* Speed question badge */}
+            {isSpeed && !showResults && (
+              <div className="fixed top-20 right-4 z-50">
+                <div className="flex items-center gap-1.5 rounded-full bg-amber-500/20 backdrop-blur-sm px-3 py-1.5 border border-amber-500/30">
+                  <AppIcon name="Zap" size={12} className="text-amber-400" />
+                  <span className="text-xs font-bold text-amber-400">
+                    Speed: Top {currentQuestion.speedMaxAdvance ?? 3} advance
+                  </span>
                 </div>
               </div>
             )}
@@ -1495,7 +1692,6 @@ const AudienceParticipation: React.FC = () => {
                 onSubmit={(r) => handleSubmitResponse({ words: r.words })}
               />
             )}
-            {/* Scaling question */}
             {currentQuestion.type === "scaling" && (
               <ScalingQuestion
                 question={{
@@ -1514,7 +1710,6 @@ const AudienceParticipation: React.FC = () => {
                 }
               />
             )}
-            {/* Ranking question */}
             {currentQuestion.type === "ranking" && (
               <RankingQuestion
                 question={{
@@ -1535,6 +1730,28 @@ const AudienceParticipation: React.FC = () => {
           </div>
         );
       }
+
+      case "speed_waiting":
+        return (
+          <SpeedQuestionWaiting
+            visible={true}
+            rank={speedRank}
+            maxAdvance={speedMaxAdvance}
+            waitingForOthers={speedRank === null}
+            onAdvanced={handleSpeedAdvanced}
+            onEliminated={handleSpeedEliminated}
+          />
+        );
+
+      case "final_decision":
+        return (
+          <FinalRoundDecision
+            visible={true}
+            decisionTimer={finalDecisionTimer}
+            onContinue={handleFinalRoundContinue}
+            onWithdraw={handleFinalRoundWithdraw}
+          />
+        );
 
       case "submitted":
         if (isElimination) {
@@ -1656,6 +1873,24 @@ const AudienceParticipation: React.FC = () => {
   }
 
   if (isElimination) {
+    // PRIORITY 1 — Speed question waiting: must bypass ALL elimination checks.
+    // This handles both the "en attente" phase and the "vous passez" phase for
+    // advancing participants (who stay here until the next question clears state).
+    if (isSpeedWaiting || sessionState === "speed_waiting") {
+      return (
+        <div className={`${themeClass} min-h-screen bg-background relative`}>
+          <SpeedQuestionWaiting
+            visible={true}
+            rank={speedRank}
+            maxAdvance={speedMaxAdvance}
+            waitingForOthers={speedRank === null}
+            onAdvanced={handleSpeedAdvanced}
+            onEliminated={handleSpeedEliminated}
+          />
+        </div>
+      );
+    }
+
     const liveRoundNumber =
       currentQuestion?.number ?? gameState.currentRound ?? 0;
 
@@ -1668,8 +1903,14 @@ const AudienceParticipation: React.FC = () => {
       eliminatedAtRound === liveRoundNumber &&
       sessionState !== "submitted";
 
+    // Eliminated players drop into spectator mode — but NOT when speed_waiting
+    // (handled above) or final_decision (FinalRoundDecision is only sent to alive players).
     const isEliminatedSpectator =
-      isEliminated && !showEliminationOverlay && !showCorrectAnswerFeedback;
+      isEliminated &&
+      !showEliminationOverlay &&
+      !showSpeedEliminationOverlay &&
+      !showCorrectAnswerFeedback &&
+      sessionState !== "final_decision";
 
     if (hasJustSubmittedAndWaiting || isEliminatedSpectator) {
       const hideBanner = hasJustSubmittedAndWaiting || eliminatedThisRoundWaiting;
@@ -1692,12 +1933,28 @@ const AudienceParticipation: React.FC = () => {
   return (
     <div className={`${themeClass} min-h-screen bg-background relative`}>
       {isElimination && (
-        <EliminationOverlay
-          show={showEliminationOverlay}
-          roundNumber={eliminatedAtRound}
-          onStay={() => setShowEliminationOverlay(false)}
-          onLeave={handleJoinNewSession}
-        />
+        <>
+          {/* Regular elimination overlay (non-speed questions) */}
+          <EliminationOverlay
+            show={showEliminationOverlay && !showSpeedEliminationOverlay}
+            roundNumber={eliminatedAtRound}
+            onStay={() => setShowEliminationOverlay(false)}
+            onLeave={handleJoinNewSession}
+          />
+
+          {/* Speed-question elimination overlay.
+              isSpeedQuestion=true + rank>0  → correct-but-slow → shows rank text.
+              isSpeedQuestion=true + rank=null → wrong answer    → default text. */}
+          <EliminationOverlay
+            show={showSpeedEliminationOverlay}
+            roundNumber={eliminatedAtRound}
+            onStay={() => setShowSpeedEliminationOverlay(false)}
+            onLeave={handleJoinNewSession}
+            isSpeedQuestion={true}
+            rank={speedEliminationRank}
+            maxAdvance={speedMaxAdvance}
+          />
+        </>
       )}
 
       {renderTimerBar()}
