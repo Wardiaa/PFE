@@ -1911,6 +1911,12 @@ const HostSession: React.FC = () => {
                 <EliminationHistory
                   sessionId={session.id}
                   gameState={gameState}
+                  currentQuestionId={currentQuestion?.id}
+                  revealHistory={
+                    getQuestionTimeLimit(currentQuestion) !== null
+                      ? !timerActive && !isProcessingSpeedQuestion
+                      : showResults
+                  }
                 />
               </motion.aside>
             </motion.div>

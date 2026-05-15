@@ -1,11 +1,17 @@
 // EliminationHistory.tsx
 import { useEffect, useRef, useState } from "react";
-import { Skull, Users, Clock } from "lucide-react";
+import { Users, Clock, Hourglass } from "lucide-react";
 import { SessionService } from "../../../service/session.service";
 import type { EliminationEvent, GameState } from "../../../lib/presentation.types";
 
 interface Props {
   sessionId: string;
+  /**
+   * The ID of the question currently being played.
+   * Eliminations from previous questions are always shown.
+   * Eliminations from the current question are gated by `revealHistory`.
+   */
+  currentQuestionId?: string;
   /**
    * Optional live or frozen game state. Used ONLY to display the alive-count
    * badge (aliveCount / totalCount). History is always fetched from the DB.
@@ -13,12 +19,29 @@ interface Props {
   gameState?: GameState;
   /** How often to poll the DB for new eliminations (ms). Defaults to 2000. */
   pollIntervalMs?: number;
+  /**
+   * Controls whether the CURRENT question's eliminations are visible.
+   *
+   * • timed questions  → pass `!timerActive && !isProcessingSpeedQuestion`
+   * • untimed questions → pass `showResults`
+   *
+   * Eliminations from ALL previous questions are always shown regardless of
+   * this flag.  Defaults to `true` for backward compatibility.
+   */
+  revealHistory?: boolean;
 }
 
-export function EliminationHistory({ sessionId, gameState, pollIntervalMs = 2000 }: Props) {
+export function EliminationHistory({
+  sessionId,
+  currentQuestionId,
+  gameState,
+  pollIntervalMs = 2000,
+  revealHistory = true,
+}: Props) {
   const [history, setHistory] = useState<EliminationEvent[]>([]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Always poll in the background regardless of display gates.
   useEffect(() => {
     let alive = true;
 
@@ -42,6 +65,37 @@ export function EliminationHistory({ sessionId, gameState, pollIntervalMs = 2000
   const aliveCount = gameState?.alive.length;
   const totalCount = gameState?.totalPlayers;
 
+  // Deduplicate: for each (participantId, questionId) pair keep only the most
+  // recent entry. This handles the speed-question double-write where a wrong
+  // answer writes one record immediately and processSpeedQuestionEnd writes
+  // another at timer end.
+  const deduped = Array.from(
+    history
+      .slice()
+      .sort((a, b) => new Date(b.eliminatedAt).getTime() - new Date(a.eliminatedAt).getTime())
+      .reduce((map, e) => {
+        const key = `${e.participantId}::${e.questionId}`;
+        if (!map.has(key)) map.set(key, e);
+        return map;
+      }, new Map<string, EliminationEvent>())
+      .values(),
+  // Re-sort ascending by eliminatedAt so the list reads oldest → newest
+  ).sort((a, b) => new Date(a.eliminatedAt).getTime() - new Date(b.eliminatedAt).getTime());
+
+  // Split into two buckets:
+  // • visibleHistory  — past questions (always) + current question (only when revealed)
+  // • hiddenCount     — current question entries that are gated
+  const visibleHistory = deduped.filter(
+    (e) => e.questionId !== currentQuestionId || revealHistory,
+  );
+  const hiddenCount = deduped.filter(
+    (e) => e.questionId === currentQuestionId && !revealHistory,
+  ).length;
+
+  // Show the waiting notice when the current question still has pending entries
+  // OR when we're mid-question and revealHistory is false (even if 0 elims yet).
+  const showPendingNotice = !revealHistory;
+
   return (
     <aside className="flex flex-col h-full bg-background font-sans">
       {/* Minimal Header */}
@@ -54,7 +108,7 @@ export function EliminationHistory({ sessionId, gameState, pollIntervalMs = 2000
             Eliminations
           </div>
         </div>
-        
+
         {typeof aliveCount === "number" && typeof totalCount === "number" && (
           <div className="flex items-center gap-2 text-sm font-medium">
             <Users size={14} className="text-muted-foreground" />
@@ -66,16 +120,16 @@ export function EliminationHistory({ sessionId, gameState, pollIntervalMs = 2000
       </header>
 
       {/* Feed Container */}
-      <div className="flex-1 overflow-hidden">
-        {history.length === 0 ? (
-          <div className="h-full flex items-center justify-center py-10">
+      <div className="flex-1 overflow-hidden flex flex-col gap-3">
+        {visibleHistory.length === 0 && !showPendingNotice ? (
+          <div className="flex-1 flex items-center justify-center py-10">
             <p className="text-sm text-muted-foreground/60 italic font-light">
               No eliminations recorded yet
             </p>
           </div>
         ) : (
-          <div className="space-y-0.5 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-            {history.map((e) => (
+          <div className="space-y-0.5 overflow-y-auto pr-2 custom-scrollbar flex-1">
+            {visibleHistory.length === 0 ? null : visibleHistory.map((e) => (
               <div
                 key={`${e.participantId}-${e.questionId}-${e.roundNumber}`}
                 className="group flex items-center justify-between py-3 px-1 border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors"
@@ -104,6 +158,18 @@ export function EliminationHistory({ sessionId, gameState, pollIntervalMs = 2000
             ))}
           </div>
         )}
+
+        {/* Pending notice for the current question — shown inline, not full-screen */}
+        {showPendingNotice && (
+          <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
+            <Hourglass size={12} className="shrink-0 text-muted-foreground/60" />
+            <span>
+              {hiddenCount > 0
+                ? `${hiddenCount} élimination${hiddenCount > 1 ? "s" : ""} en attente de la fin de la question`
+                : "En attente de la fin de la question…"}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Footer Info */}
@@ -111,7 +177,9 @@ export function EliminationHistory({ sessionId, gameState, pollIntervalMs = 2000
         <div className="rounded-lg bg-muted/50 p-3 border border-border/50">
           <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             <span>Status</span>
-            <span className="text-foreground">Live Feed Active</span>
+            <span className="text-foreground">
+              {revealHistory ? "Live Feed Active" : "En attente…"}
+            </span>
           </div>
         </div>
       </footer>

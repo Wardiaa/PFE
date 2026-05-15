@@ -8,7 +8,6 @@
 // Participant variant: shows a "Quitter" button → onQuit() (navigates away).
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Skull } from "lucide-react";
 
 interface Props {
   visible: boolean;
@@ -52,15 +51,6 @@ export function GameOverOverlay({ visible, isHost = false, onEnd, onQuit }: Prop
             />
 
             <div className="px-10 sm:px-14 pt-12 pb-12">
-              {/* Skull icon */}
-              <motion.div
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.15, type: "spring", damping: 14, stiffness: 200 }}
-                className="mb-8 inline-flex h-16 w-16 items-center justify-center rounded-full border border-red-800/40 bg-red-900/20"
-              >
-                <Skull className="h-8 w-8 text-red-500" />
-              </motion.div>
 
               {/* Headline */}
               <motion.div

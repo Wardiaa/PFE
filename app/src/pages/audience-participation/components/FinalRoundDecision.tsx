@@ -1,9 +1,5 @@
 // FinalRoundDecision.tsx
-// Shown to participants when reaching the final round
-// They must choose whether to continue or withdraw
-
 import { useState, useEffect } from "react";
-import { Crown, Check, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface FinalRoundDecisionProps {
@@ -22,43 +18,28 @@ export function FinalRoundDecision({
   const [timeLeft, setTimeLeft] = useState(decisionTimer);
   const [hasDecided, setHasDecided] = useState(false);
 
-  console.log("[FinalRoundDecision] Props:", { visible, decisionTimer, hasDecided });
-
   // Reset when visibility changes
   useEffect(() => {
     if (visible) {
-      console.log("[FinalRoundDecision] Becoming visible, resetting timer to", decisionTimer);
       setTimeLeft(decisionTimer);
       setHasDecided(false);
     }
   }, [visible, decisionTimer]);
 
-  // Timer countdown
+  // Timer countdown logic (optimized - no timeLeft dependency)
   useEffect(() => {
-    if (!visible) return;
-    if (timeLeft <= 0) return;
-
-    console.log("[FinalRoundDecision] Timer running:", timeLeft);
+    if (!visible || timeLeft <= 0) return;
 
     const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          console.log("[FinalRoundDecision] Timer expired");
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
-      });
+      setTimeLeft((prev) => prev - 1);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [visible, timeLeft]);
+  }, [visible]); // Removed timeLeft from dependencies
 
   // Auto-withdraw when timer expires
   useEffect(() => {
-    if (!visible) return;
-    if (timeLeft === 0 && !hasDecided) {
-      console.log("[FinalRoundDecision] Auto-withdrawing due to timer expiration");
+    if (visible && timeLeft === 0 && !hasDecided) {
       setHasDecided(true);
       onWithdraw();
     }
@@ -66,86 +47,91 @@ export function FinalRoundDecision({
 
   const handleContinue = () => {
     if (hasDecided) return;
-    console.log("[FinalRoundDecision] User chose to continue");
     setHasDecided(true);
     onContinue();
   };
 
   const handleWithdraw = () => {
     if (hasDecided) return;
-    console.log("[FinalRoundDecision] User chose to withdraw");
     setHasDecided(true);
     onWithdraw();
   };
+
+  // Calculate progress percentage
+  const progressPercentage = (timeLeft / decisionTimer) * 100;
 
   if (!visible) return null;
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/85 backdrop-blur-lg">
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          transition={{ type: "spring", damping: 25, stiffness: 300 }}
-          className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/95 backdrop-blur-2xl"
+          initial={{ opacity: 0, y: 20, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 10, scale: 0.98 }}
+          transition={{ type: "spring", damping: 25, stiffness: 350 }}
+          className="relative w-full max-w-[500px] overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"
         >
-          {/* Left accent bar */}
-          <div className="absolute inset-y-0 left-0 w-[6px] bg-gradient-to-b from-amber-500 to-amber-700 shadow-[0_0_30px_rgba(245,158,11,0.5)]" />
+          {/* Progress Bar Container */}
+          <div className="w-full h-1.5 bg-primary/10">
+            <motion.div
+              className="h-full bg-primary"
+              initial={{ width: "100%" }}
+              animate={{ width: `${progressPercentage}%` }}
+              transition={{ duration: 0.5, ease: "linear" }}
+            />
+          </div>
 
-          <div className="px-8 sm:px-10 pt-10 pb-8">
-            {/* Timer */}
-            <div className="flex justify-end mb-4">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 border border-white/20">
-                <svg className="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="10" strokeWidth="2" />
-                  <polyline points="12 6 12 12 16 14" strokeWidth="2" />
-                </svg>
-                <span className="text-sm font-mono font-bold text-white tabular-nums">
-                  {timeLeft}s
-                </span>
+          <div className="px-8 pt-10 pb-12">
+            {/* Header / Meta Info */}
+            <div className="flex justify-between items-center mb-12">
+              <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                Final Round Decision
+              </span>
+              <div className="px-3 py-1 bg-muted border border-border rounded text-sm font-mono font-bold text-foreground tabular-nums">
+                {timeLeft}s
               </div>
             </div>
 
-            {/* Crown icon */}
-            <div className="flex justify-center mb-6">
-              <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center">
-                <Crown className="w-8 h-8 text-amber-400" />
-              </div>
+            {/* Main Content */}
+            <div className="text-center mb-10">
+              <h2 className="text-4xl font-black text-foreground tracking-tighter uppercase mb-4">
+                DERNIÈRE MANCHE
+              </h2>
+              <p className="text-muted-foreground text-lg leading-relaxed">
+                Vous êtes arrivé à la dernière question.<br />
+                Voulez-vous tenter le tout pour le tout ?
+              </p>
             </div>
 
-            {/* Title */}
-            <h2 className="text-3xl sm:text-4xl font-black text-center text-white tracking-tighter mb-3">
-              DERNIÈRE MANCHE
-            </h2>
-            <p className="text-center text-white/70 text-base mb-8">
-              Vous êtes arrivé à la dernière question.<br />
-              Voulez-vous continuer pour tenter de gagner ?
-            </p>
-
-            {/* Action buttons */}
-            <div className="flex flex-col sm:flex-row gap-4">
+            {/* Action Buttons (Mentimeter Style: Big, Solid, No Icons) */}
+            <div className="flex flex-col gap-3">
               <button
                 onClick={handleContinue}
                 disabled={hasDecided}
-                className="flex-1 flex items-center justify-center gap-2 py-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-sm uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-5 rounded-xl bg-primary text-primary-foreground font-black text-sm uppercase tracking-widest transition-transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
-                <Check className="w-5 h-5" />
-                OUI, je continue
+                OUI, JE CONTINUE
               </button>
+              
               <button
                 onClick={handleWithdraw}
                 disabled={hasDecided}
-                className="flex-1 flex items-center justify-center gap-2 py-4 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-sm uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-5 rounded-xl bg-muted border border-border text-foreground font-black text-sm uppercase tracking-widest transition-transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
-                <X className="w-5 h-5" />
-                NON, je me retire
+                NON, JE ME RETIRE
               </button>
             </div>
 
-            <p className="text-center text-white/30 text-[11px] mt-6">
-              {hasDecided ? "Décision enregistrée..." : `Faites votre choix avant la fin du temps (${timeLeft}s)`}
-            </p>
+            {/* Footer status with auto-withdrawal hint */}
+            <div className="mt-8 text-center h-4">
+              <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/60">
+                {hasDecided 
+                  ? "Décision enregistrée..." 
+                  : `Sélectionnez une option (retrait automatique dans ${timeLeft}s)`
+                }
+              </p>
+            </div>
           </div>
         </motion.div>
       </div>

@@ -1225,9 +1225,15 @@ export class SessionService {
         for (const participantId of allIdsToEliminate) {
           const { data: participant } = await supabase
             .from("participants")
-            .select("name")
+            .select("name, is_alive")
             .eq("id", participantId)
             .single();
+
+          // Wrong-answer participants were already eliminated (and already
+          // written to elimination_log) the moment they submitted. Only mark
+          // alive→dead and write the log row for participants who are still
+          // alive at timer-end (i.e. correct-but-too-slow participants).
+          const alreadyEliminated = participant?.is_alive === false;
 
           await supabase
             .from("participants")
@@ -1238,14 +1244,16 @@ export class SessionService {
             })
             .eq("id", participantId);
 
-          await supabase.from("elimination_log").insert({
-            session_id: sessionId,
-            participant_id: participantId,
-            participant_name: participant?.name || "Unknown",
-            question_id: questionId,
-            round_number: roundNumber,
-            eliminated_at: new Date().toISOString(),
-          });
+          if (!alreadyEliminated) {
+            await supabase.from("elimination_log").insert({
+              session_id: sessionId,
+              participant_id: participantId,
+              participant_name: participant?.name || "Unknown",
+              question_id: questionId,
+              round_number: roundNumber,
+              eliminated_at: new Date().toISOString(),
+            });
+          }
         }
       }
 
