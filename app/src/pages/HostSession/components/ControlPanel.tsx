@@ -69,21 +69,18 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   const sheetRef = useRef<HTMLDivElement>(null);
   const chevronRef = useRef<HTMLButtonElement>(null);
 
-  const joinUrl = `${window.location.origin}/audience-participation?code=${sessionCode}`;
-
-  // Add state for desktop mode detection
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 846);
 
   useEffect(() => {
     const handleResize = () => {
       setIsDesktop(window.innerWidth >= 846);
     };
-    
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Close QR popover when clicking outside the toolbar wrapper (desktop)
+  const joinUrl = `${window.location.origin}/audience-participation?code=${sessionCode}`;
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
@@ -94,7 +91,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     return () => document.removeEventListener('mousedown', handler);
   }, [showQr]);
 
-  // Close mobile sheet when clicking the backdrop
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (
@@ -114,7 +110,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   const [desktopRevealed, setDesktopRevealed] = useState(false);
   const desktopBarRef = useRef<HTMLDivElement>(null);
 
-  // Hide desktop bar when tapping outside it (touch screens)
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (desktopBarRef.current && !desktopBarRef.current.contains(e.target as Node)) {
@@ -228,12 +223,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
   return (
     <>
-      {/* Mobile bottom-sheet backdrop */}
       {showMobileMenu && !isDesktop && (
         <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" />
       )}
 
-      {/* Mobile bottom sheet */}
       {showMobileMenu && !isDesktop && (
         <div
           ref={sheetRef}
@@ -324,7 +317,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
       )}
 
-      {/* Mobile always-visible strip - only when NOT desktop */}
       {!isDesktop && (
         <div className="fixed bottom-0 left-0 right-0 z-50">
           <div className="bg-card/95 backdrop-blur-xl border-t border-border shadow-2xl px-4 py-3">
@@ -376,9 +368,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
       )}
 
-      {/* Desktop layout - only when desktop */}
+      {/* desktop - KEPT EXACTLY THE SAME STRUCTURE with flex class */}
       {isDesktop && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 flex-col items-center pb-5 pointer-events-none">
+        <div className="flex fixed bottom-0 left-0 right-0 z-50 flex-col items-center pb-5 pointer-events-none">
           <div ref={wrapperRef} className="pointer-events-auto w-full max-w-5xl px-4 flex flex-col items-center gap-2">
             {showQr && (
               <div className="bg-card/98 backdrop-blur-xl border border-border rounded-2xl shadow-2xl p-5 flex flex-col items-center gap-3 animate-in slide-in-from-bottom-3 duration-200">
@@ -430,7 +422,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                   }`}
                 >
                   <AppIcon name={isShowingResults ? 'EyeOff' : 'BarChart3'} size={15} />
-                  <span className="whitespace-nowrap">
+                  <span className="hidden sm:inline whitespace-nowrap">
                     {isShowingResults ? 'Hide Results' : 'Show Results'}
                   </span>
                 </button>
@@ -456,7 +448,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                     }`}
                   >
                     <AppIcon name={showCorrectAnswer ? 'EyeOff' : 'Check'} size={15} />
-                    <span className="whitespace-nowrap">
+                    <span className="hidden sm:inline whitespace-nowrap">
                       {showCorrectAnswer ? 'Hide Answer' : 'Show Answer'}
                     </span>
                   </button>

@@ -94,7 +94,7 @@ const AnalyticsPanel: React.FC<AnalyticsPanelProps> = ({ context }) => {
 
           <div className="bg-muted rounded-lg p-3 md:p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Users className="h-4 w-4 text-secondary" />
+              <Users className="h-4 w-4 text-primary" />
               <span className="text-xs text-muted-foreground">Participants</span>
             </div>
             <p className="text-xl md:text-2xl font-bold text-foreground">
@@ -104,7 +104,7 @@ const AnalyticsPanel: React.FC<AnalyticsPanelProps> = ({ context }) => {
 
           <div className="bg-muted rounded-lg p-3 md:p-4">
             <div className="flex items-center gap-2 mb-2">
-              <BarChart2 className="h-4 w-4 text-accent" />
+              <BarChart2 className="h-4 w-4 text-primary" />
               <span className="text-xs text-muted-foreground">Sessions</span>
             </div>
             <p className="text-xl md:text-2xl font-bold text-foreground">

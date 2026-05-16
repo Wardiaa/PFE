@@ -87,9 +87,8 @@
     --muted: 220 20% 92%;
     --muted-foreground: 220 20% 45%;
 
-    /* teal Accent */
-    --accent: 170 80% 45%;
-    --accent-foreground: 0 0% 100%;
+--accent: 0 0% 92%;
+--accent-foreground: 0 0% 0%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
