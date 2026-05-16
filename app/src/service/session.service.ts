@@ -1,10 +1,5 @@
 // src/lib/session.service.ts
-// OPTIMIZED: setCurrentQuestion now writes current_question_ends_at for server-authoritative timers.
-// incrementScore uses DB arithmetic to avoid read-modify-write race conditions.
-// getGameState uses Promise.all to run queries in parallel.
-// All console.log/console.error calls retained for debugging but can be swapped for a logger.
-// SKIP BUTTON UPDATE: Added submitSkip method with atomic increment, getMaxSkipsForSession, getParticipantSkipsUsed
-// SPEED QUESTION : only correct answers can advance. Wrong answers are immediately eliminated.
+// COMPLETE VERSION - includes all methods for elimination, speed questions, skip, grid-2x2, and vote
 
 import { supabase } from "../lib/supabase";
 import type {
@@ -16,6 +11,11 @@ import type {
   EliminationEvent,
   GameState,
   GameMode,
+  GridPlacement,
+  IndividualGridResponse,
+  IndividualVoteResponse,
+  Grid2x2Responses,
+  VoteResponses,
 } from "../lib/presentation.types";
 
 export interface CreateSessionParams {
@@ -60,6 +60,8 @@ export class SessionService {
       WORD_CLOUD: "word-cloud",
       SCALING: "scaling",
       RANKING: "ranking",
+      GRID_2X2: "grid-2x2",
+      VOTE: "vote",
     };
     return mapping[dbType] ?? "multiple-choice";
   }
@@ -92,10 +94,11 @@ export class SessionService {
             question_order,
             hide_participant_names,
             statements,
-            skip_allowed
+            skip_allowed,
+            x_axis,
+            y_axis
           )
-        `,
-        )
+        `)
         .eq("id", contextId)
         .maybeSingle();
 
@@ -136,6 +139,8 @@ export class SessionService {
           displayStyle: q.display_style,
           hideParticipantNames: q.hide_participant_names ?? false,
           skipAllowed: q.skip_allowed ?? false,
+          xAxis: q.x_axis,
+          yAxis: q.y_axis,
         }));
 
       return {
@@ -248,6 +253,8 @@ export class SessionService {
           displayStyle: q.display_style,
           hideParticipantNames: q.hide_participant_names ?? false,
           skipAllowed: q.skip_allowed ?? false,
+          xAxis: q.x_axis,
+          yAxis: q.y_axis,
         }));
 
       return {
@@ -379,8 +386,8 @@ export class SessionService {
       const { data: incrementSuccess, error: rpcError } = await supabase.rpc(
         "increment_participant_skips",
         {
-          p_participant_id: participantId,
-          p_max_skips: maxSkipsPerParticipant,
+        p_participant_id: participantId,
+        p_max_skips: maxSkipsPerParticipant,
         }
       );
 
@@ -658,7 +665,45 @@ export class SessionService {
           return;
         }
 
-        // ── Scaling answers ────────────────────────────────────────────────
+        // GRID 2x2
+        if (answer.placements && typeof answer.placements === "object") {
+          aggregated.totalResponses = (aggregated.totalResponses || 0) + 1;
+          aggregated.individualResponses = aggregated.individualResponses || [];
+          
+          aggregated.individualResponses.push({
+            placements: answer.placements,
+            participantName: hideParticipantNames ? undefined : participantName,
+            timestamp: new Date(),
+          });
+
+          aggregated.itemPlacements = aggregated.itemPlacements || {};
+          Object.entries(answer.placements).forEach(([itemId, placement]) => {
+            if (!aggregated.itemPlacements[itemId]) {
+              aggregated.itemPlacements[itemId] = { placements: [], centroid: { x: 50, y: 50 } };
+            }
+            aggregated.itemPlacements[itemId].placements.push(placement);
+            const placementsList = aggregated.itemPlacements[itemId].placements;
+            const avgX = placementsList.reduce((sum: number, p: GridPlacement) => sum + p.x, 0) / placementsList.length;
+            const avgY = placementsList.reduce((sum: number, p: GridPlacement) => sum + p.y, 0) / placementsList.length;
+            aggregated.itemPlacements[itemId].centroid = { x: avgX, y: avgY };
+          });
+          return;
+        }
+
+        // VOTE
+        if (answer.optionId && answer.isCorrect === undefined) {
+          aggregated[answer.optionId] = (aggregated[answer.optionId] || 0) + 1;
+          aggregated.total = (aggregated.total || 0) + 1;
+          aggregated.individualResponses = aggregated.individualResponses || [];
+          aggregated.individualResponses.push({
+            optionId: answer.optionId,
+            participantName: hideParticipantNames ? undefined : participantName,
+            timestamp: new Date(),
+          });
+          return;
+        }
+
+        // SCALING
         if (answer.scalingAnswers && typeof answer.scalingAnswers === "object") {
           if (!aggregated.statements) aggregated.statements = {};
           aggregated.total = (aggregated.total || 0) + 1;
@@ -699,7 +744,7 @@ export class SessionService {
                 timestamp: new Date(),
               });
             });
-          }
+        }
 
         // ── Ranking answers ──────────────────────────────────────────────
         } else if (answer.rankingOrder && Array.isArray(answer.rankingOrder)) {
@@ -730,7 +775,7 @@ export class SessionService {
               participantName,
               timestamp: new Date(),
             });
-          }
+        }
 
         // ── Choice answers ─────────────────────────────────────────────
         } else if (answer.optionId) {
@@ -920,23 +965,23 @@ export class SessionService {
     try {
       const [{ data: participants }, { data: history }, { data: session }] =
         await Promise.all([
-          supabase
-            .from("participants")
+        supabase
+          .from("participants")
             .select(
               "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id, skips_used",
             )
-            .eq("session_id", sessionId),
-          supabase
-            .from("elimination_log")
-            .select("*")
-            .eq("session_id", sessionId)
-            .order("eliminated_at", { ascending: true }),
-          supabase
-            .from("sessions")
-            .select("current_question_index, status, context_id")
-            .eq("id", sessionId)
-            .maybeSingle(),
-        ]);
+          .eq("session_id", sessionId),
+        supabase
+          .from("elimination_log")
+          .select("*")
+          .eq("session_id", sessionId)
+          .order("eliminated_at", { ascending: true }),
+        supabase
+          .from("sessions")
+          .select("current_question_index, status, context_id")
+          .eq("id", sessionId)
+          .maybeSingle(),
+      ]);
 
       const allParticipants = (participants || []).map((p: any) => ({
         id: p.id,
@@ -1146,7 +1191,7 @@ export class SessionService {
       return { correct: false, eliminated: null, newScore: null };
     }
   }
-  
+
   /**
    * Process speed question results
    * ONLY correct answers can advance. The RPC get_speed_question_results

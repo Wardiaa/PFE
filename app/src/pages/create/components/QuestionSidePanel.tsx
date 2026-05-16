@@ -1,6 +1,7 @@
 // QuestionSidePanel.tsx - UPDATED with Skip toggle for elimination mode
 // Added skipAllowed toggle in Interactivity panel when isEliminationMode is true
 // SPEED QUESTION UPDATE: Added isSpeedQuestion toggle and speedMaxAdvance input
+// GRID 2x2 & VOTE UPDATE: Added edit panels for grid-2x2 and vote question types
 
 import { useState, useEffect, type ChangeEvent, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -35,8 +36,364 @@ import {
   SlidersHorizontal,
   GripVertical,
   ListOrdered,
-  Zap, // NEW: for speed question icon
+  Zap,
+  Grid3X3,
+  Vote,
+  ArrowLeftRight,
+  ArrowUpDown,
 } from "lucide-react";
+
+// ── DnD imports for Grid 2x2 and Vote ─────────────────────────────────────────
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+// ── Types for Grid 2x2 ────────────────────────────────────────────────────────
+interface GridAxis {
+  label: string;
+  minLabel: string;
+  maxLabel: string;
+}
+
+// ── Sortable option row (shared by Grid 2x2 and Vote) ─────────────────────────
+function SortableOptionRow({
+  option,
+  onTextChange,
+  onDelete,
+  placeholder,
+}: {
+  option: { id: string; text: string };
+  onTextChange: (id: string, text: string) => void;
+  onDelete: (id: string) => void;
+  placeholder?: string;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: option.id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+      }}
+      className="flex items-center gap-2 group"
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 transition-colors p-0.5"
+        tabIndex={-1}
+        type="button"
+      >
+        <GripVertical size={14} />
+      </button>
+
+      <input
+        type="text"
+        value={option.text}
+        onChange={(e) => onTextChange(option.id, e.target.value)}
+        placeholder={placeholder ?? "Enter option text…"}
+        className="flex-1 text-sm px-3 py-2 rounded-lg border border-slate-200 bg-[#F1F3F5] focus:outline-none focus:ring-1 focus:ring-indigo-400 transition-all"
+      />
+
+      <button
+        type="button"
+        onClick={() => onDelete(option.id)}
+        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100"
+      >
+        <Trash2 size={14} />
+      </button>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// GRID 2×2 FIELDS (inline component)
+// ═════════════════════════════════════════════════════════════════════════════
+function Grid2x2Fields({
+  question,
+  onUpdate,
+}: {
+  question: Question;
+  onUpdate: (updates: Partial<Question>) => void;
+}) {
+  const options: Array<{ id: string; text: string }> = (question.options as any) ?? [];
+  const xAxis: GridAxis = (question as any).xAxis ?? { label: "Effort", minLabel: "Low", maxLabel: "High" };
+  const yAxis: GridAxis = (question as any).yAxis ?? { label: "Impact", minLabel: "Low", maxLabel: "High" };
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const updateOption = (id: string, text: string) => {
+    onUpdate({ options: options.map((o) => (o.id === id ? { ...o, text } : o)) } as any);
+  };
+
+  const deleteOption = (id: string) => {
+    if (options.length <= 2) return;
+    onUpdate({ options: options.filter((o) => o.id !== id) } as any);
+  };
+
+  const addOption = () => {
+    const newId = `grid-${Date.now()}`;
+    onUpdate({ options: [...options, { id: newId, text: "" }] } as any);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIdx = options.findIndex((o) => o.id === active.id);
+      const newIdx = options.findIndex((o) => o.id === over.id);
+      onUpdate({ options: arrayMove(options, oldIdx, newIdx) } as any);
+    }
+  };
+
+  const updateAxis = (axis: "xAxis" | "yAxis", field: keyof GridAxis, value: string) => {
+    const current = axis === "xAxis" ? xAxis : yAxis;
+    onUpdate({ [axis]: { ...current, [field]: value } } as any);
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Grid Items */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            Grid Items
+          </label>
+          <span className="text-xs text-slate-400">{options.length} items</span>
+        </div>
+
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={options.map((o) => o.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {options.map((opt, idx) => (
+                <SortableOptionRow
+                  key={opt.id}
+                  option={opt}
+                  onTextChange={updateOption}
+                  onDelete={deleteOption}
+                  placeholder={`Item ${idx + 1}`}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+
+        <button
+          type="button"
+          onClick={addOption}
+          className="mt-2 w-full py-3 bg-[#F1F3F5] hover:bg-[#E9ECEF] rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-2 transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Add item
+        </button>
+      </div>
+
+      <div className="h-px bg-slate-100" />
+
+      {/* X Axis Config */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <ArrowLeftRight size={14} className="text-slate-400" />
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            X Axis (Horizontal)
+          </label>
+        </div>
+        <div className="space-y-2">
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">Axis Name</label>
+            <input
+              type="text"
+              value={xAxis.label}
+              onChange={(e) => updateAxis("xAxis", "label", e.target.value)}
+              placeholder="e.g. Effort"
+              className="w-full text-sm px-3 py-2 rounded-lg border border-slate-200 bg-[#F1F3F5] focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-slate-500 mb-1 block">Left label</label>
+              <input
+                type="text"
+                value={xAxis.minLabel}
+                onChange={(e) => updateAxis("xAxis", "minLabel", e.target.value)}
+                placeholder="Low"
+                className="w-full text-sm px-3 py-2 rounded-lg border border-slate-200 bg-[#F1F3F5] focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-500 mb-1 block">Right label</label>
+              <input
+                type="text"
+                value={xAxis.maxLabel}
+                onChange={(e) => updateAxis("xAxis", "maxLabel", e.target.value)}
+                placeholder="High"
+                className="w-full text-sm px-3 py-2 rounded-lg border border-slate-200 bg-[#F1F3F5] focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Y Axis Config */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <ArrowUpDown size={14} className="text-slate-400" />
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            Y Axis (Vertical)
+          </label>
+        </div>
+        <div className="space-y-2">
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">Axis Name</label>
+            <input
+              type="text"
+              value={yAxis.label}
+              onChange={(e) => updateAxis("yAxis", "label", e.target.value)}
+              placeholder="e.g. Impact"
+              className="w-full text-sm px-3 py-2 rounded-lg border border-slate-200 bg-[#F1F3F5] focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-slate-500 mb-1 block">Bottom label</label>
+              <input
+                type="text"
+                value={yAxis.minLabel}
+                onChange={(e) => updateAxis("yAxis", "minLabel", e.target.value)}
+                placeholder="Low"
+                className="w-full text-sm px-3 py-2 rounded-lg border border-slate-200 bg-[#F1F3F5] focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-500 mb-1 block">Top label</label>
+              <input
+                type="text"
+                value={yAxis.maxLabel}
+                onChange={(e) => updateAxis("yAxis", "maxLabel", e.target.value)}
+                placeholder="High"
+                className="w-full text-sm px-3 py-2 rounded-lg border border-slate-200 bg-[#F1F3F5] focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Grid preview hint */}
+      <div className="rounded-xl bg-indigo-50/40 border border-indigo-100 p-3">
+        <p className="text-xs text-slate-600 text-center">
+          Participants will drag each item onto the <strong>{xAxis.label} × {yAxis.label}</strong> grid.
+          Tip: keep items to 4–6 for best usability.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// VOTE FIELDS (inline component)
+// ═════════════════════════════════════════════════════════════════════════════
+function VoteFields({
+  question,
+  onUpdate,
+}: {
+  question: Question;
+  onUpdate: (updates: Partial<Question>) => void;
+}) {
+  const options: Array<{ id: string; text: string }> = (question.options as any) ?? [];
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const updateOption = (id: string, text: string) => {
+    onUpdate({ options: options.map((o) => (o.id === id ? { ...o, text } : o)) } as any);
+  };
+
+  const deleteOption = (id: string) => {
+    if (options.length <= 2) return;
+    onUpdate({ options: options.filter((o) => o.id !== id) } as any);
+  };
+
+  const addOption = () => {
+    const newId = `vote-${Date.now()}`;
+    onUpdate({ options: [...options, { id: newId, text: "" }] } as any);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIdx = options.findIndex((o) => o.id === active.id);
+      const newIdx = options.findIndex((o) => o.id === over.id);
+      onUpdate({ options: arrayMove(options, oldIdx, newIdx) } as any);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Info banner */}
+      <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3">
+        <p className="text-xs text-emerald-700 font-medium">
+          Vote question — no correct answer. The host reveals the winner after voting closes.
+        </p>
+      </div>
+
+      {/* Options */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            Vote Options
+          </label>
+          <span className="text-xs text-slate-400">{options.length} options</span>
+        </div>
+
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={options.map((o) => o.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {options.map((opt, idx) => (
+                <SortableOptionRow
+                  key={opt.id}
+                  option={opt}
+                  onTextChange={updateOption}
+                  onDelete={deleteOption}
+                  placeholder={`Option ${String.fromCharCode(65 + idx)}`}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+
+        <button
+          type="button"
+          onClick={addOption}
+          disabled={options.length >= 8}
+          className="mt-2 w-full py-3 bg-[#F1F3F5] hover:bg-[#E9ECEF] rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Add option {options.length >= 8 && "(max 8)"}
+        </button>
+      </div>
+
+      {/* Reveal hint */}
+      <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+        <p className="text-xs text-slate-500 text-center">
+          After participants vote, click <strong>Reveal Winner</strong> in the host view to highlight the most-voted option.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // Local interactivity settings state
 interface InteractivitySettings {
@@ -471,7 +828,7 @@ export function QuestionSidePanel({
 
   const removeRankingItem = (idx: number) => {
     const items = getRankingItems();
-    if (items.length <= 2) return; // minimum 2 items
+    if (items.length <= 2) return;
     onUpdateQuestion({ options: items.filter((_, i) => i !== idx) } as any);
   };
 
@@ -501,32 +858,171 @@ export function QuestionSidePanel({
       currentQuestion.type === "ranking" ||
       (currentQuestion as any).type === "RANKING";
 
-    // Determine display label
+    const isGrid2x2Type = currentQuestion.type === "grid-2x2" || (currentQuestion as any).type === "GRID_2X2";
+    const isVoteType = currentQuestion.type === "vote" || (currentQuestion as any).type === "VOTE";
+
     let questionTypeLabel = "Question";
-    if (isRankingType) questionTypeLabel = "Ranking";
+    if (isGrid2x2Type) questionTypeLabel = "Grid 2×2";
+    else if (isVoteType) questionTypeLabel = "Vote";
+    else if (isRankingType) questionTypeLabel = "Ranking";
     else if (isScalingType) questionTypeLabel = "Scales";
     else if (currentQuestion.type === "multiple-choice") questionTypeLabel = "Multiple Choice";
     else if (currentQuestion.type === "open-text") questionTypeLabel = "Open Text";
     else if (currentQuestion.type === "word-cloud") questionTypeLabel = "Word Cloud";
     else if (currentQuestion.type === "rating-scale") questionTypeLabel = "Rating Scale";
 
+    // ── Grid 2x2 render ───────────────────────────────────────────────────────
+    if (isGrid2x2Type) {
+      return (
+        <div className="space-y-6">
+          <div className="flex items-center gap-3">
+            <button className="p-1 hover:bg-slate-100 rounded-lg">
+              <ArrowLeft className="w-5 h-5 text-slate-600" />
+            </button>
+            <h2 className="text-lg font-medium text-slate-800">{questionTypeLabel}</h2>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Question</label>
+            <input
+              type="text"
+              value={currentQuestion.title || ""}
+              onChange={(e) => onUpdateQuestion({ title: e.target.value })}
+              className="w-full px-4 py-3 bg-[#F1F3F5] rounded-xl border border-transparent focus:border-slate-200 outline-none text-sm font-medium"
+              placeholder="What would you like to place on the grid?"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Description (optional)</label>
+            <textarea
+              value={currentQuestion.description || ""}
+              onChange={(e) => onUpdateQuestion({ description: e.target.value })}
+              className="w-full px-4 py-3 bg-[#F1F3F5] rounded-xl border border-transparent focus:border-slate-200 outline-none text-sm resize-none min-h-[80px]"
+              placeholder="Add additional context or instructions..."
+            />
+          </div>
+
+          <Grid2x2Fields question={currentQuestion} onUpdate={onUpdateQuestion} />
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Question Image</label>
+            <ImageUploadWidget
+              currentImageUrl={currentQuestion.imageUrl || undefined}
+              onImageSelect={(imageUrl) => onUpdateQuestion({ imageUrl })}
+              onImageRemove={() => onUpdateQuestion({ imageUrl: null })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Actions</label>
+            <div className="grid grid-cols-2 gap-2">
+              {onDuplicateQuestion && (
+                <button
+                  onClick={onDuplicateQuestion}
+                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all text-xs font-semibold text-slate-600"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-indigo-500" />
+                  Duplicate
+                </button>
+              )}
+              {onDeleteQuestion && (
+                <button
+                  onClick={onDeleteQuestion}
+                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 transition-all text-xs font-semibold text-rose-500"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Vote render ───────────────────────────────────────────────────────────
+    if (isVoteType) {
+      return (
+        <div className="space-y-6">
+          <div className="flex items-center gap-3">
+            <button className="p-1 hover:bg-slate-100 rounded-lg">
+              <ArrowLeft className="w-5 h-5 text-slate-600" />
+            </button>
+            <h2 className="text-lg font-medium text-slate-800">{questionTypeLabel}</h2>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Question</label>
+            <input
+              type="text"
+              value={currentQuestion.title || ""}
+              onChange={(e) => onUpdateQuestion({ title: e.target.value })}
+              className="w-full px-4 py-3 bg-[#F1F3F5] rounded-xl border border-transparent focus:border-slate-200 outline-none text-sm font-medium"
+              placeholder="What would you like participants to vote on?"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Description (optional)</label>
+            <textarea
+              value={currentQuestion.description || ""}
+              onChange={(e) => onUpdateQuestion({ description: e.target.value })}
+              className="w-full px-4 py-3 bg-[#F1F3F5] rounded-xl border border-transparent focus:border-slate-200 outline-none text-sm resize-none min-h-[80px]"
+              placeholder="Add additional context or instructions..."
+            />
+          </div>
+
+          <VoteFields question={currentQuestion} onUpdate={onUpdateQuestion} />
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Question Image</label>
+            <ImageUploadWidget
+              currentImageUrl={currentQuestion.imageUrl || undefined}
+              onImageSelect={(imageUrl) => onUpdateQuestion({ imageUrl })}
+              onImageRemove={() => onUpdateQuestion({ imageUrl: null })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Actions</label>
+            <div className="grid grid-cols-2 gap-2">
+              {onDuplicateQuestion && (
+                <button
+                  onClick={onDuplicateQuestion}
+                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all text-xs font-semibold text-slate-600"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-indigo-500" />
+                  Duplicate
+                </button>
+              )}
+              {onDeleteQuestion && (
+                <button
+                  onClick={onDeleteQuestion}
+                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 transition-all text-xs font-semibold text-rose-500"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Rest of the renderEditPanel for other question types ─────────────────
     return (
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-center gap-3">
           <button className="p-1 hover:bg-slate-100 rounded-lg">
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
-          <h2 className="text-lg font-medium text-slate-800">
-            {questionTypeLabel}
-          </h2>
+          <h2 className="text-lg font-medium text-slate-800">{questionTypeLabel}</h2>
         </div>
 
-        {/* Question Title */}
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-            Question
-          </label>
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Question</label>
           <input
             type="text"
             value={currentQuestion.title || ""}
@@ -536,11 +1032,8 @@ export function QuestionSidePanel({
           />
         </div>
 
-        {/* Description */}
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-            Description (optional)
-          </label>
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Description (optional)</label>
           <textarea
             value={currentQuestion.description || ""}
             onChange={(e) => onUpdateQuestion({ description: e.target.value })}
@@ -549,7 +1042,7 @@ export function QuestionSidePanel({
           />
         </div>
 
-        {/* ── Ranking: items editor ──────────────────────────────────── */}
+        {/* Ranking items editor */}
         {isRankingType && (
           <div className="space-y-4">
             <div className="space-y-3">
@@ -557,19 +1050,13 @@ export function QuestionSidePanel({
                 <ListOrdered className="w-3.5 h-3.5 text-violet-600" />
                 Ranking Items
               </label>
-
               <p className="text-[11px] text-slate-400 leading-relaxed -mt-1">
                 Add 2–8 items. Participants will drag them into their preferred order.
               </p>
-
               <div className="space-y-2">
                 {getRankingItems().map((item, idx) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-2 group"
-                  >
+                  <div key={item.id} className="flex items-center gap-2 group">
                     <GripVertical className="w-4 h-4 text-slate-300 shrink-0" />
-
                     <div className="flex-1 flex items-center gap-2 bg-[#F1F3F5] rounded-xl px-3 py-2.5 border border-transparent focus-within:border-violet-200 transition-all">
                       <div className="w-5 h-5 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-bold shrink-0">
                         {idx + 1}
@@ -582,19 +1069,16 @@ export function QuestionSidePanel({
                         placeholder={`Item ${idx + 1}`}
                       />
                     </div>
-
                     <button
                       onClick={() => removeRankingItem(idx)}
                       disabled={getRankingItems().length <= 2}
                       className="text-slate-300 hover:text-rose-500 shrink-0 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
-                      title={getRankingItems().length <= 2 ? "Minimum 2 items" : "Remove item"}
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
               </div>
-
               <button
                 onClick={addRankingItem}
                 disabled={getRankingItems().length >= 8}
@@ -607,24 +1091,18 @@ export function QuestionSidePanel({
           </div>
         )}
 
-        {/* ── Scaling: statements editor ──────────────────────────────────── */}
+        {/* Scaling statements editor */}
         {isScalingType && (
           <div className="space-y-4">
-            {/* Statements */}
             <div className="space-y-3">
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
                 <SlidersHorizontal className="w-3.5 h-3.5 text-teal-600" />
                 Statements
               </label>
-
               <div className="space-y-2">
                 {getStatements().map((stmt, idx) => (
-                  <div
-                    key={stmt.id}
-                    className="flex items-center gap-2 group"
-                  >
+                  <div key={stmt.id} className="flex items-center gap-2 group">
                     <GripVertical className="w-4 h-4 text-slate-300 shrink-0" />
-
                     <div className="flex-1 flex items-center gap-2 bg-[#F1F3F5] rounded-xl px-3 py-2.5 border border-transparent focus-within:border-slate-200 transition-all">
                       <div className="w-5 h-5 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[10px] font-bold shrink-0">
                         {idx + 1}
@@ -637,18 +1115,15 @@ export function QuestionSidePanel({
                         placeholder={`Statement ${idx + 1}`}
                       />
                     </div>
-
                     <button
                       onClick={() => removeStatement(idx)}
                       className="text-slate-300 hover:text-rose-500 shrink-0 transition-colors"
-                      title="Remove statement"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
               </div>
-
               <button
                 onClick={addStatement}
                 className="w-full py-3 bg-[#F1F3F5] hover:bg-[#E9ECEF] rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-2 transition-colors"
@@ -656,12 +1131,8 @@ export function QuestionSidePanel({
                 <Plus className="w-3.5 h-3.5" /> Add statement
               </button>
             </div>
-
-            {/* Scale labels */}
             <div className="space-y-3">
-              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Scale Labels
-              </label>
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Scale Labels</label>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <span className="text-[11px] text-slate-500 font-medium">Min label</span>
@@ -670,7 +1141,6 @@ export function QuestionSidePanel({
                     value={(currentQuestion as any)?.labels?.min ?? "Strongly disagree"}
                     onChange={(e) => updateLabel("min", e.target.value)}
                     className="w-full px-3 py-2 bg-[#F1F3F5] rounded-xl border border-transparent focus:border-slate-200 outline-none text-xs font-medium"
-                    placeholder="Strongly disagree"
                   />
                 </div>
                 <div className="space-y-1">
@@ -680,37 +1150,20 @@ export function QuestionSidePanel({
                     value={(currentQuestion as any)?.labels?.max ?? "Strongly agree"}
                     onChange={(e) => updateLabel("max", e.target.value)}
                     className="w-full px-3 py-2 bg-[#F1F3F5] rounded-xl border border-transparent focus:border-slate-200 outline-none text-xs font-medium"
-                    placeholder="Strongly agree"
                   />
                 </div>
-              </div>
-              <div className="flex items-center justify-between text-[10px] text-slate-400 px-1">
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <div
-                      key={n}
-                      className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-500"
-                    >
-                      {n}
-                    </div>
-                  ))}
-                </div>
-                <span className="text-slate-300 text-[10px]">Fixed 1–5 scale</span>
               </div>
             </div>
           </div>
         )}
 
-        {/* Choice type options */}
+        {/* Multiple choice options editor */}
         {isChoiceType && (
           <div className="space-y-3">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Options
-            </label>
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Options</label>
             <div className="space-y-2">
               {currentQuestion.options?.map((opt, idx) => {
                 const uploadState = uploadStates[idx] || { isUploading: false, progress: 0, error: null };
-
                 return (
                   <div key={opt.id} className="space-y-2">
                     <div className="flex items-center gap-2 group">
@@ -727,17 +1180,8 @@ export function QuestionSidePanel({
                       >
                         {opt.isCorrect && <Check className="w-3 h-3 text-white" />}
                       </button>
-
                       <div className="flex-1 flex items-center gap-2 bg-[#F1F3F5] rounded-xl px-3 py-2.5 border border-transparent focus-within:border-slate-200 transition-all">
-                        <div
-                          className={cn(
-                            "w-4 h-4 rounded-full shrink-0",
-                            idx === 0 ? "bg-blue-500"
-                              : idx === 1 ? "bg-rose-400"
-                              : idx === 2 ? "bg-indigo-900"
-                              : "bg-emerald-500",
-                          )}
-                        />
+                        <div className={cn("w-4 h-4 rounded-full shrink-0", idx === 0 ? "bg-blue-500" : idx === 1 ? "bg-rose-400" : idx === 2 ? "bg-indigo-900" : "bg-emerald-500")} />
                         <input
                           type="text"
                           value={opt.text}
@@ -750,124 +1194,44 @@ export function QuestionSidePanel({
                           onClick={() => triggerFileInput(idx)}
                           disabled={uploadState.isUploading}
                           className="w-8 h-8 shrink-0 rounded-lg bg-white border border-slate-200 flex items-center justify-center hover:border-[#6366F1] hover:text-[#6366F1] transition-colors disabled:opacity-60 disabled:cursor-not-allowed relative"
-                          title={opt.imageUrl ? "Change option image" : "Upload option image"}
                         >
-                          {uploadState.isUploading ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-[#6366F1]" />
-                          ) : (
-                            <Upload className="w-3.5 h-3.5 text-slate-400" />
-                          )}
+                          {uploadState.isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin text-[#6366F1]" /> : <Upload className="w-3.5 h-3.5 text-slate-400" />}
                         </button>
-                        <input
-                          ref={(el) => { fileInputRefs.current[idx] = el; }}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(event) => handleOptionImageUpload(idx, event)}
-                          disabled={uploadState.isUploading}
-                        />
+                        <input ref={(el) => { fileInputRefs.current[idx] = el; }} type="file" accept="image/*" className="hidden" onChange={(event) => handleOptionImageUpload(idx, event)} disabled={uploadState.isUploading} />
                       </div>
-
-                      <button
-                        onClick={() => {
-                          const newOpts = (currentQuestion.options || []).filter((_, i) => i !== idx);
-                          onUpdateQuestion({ options: newOpts });
-                        }}
-                        className="text-slate-400 hover:text-rose-500 shrink-0"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                      <button onClick={() => { const newOpts = (currentQuestion.options || []).filter((_, i) => i !== idx); onUpdateQuestion({ options: newOpts }); }} className="text-slate-400 hover:text-rose-500 shrink-0"><X className="w-4 h-4" /></button>
                     </div>
-
                     {uploadState.isUploading && uploadState.progress > 0 && uploadState.progress < 100 && (
                       <div className="ml-7">
-                        <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          <span>Uploading... {uploadState.progress}%</span>
-                        </div>
-                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-indigo-600 rounded-full transition-all duration-300"
-                            style={{ width: `${uploadState.progress}%` }}
-                          />
-                        </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-500 mb-1"><Loader2 className="w-3 h-3 animate-spin" /><span>Uploading... {uploadState.progress}%</span></div>
+                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-indigo-600 rounded-full transition-all duration-300" style={{ width: `${uploadState.progress}%` }} /></div>
                       </div>
                     )}
-
-                    {uploadState.error && (
-                      <p className="ml-7 text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
-                        {uploadState.error}
-                      </p>
-                    )}
-
+                    {uploadState.error && <p className="ml-7 text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">{uploadState.error}</p>}
                     {opt.imageUrl && !uploadState.isUploading && (
                       <div className="ml-7 relative w-full max-w-[220px] overflow-hidden rounded-xl border border-slate-200 bg-white">
                         <img src={opt.imageUrl} alt="" className="w-full h-28 object-contain" />
-                        <button
-                          type="button"
-                          onClick={() => removeOptionImage(idx)}
-                          className="absolute top-2 right-2 p-1.5 rounded-full bg-rose-500 text-white hover:bg-rose-600 transition-colors"
-                          title="Remove option image"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
+                        <button type="button" onClick={() => removeOptionImage(idx)} className="absolute top-2 right-2 p-1.5 rounded-full bg-rose-500 text-white hover:bg-rose-600 transition-colors"><X className="w-3.5 h-3.5" /></button>
                       </div>
                     )}
                   </div>
                 );
               })}
             </div>
-
-            <button
-              onClick={() => {
-                const newOpts = [...(currentQuestion.options || [])];
-                const newId = `${currentQuestion.id}-${Date.now()}`;
-                newOpts.push({ id: newId, text: `Option ${newOpts.length + 1}`, isCorrect: false });
-                onUpdateQuestion({ options: newOpts });
-              }}
-              className="w-full py-3 bg-[#F1F3F5] hover:bg-[#E9ECEF] rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-2 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add option
-            </button>
+            <button onClick={() => { const newOpts = [...(currentQuestion.options || [])]; const newId = `${currentQuestion.id}-${Date.now()}`; newOpts.push({ id: newId, text: `Option ${newOpts.length + 1}`, isCorrect: false }); onUpdateQuestion({ options: newOpts }); }} className="w-full py-3 bg-[#F1F3F5] hover:bg-[#E9ECEF] rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-2 transition-colors"><Plus className="w-3.5 h-3.5" /> Add option</button>
           </div>
         )}
 
-        {/* Question Image */}
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-            Question Image
-          </label>
-          <ImageUploadWidget
-            currentImageUrl={currentQuestion.imageUrl || undefined}
-            onImageSelect={(imageUrl) => onUpdateQuestion({ imageUrl })}
-            onImageRemove={() => onUpdateQuestion({ imageUrl: null })}
-          />
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Question Image</label>
+          <ImageUploadWidget currentImageUrl={currentQuestion.imageUrl || undefined} onImageSelect={(imageUrl) => onUpdateQuestion({ imageUrl })} onImageRemove={() => onUpdateQuestion({ imageUrl: null })} />
         </div>
 
-        {/* Quick Actions */}
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-            Actions
-          </label>
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Actions</label>
           <div className="grid grid-cols-2 gap-2">
-            {onDuplicateQuestion && (
-              <button
-                onClick={onDuplicateQuestion}
-                className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all text-xs font-semibold text-slate-600"
-              >
-                <RefreshCw className="w-3.5 h-3.5 text-indigo-500" />
-                Duplicate
-              </button>
-            )}
-            {onDeleteQuestion && (
-              <button
-                onClick={onDeleteQuestion}
-                className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 transition-all text-xs font-semibold text-rose-500"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Delete
-              </button>
-            )}
+            {onDuplicateQuestion && <button onClick={onDuplicateQuestion} className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all text-xs font-semibold text-slate-600"><RefreshCw className="w-3.5 h-3.5 text-indigo-500" /> Duplicate</button>}
+            {onDeleteQuestion && <button onClick={onDeleteQuestion} className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 transition-all text-xs font-semibold text-rose-500"><Trash2 className="w-3.5 h-3.5" /> Delete</button>}
           </div>
         </div>
       </div>
@@ -888,14 +1252,11 @@ export function QuestionSidePanel({
         Coming soon
       </div>
       <h3 className="text-base font-bold text-slate-800 mb-1.5">Collaborator comments</h3>
-      <p className="text-xs text-slate-500 max-w-[240px] leading-relaxed">
-        Leave notes for your team or yourself on each question. This is still
-        being built and will be available in a future release.
-      </p>
+      <p className="text-xs text-slate-500 max-w-[240px] leading-relaxed">Leave notes for your team or yourself on each question. This is still being built and will be available in a future release.</p>
     </div>
   );
 
-  // ── Interactivity Panel (UPDATED with Skip toggle + Speed Question) ───
+  // ── Interactivity Panel ─────────────────────────────────────
   const renderInteractivityPanel = () => {
     const q = currentQuestion;
     if (!q) {
@@ -908,8 +1269,6 @@ export function QuestionSidePanel({
       );
     }
 
-    // Calculate max possible advance (cannot exceed total participants, but we don't know yet)
-    // Use a reasonable upper bound of 100
     const maxAdvance = Math.min(100, Math.max(1, q.speedMaxAdvance ?? 3));
 
     return (
@@ -921,30 +1280,10 @@ export function QuestionSidePanel({
           </div>
           <div className="grid grid-cols-5 gap-2">
             {[15, 30, 45, 60].map((s) => (
-              <button
-                key={s}
-                onClick={() => onUpdateQuestion({ timeLimit: s })}
-                className={cn(
-                  "py-2 rounded-lg text-xs font-bold transition-all",
-                  q.timeLimit === s ? "bg-[#6366F1] text-white" : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200",
-                )}
-              >
-                {s}s
-              </button>
+              <button key={s} onClick={() => onUpdateQuestion({ timeLimit: s })} className={cn("py-2 rounded-lg text-xs font-bold transition-all", q.timeLimit === s ? "bg-[#6366F1] text-white" : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200")}>{s}s</button>
             ))}
-            <button
-              onClick={() => onUpdateQuestion({ timeLimit: null })}
-              className={cn(
-                "py-2 rounded-lg text-xs font-bold transition-all",
-                q.timeLimit == null ? "bg-[#6366F1] text-white" : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200",
-              )}
-            >
-              No timer
-            </button>
+            <button onClick={() => onUpdateQuestion({ timeLimit: null })} className={cn("py-2 rounded-lg text-xs font-bold transition-all", q.timeLimit == null ? "bg-[#6366F1] text-white" : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200")}>No timer</button>
           </div>
-          <p className="text-[11px] text-slate-500">
-            Choose "No timer" when participants should have unlimited time to answer this question.
-          </p>
         </section>
 
         <div className="h-px bg-slate-100" />
@@ -956,17 +1295,7 @@ export function QuestionSidePanel({
           </div>
           <div className="grid grid-cols-3 gap-2">
             {[0, 10, 20, 30, 50, 100].map((p) => (
-              <button
-                key={p}
-                onClick={() => onUpdateQuestion({ points: p })}
-                className={cn(
-                  "py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1",
-                  q.points === p ? "bg-amber-500 text-white" : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200",
-                )}
-              >
-                <Star className="w-3 h-3" />
-                {p}
-              </button>
+              <button key={p} onClick={() => onUpdateQuestion({ points: p })} className={cn("py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1", q.points === p ? "bg-amber-500 text-white" : "bg-[#F1F3F5] text-slate-600 hover:bg-slate-200")}><Star className="w-3 h-3" />{p}</button>
             ))}
           </div>
         </section>
@@ -974,102 +1303,45 @@ export function QuestionSidePanel({
         <div className="h-px bg-slate-100" />
 
         <section className="space-y-3">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-slate-800">Participant names</h3>
-          </div>
+          <div className="flex items-center gap-2"><h3 className="text-sm font-bold text-slate-800">Participant names</h3></div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-slate-600">Hide participant names</span>
-            <MentiToggle
-              checked={interactivitySettings.hideParticipantNames}
-              onChange={(val) => {
-                setInteractivitySettings((prev) => ({ ...prev, hideParticipantNames: val }));
-                onUpdateQuestion({ hideParticipantNames: val });
-              }}
-            />
+            <MentiToggle checked={interactivitySettings.hideParticipantNames} onChange={(val) => { setInteractivitySettings((prev) => ({ ...prev, hideParticipantNames: val })); onUpdateQuestion({ hideParticipantNames: val }); }} />
           </div>
         </section>
-        
+
         <div className="h-px bg-slate-100" />
 
         <section className="space-y-3">
           <h3 className="text-sm font-bold text-slate-800">Settings</h3>
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BarChart2 className="w-3.5 h-3.5 text-slate-400" />
-                <span className="text-xs text-slate-600">Show results instantly</span>
-              </div>
-              <MentiToggle
-                checked={interactivitySettings.showResultsInstantly}
-                onChange={(val) => {
-                  setInteractivitySettings((prev) => ({ ...prev, showResultsInstantly: val }));
-                  onUpdateQuestion({ showResultsInstantly: val });
-                }}
-              />
-            </div>  
+              <div className="flex items-center gap-2"><BarChart2 className="w-3.5 h-3.5 text-slate-400" /><span className="text-xs text-slate-600">Show results instantly</span></div>
+              <MentiToggle checked={interactivitySettings.showResultsInstantly} onChange={(val) => { setInteractivitySettings((prev) => ({ ...prev, showResultsInstantly: val })); onUpdateQuestion({ showResultsInstantly: val }); }} />
+            </div>
           </div>
 
-          {/* ── SKIP SETTINGS (Elimination mode only) ─────────────────────── */}
           {isEliminationMode && (
             <>
               <div className="h-px bg-slate-100 mt-2" />
               <div className="flex items-center justify-between pt-2">
-                <div>
-                  <span className="text-xs text-slate-600 font-medium">Allow skip on this question</span>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    Participants can skip without elimination
-                  </p>
-                </div>
-                <MentiToggle
-                  checked={q.skipAllowed ?? false}
-                  onChange={(val) => onUpdateQuestion({ skipAllowed: val })}
-                />
+                <div><span className="text-xs text-slate-600 font-medium">Allow skip on this question</span><p className="text-[10px] text-slate-400 mt-0.5">Participants can skip without elimination</p></div>
+                <MentiToggle checked={q.skipAllowed ?? false} onChange={(val) => onUpdateQuestion({ skipAllowed: val })} />
               </div>
             </>
           )}
 
-          {/* ── SPEED QUESTION SETTINGS (Elimination mode only) ─────────────────────── */}
           {isEliminationMode && (
             <>
               <div className="h-px bg-slate-100 mt-2" />
               <div className="flex items-center justify-between pt-2">
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <Zap className="w-3.5 h-3.5 text-amber-500" />
-                    <span className="text-xs text-slate-600 font-medium">Speed Question</span>
-                  </div>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    Only the fastest X participants advance. Others eliminated immediately.
-                  </p>
-                </div>
-                <MentiToggle
-                  checked={q.isSpeedQuestion ?? false}
-                  onChange={(val) => onUpdateQuestion({ isSpeedQuestion: val })}
-                />
+                <div><div className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-amber-500" /><span className="text-xs text-slate-600 font-medium">Speed Question</span></div><p className="text-[10px] text-slate-400 mt-0.5">Only the fastest X participants advance. Others eliminated immediately.</p></div>
+                <MentiToggle checked={q.isSpeedQuestion ?? false} onChange={(val) => onUpdateQuestion({ isSpeedQuestion: val })} />
               </div>
-
               {q.isSpeedQuestion && (
                 <div className="mt-3 p-3 bg-amber-50/30 rounded-xl border border-amber-200">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-slate-700">Max participants to advance</span>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={maxAdvance}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value, 10);
-                          onUpdateQuestion({ speedMaxAdvance: isNaN(val) ? 3 : Math.max(1, val) });
-                        }}
-                        className="w-16 px-2 py-1.5 text-center text-sm font-bold text-slate-900 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400"
-                      />
-                      <span className="text-xs text-slate-400">participants</span>
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-amber-600 mt-2">
-                    ⚡ Once {maxAdvance} participants answer OR timer ends, only the fastest {maxAdvance} advance. Others are eliminated.
-                  </p>
+                  <div className="flex items-center justify-between"><span className="text-xs font-medium text-slate-700">Max participants to advance</span><div className="flex items-center gap-2"><input type="number" min="1" max="100" value={maxAdvance} onChange={(e) => { const val = parseInt(e.target.value, 10); onUpdateQuestion({ speedMaxAdvance: isNaN(val) ? 3 : Math.max(1, val) }); }} className="w-16 px-2 py-1.5 text-center text-sm font-bold text-slate-900 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400" /><span className="text-xs text-slate-400">participants</span></div></div>
+                  <p className="text-[10px] text-amber-600 mt-2">⚡ Once {maxAdvance} participants answer OR timer ends, only the fastest {maxAdvance} advance. Others are eliminated.</p>
                 </div>
               )}
             </>
@@ -1080,26 +1352,8 @@ export function QuestionSidePanel({
 
         <ComingSoon>
           <section className="space-y-3">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-slate-800">Reactions</h3>
-              <HelpCircle className="w-3.5 h-3.5 text-slate-300" />
-            </div>
-            <div className="flex gap-1.5">
-              {[PawPrint, Heart, HelpCircle, ThumbsUp, ThumbsDown].map((Icon, i) => (
-                <button
-                  key={i}
-                  className={cn(
-                    "w-9 h-9 rounded-lg border flex items-center justify-center transition-all",
-                    i === 3 ? "border-[#6366F1] bg-indigo-50/50" : "border-slate-200 bg-white hover:border-slate-300",
-                  )}
-                >
-                  <Icon
-                    className={cn("w-4 h-4", i === 3 ? "text-slate-800" : "text-slate-800")}
-                    fill={i === 3 ? "currentColor" : "none"}
-                  />
-                </button>
-              ))}
-            </div>
+            <div className="flex items-center gap-2"><h3 className="text-sm font-bold text-slate-800">Reactions</h3><HelpCircle className="w-3.5 h-3.5 text-slate-300" /></div>
+            <div className="flex gap-1.5">{ [PawPrint, Heart, HelpCircle, ThumbsUp, ThumbsDown].map((Icon, i) => (<button key={i} className={cn("w-9 h-9 rounded-lg border flex items-center justify-center transition-all", i === 3 ? "border-[#6366F1] bg-indigo-50/50" : "border-slate-200 bg-white hover:border-slate-300")}><Icon className={cn("w-4 h-4", i === 3 ? "text-slate-800" : "text-slate-800")} fill={i === 3 ? "currentColor" : "none"} /></button>)) }</div>
           </section>
         </ComingSoon>
 
@@ -1107,28 +1361,11 @@ export function QuestionSidePanel({
 
         <ComingSoon>
           <section className="space-y-3">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-slate-800">Q&A</h3>
-              <HelpCircle className="w-3.5 h-3.5 text-slate-300" />
-            </div>
+            <div className="flex items-center gap-2"><h3 className="text-sm font-bold text-slate-800">Q&A</h3><HelpCircle className="w-3.5 h-3.5 text-slate-300" /></div>
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-600">Enable Q&A</span>
-                <MentiToggle checked={interactivitySettings.qaEnabled} onChange={() => {}} />
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-600 leading-tight">Questions are visible to everyone</span>
-                <MentiToggle checked={interactivitySettings.qaVisibleToAll} onChange={() => {}} />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-slate-600">Moderation</span>
-                  <div className="w-4 h-4 bg-emerald-100 rounded-full flex items-center justify-center">
-                    <Star className="w-2.5 h-2.5 text-emerald-700 fill-current" />
-                  </div>
-                </div>
-                <MentiToggle checked={interactivitySettings.qaModeration} onChange={() => {}} />
-              </div>
+              <div className="flex items-center justify-between"><span className="text-xs text-slate-600">Enable Q&A</span><MentiToggle checked={interactivitySettings.qaEnabled} onChange={() => {}} /></div>
+              <div className="flex items-center justify-between"><span className="text-xs text-slate-600 leading-tight">Questions are visible to everyone</span><MentiToggle checked={interactivitySettings.qaVisibleToAll} onChange={() => {}} /></div>
+              <div className="flex items-center justify-between"><div className="flex items-center gap-1.5"><span className="text-xs text-slate-600">Moderation</span><div className="w-4 h-4 bg-emerald-100 rounded-full flex items-center justify-center"><Star className="w-2.5 h-2.5 text-emerald-700 fill-current" /></div></div><MentiToggle checked={interactivitySettings.qaModeration} onChange={() => {}} /></div>
             </div>
           </section>
         </ComingSoon>
@@ -1151,32 +1388,9 @@ export function QuestionSidePanel({
     return (
       <ComingSoon>
         <div className="space-y-5">
-          <div>
-            <p className="text-sm font-bold text-slate-800 mb-1">Question Theme</p>
-            <p className="text-xs text-slate-400">
-              Choose a visual style for this question. It will appear in the participant preview.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {QUESTION_THEMES.map((theme) => (
-              <ThemePreviewCard
-                key={theme.id}
-                theme={theme}
-                question={currentQuestion}
-                isSelected={selectedThemeId === theme.id}
-                onClick={() => handleThemeSelect(theme.id)}
-              />
-            ))}
-          </div>
-          {selectedThemeId !== "default" && (
-            <button
-              onClick={() => handleThemeSelect("default")}
-              className="w-full py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Reset to Default
-            </button>
-          )}
+          <div><p className="text-sm font-bold text-slate-800 mb-1">Question Theme</p><p className="text-xs text-slate-400">Choose a visual style for this question. It will appear in the participant preview.</p></div>
+          <div className="grid grid-cols-2 gap-3">{QUESTION_THEMES.map((theme) => (<ThemePreviewCard key={theme.id} theme={theme} question={currentQuestion} isSelected={selectedThemeId === theme.id} onClick={() => handleThemeSelect(theme.id)} />))}</div>
+          {selectedThemeId !== "default" && (<button onClick={() => handleThemeSelect("default")} className="w-full py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5"><RefreshCw className="w-3.5 h-3.5" /> Reset to Default</button>)}
         </div>
       </ComingSoon>
     );
@@ -1184,17 +1398,16 @@ export function QuestionSidePanel({
 
   const renderPanelContent = () => {
     switch (activeMenu) {
-      case "edit":       return renderEditPanel();
-      case "comments":   return renderCommentsPanel();
+      case "edit": return renderEditPanel();
+      case "comments": return renderCommentsPanel();
       case "interactivity": return renderInteractivityPanel();
-      case "themes":     return renderThemesPanel();
-      default:           return null;
+      case "themes": return renderThemesPanel();
+      default: return null;
     }
   };
 
   const panelTitle = menuItems.find((m) => m.id === activeMenu)?.label ?? "Edit";
 
-  // ── INLINE mode ───────────────────────────────────────────────────────────
   if (inline) {
     return (
       <div className="flex flex-col">
@@ -1202,19 +1415,7 @@ export function QuestionSidePanel({
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeMenu === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveMenu(item.id)}
-                className={cn(
-                  "flex-1 flex flex-col items-center gap-1 py-3 text-[10px] font-bold border-b-2 transition-all",
-                  isActive ? "border-[#6366F1] text-[#6366F1]" : "border-transparent text-slate-400",
-                )}
-              >
-                <Icon className="w-4 h-4" />
-                {item.label}
-              </button>
-            );
+            return (<button key={item.id} onClick={() => setActiveMenu(item.id)} className={cn("flex-1 flex flex-col items-center gap-1 py-3 text-[10px] font-bold border-b-2 transition-all", isActive ? "border-[#6366F1] text-[#6366F1]" : "border-transparent text-slate-400")}><Icon className="w-4 h-4" />{item.label}</button>);
           })}
         </div>
         <div className="px-4 py-4 pb-8">{renderPanelContent()}</div>
@@ -1222,33 +1423,17 @@ export function QuestionSidePanel({
     );
   }
 
-  // ── DESKTOP mode ──────────────────────────────────────────────────────────
   return (
     <div className="absolute right-0 top-0 h-full flex z-30 bg-white">
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 360, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="bg-white border-l border-slate-200 overflow-hidden h-full"
-          >
+          <motion.div initial={{ width: 0, opacity: 0 }} animate={{ width: 360, opacity: 1 }} exit={{ width: 0, opacity: 0 }} transition={{ type: "spring", damping: 30, stiffness: 300 }} className="bg-white border-l border-slate-200 overflow-hidden h-full">
             <div className="w-[360px] h-full flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
-                  {panelTitle}
-                </h3>
-                <button
-                  onClick={onToggle}
-                  className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
-                >
-                  <X className="w-4 h-4 text-slate-400" />
-                </button>
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">{panelTitle}</h3>
+                <button onClick={onToggle} className="p-1 hover:bg-slate-100 rounded-lg transition-colors"><X className="w-4 h-4 text-slate-400" /></button>
               </div>
-              <div className="flex-1 overflow-y-auto px-5 py-5">
-                {renderPanelContent()}
-              </div>
+              <div className="flex-1 overflow-y-auto px-5 py-5">{renderPanelContent()}</div>
             </div>
           </motion.div>
         )}
@@ -1258,21 +1443,7 @@ export function QuestionSidePanel({
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeMenu === item.id && isOpen;
-          return (
-            <button
-              key={item.id}
-              onClick={() => handleMenuClick(item.id)}
-              className={cn(
-                "w-[76px] h-[76px] flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all",
-                isActive
-                  ? "bg-indigo-50 text-[#6366F1]"
-                  : "text-slate-400 hover:text-slate-600 hover:bg-slate-50",
-              )}
-            >
-              <Icon className="w-6 h-6" />
-              <span className="text-[11px] font-semibold">{item.label}</span>
-            </button>
-          );
+          return (<button key={item.id} onClick={() => handleMenuClick(item.id)} className={cn("w-[76px] h-[76px] flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all", isActive ? "bg-indigo-50 text-[#6366F1]" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50")}><Icon className="w-6 h-6" /><span className="text-[11px] font-semibold">{item.label}</span></button>);
         })}
       </div>
     </div>

@@ -1,4 +1,4 @@
-// presentation.types.ts — Updated to include SCALING and RANKING question types.
+// presentation.types.ts — Updated to include SCALING, RANKING, GRID_2X2, and VOTE question types.
 // SKIP BUTTON UPDATE: Added skipAllowed to Question interface
 // SPEED QUESTION UPDATE: Added isSpeedQuestion, speedMaxAdvance to Question, choseContinue to Participant
 
@@ -8,7 +8,9 @@ export type QuestionType =
   | "open-text"
   | "word-cloud"
   | "scaling"
-  | "ranking";
+  | "ranking"
+  | "grid-2x2"
+  | "vote";
 
 export type DisplayStyle = "numbers" | "stars" | "hearts" | "smileys";
 
@@ -30,6 +32,13 @@ export interface Scale {
 export interface Labels {
   min?: string;
   max?: string;
+}
+
+/** Axis configuration for Grid 2x2 questions */
+export interface GridAxis {
+  label: string;
+  minLabel: string;
+  maxLabel: string;
 }
 
 /** A single statement inside a Scaling question. */
@@ -63,6 +72,10 @@ export interface Question {
   displayStyle?: DisplayStyle;
   showResultsInstantly?: boolean;
   hideParticipantNames?: boolean;
+  /** Grid 2x2 specific: X-axis configuration */
+  xAxis?: GridAxis;
+  /** Grid 2x2 specific: Y-axis configuration */
+  yAxis?: GridAxis;
 
   /** optional explanation revealed after the round (for elimination mode). */
   explanation?: string;
@@ -73,10 +86,10 @@ export interface Question {
   /** whether participants can skip this question (elimination mode only) */
   skipAllowed?: boolean;
   
-  /** NEW: whether this is a speed question (elimination mode only) */
+  /** whether this is a speed question (elimination mode only) */
   isSpeedQuestion?: boolean;
   
-  /** NEW: max number of participants who can advance (only for speed questions) */
+  /** max number of participants who can advance (only for speed questions) */
   speedMaxAdvance?: number;
 }
 
@@ -121,7 +134,7 @@ export interface Participant {
   eliminatedAtQuestionId?: string | null;
   /** number of skips used by this participant */
   skipsUsed?: number;
-  /** NEW: whether participant chose to continue in final round (NULL = no decision yet) */
+  /** whether participant chose to continue in final round (NULL = no decision yet) */
   choseContinue?: boolean | null;
 }
 
@@ -154,6 +167,26 @@ export interface IndividualScalingResponse {
 /** A single participant's ranking answer. */
 export interface IndividualRankingResponse {
   rankingOrder: string[]; // itemIds ordered from rank 1 to last
+  participantName?: string;
+  timestamp: Date;
+}
+
+/** A single placement for Grid 2x2 questions */
+export interface GridPlacement {
+  x: number; // 0-100
+  y: number; // 0-100
+}
+
+/** A single participant's grid answer */
+export interface IndividualGridResponse {
+  placements: Record<string, GridPlacement>; // itemId -> placement
+  participantName?: string;
+  timestamp: Date;
+}
+
+/** A single participant's vote answer */
+export interface IndividualVoteResponse {
+  optionId: string;
   participantName?: string;
   timestamp: Date;
 }
@@ -230,13 +263,32 @@ export interface RankingResponses {
   individualResponses?: IndividualRankingResponse[];
 }
 
+/** Aggregated responses for a Grid 2x2 question. */
+export interface Grid2x2Responses {
+  /** Total number of respondents */
+  totalResponses: number;
+  /** Individual participant submissions */
+  individualResponses?: IndividualGridResponse[];
+  /** For each item, aggregated placement data */
+  itemPlacements?: Record<string, { placements: GridPlacement[]; centroid: GridPlacement }>;
+}
+
+/** Aggregated responses for a Vote question. */
+export interface VoteResponses {
+  [optionId: string]: number;
+  total?: number;
+  individualResponses?: IndividualVoteResponse[];
+}
+
 export type QuestionResponses =
   | MultipleChoiceResponses
   | RatingResponses
   | OpenTextResponses
   | WordCloudResponses
   | ScalingResponses
-  | RankingResponses;
+  | RankingResponses
+  | Grid2x2Responses
+  | VoteResponses;
 
 /* ============================================================================
  * Elimination / game-show types

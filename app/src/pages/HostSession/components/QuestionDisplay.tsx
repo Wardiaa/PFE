@@ -3,6 +3,8 @@ import { motion } from "framer-motion";
 import AppIcon from "../../../components/AppIcon";
 import ScalingQuestionDisplay from "./ScalingQuestionDisplay";
 import RankingQuestionDisplay from "./RankingQuestionDisplay";
+import Grid2x2QuestionDisplay from "./Grid2x2QuestionDisplay"; // NEW
+import VoteQuestionDisplay from "./VoteQuestionDisplay"; // NEW
 import type {
   Question,
   QuestionResponses,
@@ -12,6 +14,8 @@ import type {
   WordCloudResponses,
   ScalingResponses,
   RankingResponses,
+  Grid2x2Responses,
+  VoteResponses,
 } from "../../../lib/presentation.types";
 
 interface QuestionDisplayProps {
@@ -21,6 +25,10 @@ interface QuestionDisplayProps {
   showCorrectAnswer?: boolean;
   onResponseUpdate?: () => void;
   hideParticipantNames?: boolean;
+  /** For vote questions: reveals the winner when true */
+  revealVoteWinner?: boolean;
+  /** Callback when host clicks "Reveal Winner" on vote question */
+  onRevealVoteWinner?: () => void;
 }
 
 // ── Compact participant names chip list ──────────────────────────────────────
@@ -67,6 +75,8 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
   showResults = false,
   showCorrectAnswer = false,
   hideParticipantNames = false,
+  revealVoteWinner = false,
+  onRevealVoteWinner,
 }) => {
   const questionImage = (question as any).image || (question as any).imageUrl;
 
@@ -77,7 +87,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
   };
 
   const renderQuestionContent = () => {
-    // Normalize to lowercase so raw DB values ("SCALING", "RANKING", etc.) also match.
+    // Normalize to lowercase so raw DB values also match.
     switch ((question.type as string).toLowerCase()) {
       case "multiple-choice":
       case "single_choice":
@@ -99,6 +109,11 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
         return renderScaling(responses as ScalingResponses);
       case "ranking":
         return renderRanking(responses as RankingResponses);
+      case "grid-2x2":
+      case "grid_2x2":
+        return renderGrid2x2(responses as Grid2x2Responses);
+      case "vote":
+        return renderVote(responses as VoteResponses);
       default:
         return null;
     }
@@ -516,7 +531,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
     );
   };
 
-  // ── Scaling renderer (delegates to ScalingQuestionDisplay) ─────────────────
+  // ── Scaling renderer ────────────────────────────────────────────────
   const renderScaling = (responses: ScalingResponses) => {
     const statements = (question as any).statements ?? [];
     return (
@@ -530,7 +545,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
     );
   };
 
-  // ── Ranking renderer (delegates to RankingQuestionDisplay) ─────────────────
+  // ── Ranking renderer ────────────────────────────────────────────────
   const renderRanking = (responses: RankingResponses) => {
     const options = (question as any).options ?? [];
     return (
@@ -538,6 +553,44 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
         options={options}
         responses={responses}
         showResults={showResults}
+      />
+    );
+  };
+
+  // ── Grid 2x2 renderer (NEW) ────────────────────────────────────────
+  const renderGrid2x2 = (responses: Grid2x2Responses) => {
+    return (
+      <Grid2x2QuestionDisplay
+        question={{
+          text: question.text,
+          description: question.description,
+          image: questionImage,
+          options: (question.options ?? []) as Array<{ id: string; text: string }>,
+          xAxis: (question as any).xAxis,
+          yAxis: (question as any).yAxis,
+        }}
+        responses={responses}
+        showResults={showResults}
+        hideParticipantNames={hideParticipantNames}
+      />
+    );
+  };
+
+  // ── Vote renderer (NEW) ────────────────────────────────────────────
+  const renderVote = (responses: VoteResponses) => {
+    return (
+      <VoteQuestionDisplay
+        question={{
+          text: question.text,
+          description: question.description,
+          image: questionImage,
+          options: (question.options ?? []) as Array<{ id: string; text: string; imageUrl?: string | null }>,
+        }}
+        responses={responses}
+        showResults={showResults}
+        hideParticipantNames={hideParticipantNames}
+        revealWinner={revealVoteWinner}
+        onRevealWinner={onRevealVoteWinner}
       />
     );
   };

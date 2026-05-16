@@ -10,6 +10,7 @@
 //   • "Vous passez" screen no longer auto-dismisses — it persists until the next
 //     question resets the speed state, satisfying the "don't disappear until next
 //     question" requirement.
+// GRID 2x2 & VOTE: Added support for grid-2x2 and vote question types
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -24,6 +25,8 @@ import RatingScaleQuestion from "./components/RatingScaleQuestion";
 import WordCloudQuestion from "./components/WordCloudQuestion";
 import ScalingQuestion from "./components/ScalingQuestion.tsx";
 import RankingQuestion from "./components/RankingQuestion.tsx";
+import Grid2x2Question from "./components/Grid2x2Question";
+import VoteQuestion from "./components/VoteQuestion";
 import WaitingState from "./components/WaitingState";
 import SubmissionConfirmation from "./components/SubmissionConfirmation";
 import SessionEndedState from "./components/SessionEndedState";
@@ -378,6 +381,8 @@ const AudienceParticipation: React.FC = () => {
       WORD_CLOUD: "word-cloud",
       SCALING: "scaling",
       RANKING: "ranking",
+      GRID_2X2: "grid-2x2",
+      VOTE: "vote",
     };
     return mapping[dbType] || "multiple-choice";
   };
@@ -571,6 +576,8 @@ const AudienceParticipation: React.FC = () => {
           isSpeedQuestion: questionData.is_speed_question ?? false,
           speedMaxAdvance: questionData.speed_max_advance ?? null,
           showResultsInstantly: questionData.show_results_instantly ?? false,
+          xAxis: questionData.x_axis,
+          yAxis: questionData.y_axis,
         };
 
         if (newQuestion.isSpeedQuestion && newQuestion.speedMaxAdvance) {
@@ -1369,7 +1376,7 @@ const AudienceParticipation: React.FC = () => {
 
     const eliminationActive = isEliminationRef.current;
 
-    if (eliminationActive && q.type === "multiple-choice") {
+    if (eliminationActive && (q.type === "multiple-choice" || q.type === "vote")) {
       if (isEliminated) {
         toast({
           title: "Vous êtes éliminé",
@@ -1451,6 +1458,37 @@ const AudienceParticipation: React.FC = () => {
       return;
     }
 
+    // Grid 2x2 submission
+    if (q.type === "grid-2x2") {
+      try {
+        const success = await SessionService.submitResponse({
+          sessionId: ps.session.id,
+          participantId: ps.participantId,
+          questionId: q.id,
+          answer: response,
+        });
+
+        if (success) {
+          setSessionState("submitted");
+          sessionStateRef.current = "submitted";
+          toast({
+            title: "Response Submitted!",
+            description: "Your grid placements have been recorded",
+          });
+        } else {
+          throw new Error("Failed to submit response");
+        }
+      } catch (err) {
+        toast({
+          title: "Error",
+          description: "Failed to submit response. Please try again.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    // Standard submission for non-elimination
     try {
       const success = await SessionService.submitResponse({
         sessionId: ps.session.id,
@@ -1712,9 +1750,35 @@ const AudienceParticipation: React.FC = () => {
                   }>,
                   responseCount: 0,
                 }}
-                onSubmit={(r) =>
-                  handleSubmitResponse({ rankingOrder: r.rankingOrder })
-                }
+                onSubmit={(r) => handleSubmitResponse({ rankingOrder: r.rankingOrder })}
+              />
+            )}
+            {currentQuestion.type === "grid-2x2" && (
+              <Grid2x2Question
+                question={{
+                  text: currentQuestion.text,
+                  description: currentQuestion.description,
+                  image: getQuestionImage(currentQuestion),
+                  imageUrl: getQuestionImage(currentQuestion),
+                  options: (currentQuestion.options ?? []) as Array<{ id: string; text: string }>,
+                  xAxis: (currentQuestion as any).xAxis,
+                  yAxis: (currentQuestion as any).yAxis,
+                }}
+                onSubmit={(r) => handleSubmitResponse({ placements: r.placements })}
+                isSubmitting={false}
+              />
+            )}
+            {currentQuestion.type === "vote" && (
+              <VoteQuestion
+                question={{
+                  text: currentQuestion.text,
+                  description: currentQuestion.description,
+                  image: getQuestionImage(currentQuestion),
+                  imageUrl: getQuestionImage(currentQuestion),
+                  options: (currentQuestion.options ?? []) as Array<{ id: string; text: string; imageUrl?: string | null }>,
+                }}
+                onSubmit={(r) => handleSubmitResponse({ optionId: r.optionId })}
+                isSubmitting={false}
               />
             )}
           </div>
@@ -1813,16 +1877,16 @@ const AudienceParticipation: React.FC = () => {
                 <div className="flex gap-1">
                   {participantSession.session.presentation.questions.map(
                     (_, index) => (
-                      <div
-                        key={index}
-                        className={`w-2 h-2 rounded-full transition-colors duration-250 ${
+                    <div
+                      key={index}
+                      className={`w-2 h-2 rounded-full transition-colors duration-250 ${
                           index === currentQuestion.number - 1
                             ? "bg-primary"
                             : index < currentQuestion.number - 1
                               ? "bg-success"
                               : "bg-muted"
-                        }`}
-                      />
+                      }`}
+                    />
                     ),
                   )}
                 </div>

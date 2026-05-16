@@ -1,8 +1,17 @@
-// question-type-selector.tsx — Updated to include Scales + Ranking question types
+// question-type-selector.tsx — Updated to include Scales + Ranking + Grid 2x2 + Vote question types
 import React from "react";
 import { cn } from "../../lib/utils";
 import { Card, CardContent } from "./card";
-import { ListChecks, MessageSquare, Cloud, BarChart2, SlidersHorizontal, ArrowUpDown } from "lucide-react";
+import { 
+  ListChecks, 
+  MessageSquare, 
+  Cloud, 
+  BarChart2, 
+  SlidersHorizontal, 
+  ArrowUpDown,
+  Grid3X3,
+  Vote
+} from "lucide-react";
 
 interface QuestionType {
   id: string;
@@ -60,6 +69,20 @@ export function QuestionTypeSelector({ onSelect, selectedType }: QuestionTypeSel
       icon: ArrowUpDown,
       description: 'Drag items into your preferred order',
       color: 'bg-violet-500/20 text-violet-600'
+    },
+    {
+      id: 'grid-2x2',
+      name: 'Grid 2×2',
+      icon: Grid3X3,
+      description: 'Place items on a two-axis matrix',
+      color: 'bg-emerald-500/20 text-emerald-600'
+    },
+    {
+      id: 'vote',
+      name: 'Vote',
+      icon: Vote,
+      description: 'Cast a vote for one option',
+      color: 'bg-rose-500/20 text-rose-600'
     }
   ];
 

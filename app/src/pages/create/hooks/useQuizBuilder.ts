@@ -1,19 +1,8 @@
-// useQuizBuilder.ts — COMPLETE FILE WITH RANKING + SCALING + 100% Logique INTEGRATION
+// useQuizBuilder.ts — COMPLETE FILE WITH RANKING + SCALING + GRID 2x2 + VOTE + 100% Logique INTEGRATION
 // MODE SELECTION UPDATE: Added showModeSelection state, updated handleTemplateSelect
 // SKIP UPDATE: Added maxSkipsPerParticipant to ContextData and reducer
 // SPEED QUESTION UPDATE: Added isSpeedQuestion, speedMaxAdvance, finalRoundDecisionTimer
-//
-// This version includes:
-//  - creator_id (not user_id) for contexts
-//  - proper rollback on INSERT failure
-//  - ranking question support (DbQuestionType includes RANKING)
-//  - scaling statements persistence
-//  - original deletion logic (forceDeleteIds + orphan cleanup)
-//  - no unused applyQuestionSettings function
-//  - MODE SELECTION: showModeSelection for blank templates
-//  - SKIP: maxSkipsPerParticipant storage
-//  - SPEED QUESTION: isSpeedQuestion, speedMaxAdvance storage
-//  - FINAL ROUND: finalRoundDecisionTimer storage
+// GRID 2x2 & VOTE: Added support for grid-2x2 and vote question types
 
 import { useState, useEffect, useCallback, useReducer, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -28,10 +17,7 @@ import type { ContextData, HistoryAction, Question } from "../types";
 // ---------------------------------------------------------------------------
 // Reducer
 // ---------------------------------------------------------------------------
-function historyReducer(
-  state: ContextData,
-  action: HistoryAction,
-): ContextData {
+function historyReducer(state: ContextData, action: HistoryAction): ContextData {
   switch (action.type) {
     case "SET_QUESTIONS":
       return { ...state, questions: action.payload };
@@ -127,8 +113,6 @@ function deriveContextType(templateId: string | null): SupabaseContextType {
 
 // ---------------------------------------------------------------------------
 // Map local question type strings → DB enum values
-// DB enum: MULTIPLE_CHOICE | SINGLE_CHOICE | TRUE_FALSE | OPEN_TEXT |
-//          POLL | RATING | WORD_CLOUD | IMAGE_CHOICE | SCALING | RANKING
 // ---------------------------------------------------------------------------
 type DbQuestionType =
   | "MULTIPLE_CHOICE"
@@ -140,7 +124,9 @@ type DbQuestionType =
   | "WORD_CLOUD"
   | "IMAGE_CHOICE"
   | "SCALING"
-  | "RANKING";
+  | "RANKING"
+  | "GRID_2X2"
+  | "VOTE";
 
 function toDbQuestionType(localType: string): DbQuestionType {
   const map: Record<string, DbQuestionType> = {
@@ -156,6 +142,10 @@ function toDbQuestionType(localType: string): DbQuestionType {
     scaling: "SCALING",
     RANKING: "RANKING",
     ranking: "RANKING",
+    "grid-2x2": "GRID_2X2",
+    GRID_2X2: "GRID_2X2",
+    vote: "VOTE",
+    VOTE: "VOTE",
     QUIZ: "MULTIPLE_CHOICE",
     OPEN: "OPEN_TEXT",
     "multiple-choice": "MULTIPLE_CHOICE",
@@ -194,16 +184,16 @@ function toDbQuestion(q: Question, contextId: string, questionOrder: number) {
     skip_allowed: q.skipAllowed ?? false,
     is_speed_question: q.isSpeedQuestion ?? false,
     speed_max_advance: q.speedMaxAdvance ?? null,
+    x_axis: (q as any).xAxis ?? null,
+    y_axis: (q as any).yAxis ?? null,
   };
 }
 
 // ---------------------------------------------------------------------------
-// Returns true if the string looks like a real Postgres UUID (from the DB).
+// Returns true if the string looks like a real Postgres UUID
 // ---------------------------------------------------------------------------
 function isDbUUID(id: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    id,
-  );
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
 
 // ---------------------------------------------------------------------------
@@ -330,6 +320,8 @@ export function useQuizBuilder() {
           skipAllowed: q.skip_allowed ?? false,
           isSpeedQuestion: q.is_speed_question ?? false,
           speedMaxAdvance: q.speed_max_advance ?? undefined,
+          xAxis: q.x_axis ?? undefined,
+          yAxis: q.y_axis ?? undefined,
         }));
         dispatch({ type: "SET_QUESTIONS", payload: localQuestions });
 
@@ -436,16 +428,13 @@ export function useQuizBuilder() {
     });
   };
 
-  const addToHistory = useCallback(
-    (_actionType: string, snapshot?: ContextData) => {
-      const newHistory = history.slice(0, historyIndex + 1);
-      newHistory.push(snapshot ? { ...snapshot } : { ...context });
-      setHistory(newHistory);
-      setHistoryIndex(newHistory.length - 1);
-      markUnsaved();
-    },
-    [context, history, historyIndex, markUnsaved],
-  );
+  const addToHistory = useCallback((_actionType: string, snapshot?: ContextData) => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(snapshot ? { ...snapshot } : { ...context });
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+    markUnsaved();
+  }, [context, history, historyIndex, markUnsaved]);
 
   const handleUndo = () => {
     if (historyIndex > 0) {
@@ -703,10 +692,9 @@ export function useQuizBuilder() {
     handleTitleChange(options.customTitle || template.name);
     dispatch({
       type: "SET_QUESTIONS",
-      payload:
-        options.includeQuestions && template.questions
-          ? JSON.parse(JSON.stringify(template.questions))
-          : [],
+      payload: options.includeQuestions && template.questions
+        ? JSON.parse(JSON.stringify(template.questions))
+        : [],
     });
     if (options.includeSettings && template.settings) handleSettingsChange(template.settings);
 
@@ -782,6 +770,8 @@ export function useQuizBuilder() {
             skip_allowed: q.skipAllowed ?? false,
             is_speed_question: q.isSpeedQuestion ?? false,
             speed_max_advance: q.speedMaxAdvance ?? null,
+            x_axis: (q as any).xAxis ?? null,
+            y_axis: (q as any).yAxis ?? null,
           })
           .eq("id", q.id);
         if (error) throw new Error(error.message);
@@ -847,7 +837,7 @@ export function useQuizBuilder() {
     const { data: contextRow, error: ctxError } = await supabase
       .from("contexts")
       .insert({
-        creator_id: user.id,         
+        creator_id: user.id,
         title: context.title.trim(),
         description: context.description.trim() || null,
         type: contextType,
@@ -1071,10 +1061,7 @@ export function useQuizBuilder() {
         const currentIndex = updatedQuestions.findIndex((_, idx) => idx === sortedSelected[i]);
         if (currentIndex === -1) continue;
         const [question] = updatedQuestions.splice(currentIndex, 1);
-        const newIndex =
-          direction === "down"
-            ? Math.min(updatedQuestions.length, currentIndex)
-            : updatedQuestions.length;
+        const newIndex = direction === "down" ? Math.min(updatedQuestions.length, currentIndex) : updatedQuestions.length;
         updatedQuestions.splice(newIndex, 0, question);
       }
     }

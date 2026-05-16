@@ -1,4 +1,5 @@
-// question-types.ts — COMPLETE WITH ALL TYPES (includes SCALING + RANKING)
+// question-types.ts — COMPLETE WITH ALL TYPES (includes SCALING + RANKING + GRID_2X2 + VOTE)
+
 import {
   CheckSquare,
   AlignLeft,
@@ -10,6 +11,8 @@ import {
   Cloud,
   SlidersHorizontal,
   ArrowUpDown,
+  Grid3X3,
+  Vote,
 } from "lucide-react";
 
 export const QUESTION_TYPES = {
@@ -23,6 +26,8 @@ export const QUESTION_TYPES = {
   WORD_CLOUD: "WORD_CLOUD",
   SCALING: "SCALING",
   RANKING: "RANKING",
+  GRID_2X2: "GRID_2X2",
+  VOTE: "VOTE",
 } as const;
 
 // Mapping for UI-friendly IDs
@@ -33,6 +38,8 @@ export const UI_QUESTION_TYPES = {
   'rating-scale': QUESTION_TYPES.RATING,
   'scales': QUESTION_TYPES.SCALING,
   'ranking': QUESTION_TYPES.RANKING,
+  'grid-2x2': QUESTION_TYPES.GRID_2X2,
+  'vote': QUESTION_TYPES.VOTE,
 } as const;
 
 export const QUESTION_TYPE_DETAILS = [
@@ -131,6 +138,26 @@ export const QUESTION_TYPE_DETAILS = [
     comingSoon: false,
     uiId: 'ranking'
   },
+  {
+    id: QUESTION_TYPES.GRID_2X2,
+    name: "Grid 2×2",
+    icon: Grid3X3,
+    color: "text-emerald-500 bg-emerald-50",
+    description: "Place items on a two-axis matrix",
+    available: true,
+    comingSoon: false,
+    uiId: 'grid-2x2'
+  },
+  {
+    id: QUESTION_TYPES.VOTE,
+    name: "Vote",
+    icon: Vote,
+    color: "text-rose-500 bg-rose-50",
+    description: "Cast a vote for one option",
+    available: true,
+    comingSoon: false,
+    uiId: 'vote'
+  },
 ];
 
 export const getDefaultQuestion = (type: string, id: string) => {
@@ -144,6 +171,8 @@ export const getDefaultQuestion = (type: string, id: string) => {
   if (type === 'rating-scale') actualType = QUESTION_TYPES.RATING;
   if (type === 'scales') actualType = QUESTION_TYPES.SCALING;
   if (type === 'ranking') actualType = QUESTION_TYPES.RANKING;
+  if (type === 'grid-2x2') actualType = QUESTION_TYPES.GRID_2X2;
+  if (type === 'vote') actualType = QUESTION_TYPES.VOTE;
 
   const base = {
     id,
@@ -154,17 +183,23 @@ export const getDefaultQuestion = (type: string, id: string) => {
            type === 'word-cloud' ? "New Word Cloud Question" :
            type === 'rating-scale' ? "New Rating Scale Question" :
            type === 'scales' ? "Rate the following statements" :
-           type === 'ranking' ? "Rank the following items" : "New Question",
+           type === 'ranking' ? "Rank the following items" :
+           type === 'grid-2x2' ? "Grid 2×2 Question" :
+           type === 'vote' ? "Vote Question" : "New Question",
     description: "",
     points: type === 'word-cloud' ? 5 :
             type === 'rating-scale' ? 10 :
             type === 'open-text' ? 10 :
             type === 'scales' ? 0 :
-            type === 'ranking' ? 0 : 10,
+            type === 'ranking' ? 0 :
+            type === 'grid-2x2' ? 0 :
+            type === 'vote' ? 0 : 10,
     timeLimit: type === 'word-cloud' ? 30 :
                type === 'open-text' ? 60 :
                type === 'scales' ? 60 :
-               type === 'ranking' ? 60 : 30,
+               type === 'ranking' ? 60 :
+               type === 'grid-2x2' ? 90 :
+               type === 'vote' ? 30 : 30,
     isVisible: true,
     locked: false,
   };
@@ -255,12 +290,40 @@ export const getDefaultQuestion = (type: string, id: string) => {
         description: "Drag the items to rank them from most to least important",
         points: 0,
         timeLimit: 60,
-        // Ranking items stored in options field (reusing existing DB column)
         options: [
           { id: `${id}-r1`, text: "Item 1", isCorrect: false },
           { id: `${id}-r2`, text: "Item 2", isCorrect: false },
           { id: `${id}-r3`, text: "Item 3", isCorrect: false },
           { id: `${id}-r4`, text: "Item 4", isCorrect: false },
+        ],
+      };
+    case QUESTION_TYPES.GRID_2X2:
+      return {
+        ...base,
+        title: "Place items on the grid",
+        description: "Drag each item to the position that best represents your opinion",
+        points: 0,
+        timeLimit: 90,
+        options: [
+          { id: `${id}-g1`, text: "Item 1" },
+          { id: `${id}-g2`, text: "Item 2" },
+          { id: `${id}-g3`, text: "Item 3" },
+          { id: `${id}-g4`, text: "Item 4" },
+        ],
+        xAxis: { label: "Effort", minLabel: "Low", maxLabel: "High" },
+        yAxis: { label: "Impact", minLabel: "Low", maxLabel: "High" },
+      };
+    case QUESTION_TYPES.VOTE:
+      return {
+        ...base,
+        title: "Cast your vote",
+        description: "Select one option below",
+        points: 0,
+        timeLimit: 30,
+        options: [
+          { id: `${id}-v1`, text: "Option A", isCorrect: false },
+          { id: `${id}-v2`, text: "Option B", isCorrect: false },
+          { id: `${id}-v3`, text: "Option C", isCorrect: false },
         ],
       };
     default:

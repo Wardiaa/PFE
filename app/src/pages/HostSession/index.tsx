@@ -208,6 +208,7 @@ const HostSession: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
   const [showMobileParticipants, setShowMobileParticipants] = useState<boolean>(false);
+  const [showVoteWinner, setShowVoteWinner] = useState<boolean>(false);
 
   // ── Leave warning state ───────────────────────────────────────────────────
   const [showLeaveWarning, setShowLeaveWarning] = useState<boolean>(false);
@@ -271,6 +272,8 @@ const HostSession: React.FC = () => {
       WORD_CLOUD: "word-cloud",
       SCALING: "scaling",
       RANKING: "ranking",
+      GRID_2X2: "grid-2x2", 
+      VOTE: "vote",
     };
     return mapping[dbType] || "multiple-choice";
   };
@@ -741,7 +744,8 @@ const HostSession: React.FC = () => {
                 id, title, description, type, points, time_limit,
                 options, scale, labels, display_style, image_url, question_order,
                 show_results_instantly, hide_participant_names,
-                statements, skip_allowed, is_speed_question, speed_max_advance
+                statements, skip_allowed, is_speed_question, speed_max_advance,
+                x_axis, y_axis 
               )
             `,
             )
@@ -783,6 +787,8 @@ const HostSession: React.FC = () => {
               skipAllowed: q.skip_allowed ?? false,
               isSpeedQuestion: q.is_speed_question ?? false,
               speedMaxAdvance: q.speed_max_advance ?? null,
+              xAxis: q.x_axis,       
+              yAxis: q.y_axis,
             }));
 
           const sessionData: Session = {
@@ -1370,6 +1376,10 @@ const HostSession: React.FC = () => {
     if (session) navigate(`/results/${session.id}`);
   };
 
+  const handleRevealVoteWinner = (): void => {
+    setShowVoteWinner((prev) => !prev);  // Toggle
+  };
+
   const handleCopyLink = (): void => {
     const joinUrl = `${window.location.origin}/audience-participation?code=${session?.code}`;
     navigator.clipboard.writeText(joinUrl);
@@ -1796,6 +1806,8 @@ const HostSession: React.FC = () => {
                 showResults={showResults}
                 showCorrectAnswer={showCorrectAnswer}
                 hideParticipantNames={hideParticipantNames}
+                revealVoteWinner={showVoteWinner}      
+                onRevealVoteWinner={handleRevealVoteWinner}  
               />
             )}
           </div>
