@@ -640,24 +640,40 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
             </div>
           </div>
           
-          {/* Stats Badge - only for grid-2x2 and vote questions when showing results */}
-          {((question.type === "grid-2x2" || question.type === "vote") && showResults) && (
-            <div className="flex-shrink-0">
-              {question.type === "vote" ? (
+          {/* Stats Badge & Reveal Winner Button - only for vote and grid-2x2 when showing results */}
+          {showResults && (
+            <div className="flex-shrink-0 flex items-center gap-3">
+              {/* Reveal Winner Button - for vote questions only */}
+              {question.type === "vote" && onRevealVoteWinner && (
+                <button
+                  onClick={onRevealVoteWinner}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest transition-all border ${
+                    revealVoteWinner 
+                      ? "bg-primary border-primary text-white" 
+                      : "bg-transparent border-border text-muted-foreground hover:border-primary/40 hover:text-primary"
+                  }`}
+                >
+                  {revealVoteWinner ? "Winner Revealed" : "Reveal Winner"}
+                </button>
+              )}
+              
+              {/* Stats Badge */}
+              {(question.type === "grid-2x2" || question.type === "vote") && (
                 <div className="flex items-center gap-2 bg-muted/50 rounded-full px-4 py-2">
                   <Users className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm font-semibold">
-                    {getVoteTotalVotes()} vote{getVoteTotalVotes() !== 1 ? 's' : ''}
+                    {question.type === "vote" ? (
+                      <>
+                        {getVoteTotalVotes()} vote{getVoteTotalVotes() !== 1 ? 's' : ''}
+                      </>
+                    ) : (
+                      <>
+                        {getGridTotalResponses()} response{getGridTotalResponses() !== 1 ? 's' : ''}
+                      </>
+                    )}
                   </span>
                 </div>
-              ) : question.type === "grid-2x2" ? (
-                <div className="flex items-center gap-2 bg-muted/50 rounded-full px-4 py-2">
-                  <Users className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-semibold">
-                    {getGridTotalResponses()} response{getGridTotalResponses() !== 1 ? 's' : ''}
-                  </span>
-                </div>
-              ) : null}
+              )}
             </div>
           )}
         </div>

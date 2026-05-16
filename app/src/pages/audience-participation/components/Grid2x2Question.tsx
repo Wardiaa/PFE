@@ -1,7 +1,3 @@
-// Grid2x2Question.tsx — Participant view for the 2×2 grid question type
-// Participants drag/tap items onto a two-axis matrix (Mentimeter-style).
-// Each item gets placed independently. Mobile-friendly with tap-to-select + tap-to-place.
-
 import React, { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, RotateCcw, CheckCircle2 } from "lucide-react";
@@ -39,13 +35,14 @@ interface Grid2x2QuestionProps {
 const DEFAULT_X_AXIS: GridAxis = { label: "Effort", minLabel: "Low", maxLabel: "High" };
 const DEFAULT_Y_AXIS: GridAxis = { label: "Impact", minLabel: "Low", maxLabel: "High" };
 
+// Mentimeter-inspired flat color palette
 const ITEM_COLORS = [
-  { bg: "#5e5fb7", text: "#fff" },
-  { bg: "#e05c7a", text: "#fff" },
-  { bg: "#2da875", text: "#fff" },
-  { bg: "#e8a020", text: "#fff" },
-  { bg: "#4898d4", text: "#fff" },
-  { bg: "#9b59b6", text: "#fff" },
+  { bg: "#4549f5", text: "#ffffff" },
+  { bg: "#ec4899", text: "#ffffff" },
+  { bg: "#10b981", text: "#ffffff" },
+  { bg: "#f59e0b", text: "#ffffff" },
+  { bg: "#6366f1", text: "#ffffff" },
+  { bg: "#ef4444", text: "#ffffff" },
 ];
 
 const Grid2x2Question: React.FC<Grid2x2QuestionProps> = ({ question, onSubmit, isSubmitting = false }) => {
@@ -67,11 +64,10 @@ const Grid2x2Question: React.FC<Grid2x2QuestionProps> = ({ question, onSubmit, i
     const rawX = (clientX - rect.left) / rect.width;
     const rawY = (clientY - rect.top) / rect.height;
     const x = Math.max(0, Math.min(1, rawX)) * 100;
-    const y = (1 - Math.max(0, Math.min(1, rawY))) * 100; // flip Y so top = high
+    const y = (1 - Math.max(0, Math.min(1, rawY))) * 100; 
     return { x: Math.round(x), y: Math.round(y) };
   }, []);
 
-  // ── Drag handlers (desktop) ───────────────────────────────────────────────
   const handleGridMouseDown = (e: React.MouseEvent) => {
     if (hasSubmitted || !activeItemId) return;
     e.preventDefault();
@@ -92,7 +88,6 @@ const Grid2x2Question: React.FC<Grid2x2QuestionProps> = ({ question, onSubmit, i
     setIsDragging(false);
   };
 
-  // ── Touch handlers (mobile) ───────────────────────────────────────────────
   const handleGridTouchStart = (e: React.TouchEvent) => {
     if (hasSubmitted || !activeItemId) return;
     const touch = e.touches[0];
@@ -104,7 +99,7 @@ const Grid2x2Question: React.FC<Grid2x2QuestionProps> = ({ question, onSubmit, i
 
   const handleGridTouchMove = (e: React.TouchEvent) => {
     if (!isDragging || !activeItemId || hasSubmitted) return;
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
     const touch = e.touches[0];
     const pos = getGridPosition(touch.clientX, touch.clientY);
     if (!pos) return;
@@ -115,13 +110,11 @@ const Grid2x2Question: React.FC<Grid2x2QuestionProps> = ({ question, onSubmit, i
     setIsDragging(false);
   };
 
-  // ── Click-to-place fallback when item is active ───────────────────────────
   const handleGridClick = (e: React.MouseEvent) => {
     if (hasSubmitted || !activeItemId || isDragging) return;
     const pos = getGridPosition(e.clientX, e.clientY);
     if (!pos) return;
     setPlacements((prev) => ({ ...prev, [activeItemId]: pos }));
-    // Auto-advance to next unplaced item
     const nextUnplaced = items.find((it) => it.id !== activeItemId && !placements[it.id]);
     setActiveItemId(nextUnplaced?.id ?? null);
   };
@@ -150,108 +143,89 @@ const Grid2x2Question: React.FC<Grid2x2QuestionProps> = ({ question, onSubmit, i
   const questionImage = question?.image || question?.imageUrl;
 
   return (
-    <div style={{ background: "#ebedfb", minHeight: "100vh", width: "100%", boxSizing: "border-box", fontFamily: "sans-serif" }}>
-      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "32px 20px 48px" }}>
+    <div style={{ 
+      background: "#ffffff", 
+      minHeight: "100vh", 
+      width: "100%", 
+      boxSizing: "border-box", 
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      color: "#1a1a1a"
+    }}>
+      <div style={{ maxWidth: "800px", margin: "0 auto", padding: "40px 24px" }}>
+        
+        {/* Question Header */}
+        <header style={{ textAlign: "center", marginBottom: "40px" }}>
+          <h2 style={{ fontSize: "2rem", fontWeight: 800, marginBottom: "12px", letterSpacing: "-0.02em" }}>
+            {question.text}
+          </h2>
+          {question.description && (
+            <p style={{ color: "#666", fontSize: "1.05rem", maxWidth: "600px", margin: "0 auto" }}>
+              {question.description}
+            </p>
+          )}
+          {questionImage && (
+            <div style={{ display: "flex", justifyContent: "center", marginTop: "24px" }}>
+              <img src={questionImage} alt="" style={{ maxWidth: "100%", maxHeight: "160px", borderRadius: "12px" }} />
+            </div>
+          )}
+        </header>
 
-        {/* Question title */}
-        <h2 style={{ fontSize: "clamp(1.4rem, 4vw, 2.2rem)", fontWeight: 500, color: "#111", textAlign: "center", marginBottom: "8px", lineHeight: 1.3 }}>
-          {question.text}
-        </h2>
-        {question.description && (
-          <p style={{ textAlign: "center", color: "#555", fontSize: "1rem", marginBottom: "16px" }}>
-            {question.description}
-          </p>
-        )}
-        {questionImage && (
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: "16px" }}>
-            <img src={questionImage} alt="" style={{ maxWidth: "100%", maxHeight: "200px", objectFit: "contain", borderRadius: "12px" }} />
-          </div>
-        )}
-
-        {/* Progress hint */}
-        <p style={{ textAlign: "center", color: "#5e5fb7", fontWeight: 600, fontSize: "0.9rem", marginBottom: "20px" }}>
-          {hasSubmitted
-            ? "Submitted!"
-            : allPlaced
-            ? "All items placed — ready to submit!"
-            : `${placedCount} / ${items.length} items placed`}
-        </p>
-
-        {/* Item selector chips */}
+        {/* Top Toggle Selection */}
         {!hasSubmitted && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center", marginBottom: "20px" }}>
-            {items.map((item, idx) => {
-              const color = ITEM_COLORS[idx % ITEM_COLORS.length];
-              const isActive = activeItemId === item.id;
-              const isPlaced = placements[item.id] !== undefined;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => !hasSubmitted && setActiveItemId(isActive ? null : item.id)}
-                  style={{
-                    padding: "6px 16px",
-                    borderRadius: "999px",
-                    border: `2px solid ${color.bg}`,
-                    background: isActive ? color.bg : isPlaced ? `${color.bg}22` : "#fff",
-                    color: isActive ? color.text : color.bg,
-                    fontWeight: 600,
-                    fontSize: "0.88rem",
-                    cursor: "pointer",
-                    transition: "all 0.15s",
-                    opacity: hasSubmitted ? 0.6 : 1,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                  }}
-                >
-                  {isPlaced && (
-                    <CheckCircle2 size={14} style={{ flexShrink: 0 }} />
-                  )}
-                  <span>{item.text}</span>
-                </button>
-              );
-            })}
+          <div style={{ marginBottom: "32px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", justifyContent: "center" }}>
+              {items.map((item, idx) => {
+                const color = ITEM_COLORS[idx % ITEM_COLORS.length];
+                const isActive = activeItemId === item.id;
+                const isPlaced = placements[item.id] !== undefined;
+                
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveItemId(isActive ? null : item.id)}
+                    style={{
+                      padding: "10px 18px",
+                      borderRadius: "12px",
+                      border: "none",
+                      background: isActive ? color.bg : isPlaced ? "#f1f5f9" : "#f8fafc",
+                      color: isActive ? "#fff" : isPlaced ? "#94a3b8" : "#475569",
+                      fontWeight: 600,
+                      fontSize: "0.9rem",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    {isPlaced ? <CheckCircle2 size={16} /> : <div style={{ width: 8, height: 8, borderRadius: "50%", background: color.bg }} />}
+                    {item.text}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
 
-        {/* Instruction text */}
-        {!hasSubmitted && activeItemId && (
-          <p style={{ textAlign: "center", color: "#888", fontSize: "0.85rem", marginBottom: "8px" }}>
-            Click or drag on the grid to place <strong>{items.find(i => i.id === activeItemId)?.text}</strong>
-          </p>
-        )}
-        {!hasSubmitted && !activeItemId && (
-          <p style={{ textAlign: "center", color: "#888", fontSize: "0.85rem", marginBottom: "8px" }}>
-            Select an item above, then click the grid to place it
-          </p>
-        )}
-
-        {/* 2×2 Grid */}
-        <div style={{ position: "relative", width: "100%", paddingBottom: "8px" }}>
-          {/* Y-axis label */}
-          <div style={{
-            position: "absolute",
-            left: 0,
-            top: "50%",
-            transform: "translateX(-4px) translateY(-50%) rotate(-90deg)",
-            transformOrigin: "center center",
-            fontSize: "0.8rem",
-            fontWeight: 600,
-            color: "#555",
-            whiteSpace: "nowrap",
-            pointerEvents: "none",
-            zIndex: 2,
-          }}>
-            {yAxis.label} →
-          </div>
-
-          <div style={{ marginLeft: "36px" }}>
-            {/* Max Y label */}
-            <div style={{ textAlign: "left", fontSize: "0.72rem", color: "#888", marginBottom: "2px", paddingLeft: "4px" }}>
-              {yAxis.maxLabel}
+        {/* The Grid */}
+        <div style={{ position: "relative", padding: "20px 0" }}>
+          <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", maxWidth: "500px", margin: "0 auto" }}>
+            
+            {/* Y-Axis Side Label */}
+            <div style={{
+              position: "absolute",
+              left: "-35px",
+              top: "50%",
+              transform: "rotate(-90deg) translateY(-50%)",
+              fontSize: "0.7rem",
+              fontWeight: 800,
+              textTransform: "uppercase",
+              letterSpacing: "0.15em",
+              color: "#94a3b8"
+            }}>
+              {yAxis.label}
             </div>
 
-            {/* Grid area */}
             <div
               ref={gridRef}
               onMouseDown={handleGridMouseDown}
@@ -263,183 +237,215 @@ const Grid2x2Question: React.FC<Grid2x2QuestionProps> = ({ question, onSubmit, i
               onTouchEnd={handleGridTouchEnd}
               onClick={handleGridClick}
               style={{
-                position: "relative",
                 width: "100%",
-                aspectRatio: "1 / 1",
-                maxHeight: "420px",
-                background: "#dde0f5",
-                borderRadius: "4px",
+                height: "100%",
+                background: "#fcfcfc",
+                borderRadius: "16px",
+                border: "2px solid #94a3b8", // More visible border
+                position: "relative",
                 cursor: activeItemId && !hasSubmitted ? "crosshair" : "default",
-                userSelect: "none",
-                touchAction: "none",
                 overflow: "hidden",
+                touchAction: "none",
               }}
             >
-              {/* Quadrant dividers */}
-              <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "2px", background: "#b8bcdc" }} />
-              <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: "2px", background: "#b8bcdc" }} />
+              {/* Visible Grid Lines (Quadrants) - More visible */}
+              <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "2px", background: "#64748b", zIndex: 1 }} />
+              <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: "2px", background: "#64748b", zIndex: 1 }} />
 
-              {/* Quadrant labels */}
-              {[
-                { top: 0, left: 0, label: `${yAxis.maxLabel} ${xAxis.minLabel}`, align: "left" as const },
-                { top: 0, left: "50%", label: `${yAxis.maxLabel} ${xAxis.maxLabel}`, align: "right" as const },
-                { top: "50%", left: 0, label: `${yAxis.minLabel} ${xAxis.minLabel}`, align: "left" as const },
-                { top: "50%", left: "50%", label: `${yAxis.minLabel} ${xAxis.maxLabel}`, align: "right" as const },
-              ].map((q, i) => (
-                <div
-                  key={i}
-                  style={{
-                    position: "absolute",
-                    top: q.top,
-                    left: q.left,
-                    width: "50%",
-                    height: "50%",
-                    display: "flex",
-                    alignItems: q.top === 0 ? "flex-start" : "flex-end",
-                    justifyContent: q.align === "left" ? "flex-start" : "flex-end",
-                    padding: "6px",
-                    pointerEvents: "none",
-                  }}
-                >
-                  <span style={{ fontSize: "0.6rem", color: "#a0a4c0", fontWeight: 500, textAlign: q.align }}>
-                    {q.label}
-                  </span>
-                </div>
-              ))}
+              {/* Subtle background quadrants */}
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", pointerEvents: "none" }}>
+                <div style={{ background: "rgba(0,0,0,0.02)" }} />
+                <div style={{ background: "rgba(0,0,0,0.01)" }} />
+                <div style={{ background: "rgba(0,0,0,0.01)" }} />
+                <div style={{ background: "rgba(0,0,0,0.02)" }} />
+              </div>
 
-              {/* Placed item dots */}
+              {/* Quadrant Labels */}
+              <div style={{ position: "absolute", inset: 0, pointerEvents: "none", padding: "12px", display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", zIndex: 2 }}>
+                <span style={{ fontSize: "0.7rem", color: "#475569", fontWeight: 600, alignSelf: "start", justifySelf: "start" }}>{yAxis.maxLabel} / {xAxis.minLabel}</span>
+                <span style={{ fontSize: "0.7rem", color: "#475569", fontWeight: 600, alignSelf: "start", justifySelf: "end" }}>{yAxis.maxLabel} / {xAxis.maxLabel}</span>
+                <span style={{ fontSize: "0.7rem", color: "#475569", fontWeight: 600, alignSelf: "end", justifySelf: "start" }}>{yAxis.minLabel} / {xAxis.minLabel}</span>
+                <span style={{ fontSize: "0.7rem", color: "#475569", fontWeight: 600, alignSelf: "end", justifySelf: "end" }}>{yAxis.minLabel} / {xAxis.maxLabel}</span>
+              </div>
+
+              {/* Placed Items - No shadows, flat design */}
               {items.map((item, idx) => {
                 const pos = placements[item.id];
                 if (!pos) return null;
                 const color = ITEM_COLORS[idx % ITEM_COLORS.length];
                 const isActive = activeItemId === item.id;
+                
                 return (
-                  <div
+                  <motion.div
                     key={item.id}
+                    layoutId={item.id}
                     style={{
                       position: "absolute",
                       left: `${pos.x}%`,
                       bottom: `${pos.y}%`,
-                      transform: "translate(-50%, 50%)",
-                      zIndex: isActive ? 10 : 5,
+                      zIndex: isActive ? 20 : 10,
                     }}
                   >
                     <div
                       style={{
-                        width: "28px",
-                        height: "28px",
+                        transform: "translate(-50%, 50%)",
+                        width: "36px",
+                        height: "36px",
                         borderRadius: "50%",
                         background: color.bg,
-                        color: color.text,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: "0.7rem",
+                        color: "#fff",
+                        fontSize: "0.9rem",
                         fontWeight: 700,
-                        border: isActive ? "3px solid #fff" : "2px solid rgba(255,255,255,0.6)",
-                        boxShadow: isActive ? `0 0 0 2px ${color.bg}` : "0 2px 6px rgba(0,0,0,0.2)",
-                        cursor: hasSubmitted ? "default" : "pointer",
+                        border: isActive ? "3px solid #1a1a1a" : "2px solid #ffffff",
+                        cursor: "pointer",
+                        boxShadow: "none", // No shadow, flat
+                        transition: "transform 0.1s ease",
                       }}
                       onClick={(e) => {
                         if (hasSubmitted) return;
                         e.stopPropagation();
                         setActiveItemId(item.id);
                       }}
-                      title={item.text}
                     >
                       {idx + 1}
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
-
-              {/* Submitted checkmark overlay */}
+              
               {hasSubmitted && (
-                <div style={{
-                  position: "absolute", inset: 0,
-                  background: "rgba(94,95,183,0.08)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  pointerEvents: "none",
-                }}>
-                  <CheckCircle2 size={48} color="#5e5fb7" strokeWidth={1.5} />
+                <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.75)", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 30 }}>
+                  <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+                    <CheckCircle2 size={60} color="#10b981" strokeWidth={2.5} />
+                  </motion.div>
                 </div>
               )}
             </div>
 
-            
-
-            {/* X-axis labels */}
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px", paddingLeft: "4px", paddingRight: "4px" }}>
-              <span style={{ fontSize: "0.72rem", color: "#888" }}>{xAxis.minLabel}</span>
-              <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#555" }}>{xAxis.label} →</span>
-              <span style={{ fontSize: "0.72rem", color: "#888" }}>{xAxis.maxLabel}</span>
+            {/* X-Axis Labels */}
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "12px" }}>
+              <span style={{ fontSize: "0.85rem", color: "#475569", fontWeight: 600 }}>{xAxis.minLabel}</span>
+              <span style={{ fontSize: "0.7rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.15em", color: "#64748b" }}>{xAxis.label}</span>
+              <span style={{ fontSize: "0.85rem", color: "#475569", fontWeight: 600 }}>{xAxis.maxLabel}</span>
             </div>
           </div>
         </div>
 
-        {/* Legend */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center", marginTop: "16px", marginBottom: "24px" }}>
-          {items.map((item, idx) => {
-            const color = ITEM_COLORS[idx % ITEM_COLORS.length];
-            return (
-              <div key={item.id} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <div style={{ width: "16px", height: "16px", borderRadius: "50%", background: color.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.6rem", fontWeight: 700, color: color.text, flexShrink: 0 }}>
-                  {idx + 1}
-                </div>
-                <span style={{ fontSize: "0.82rem", color: "#444" }}>{item.text}</span>
+        {/* Text Legend */}
+        <div style={{ marginTop: "32px", display: "flex", flexWrap: "wrap", gap: "20px", justifyContent: "center" }}>
+          {items.map((item, idx) => (
+            <div key={item.id} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ 
+                width: "24px", height: "24px", borderRadius: "50%", background: ITEM_COLORS[idx % ITEM_COLORS.length].bg,
+                color: "#fff", fontSize: "0.75rem", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center"
+              }}>
+                {idx + 1}
               </div>
-            );
-          })}
+              <span style={{ fontSize: "0.9rem", fontWeight: 500, color: "#334155" }}>{item.text}</span>
+            </div>
+          ))}
         </div>
 
-        {/* Reset + Submit */}
-        <div style={{ display: "flex", justifyContent: "center", gap: "12px", paddingBottom: "32px" }}>
-          {!hasSubmitted && placedCount > 0 && (
-            <button
-              onClick={handleReset}
-              style={{
-                display: "flex", alignItems: "center", gap: "6px",
-                padding: "10px 20px", borderRadius: "999px",
-                border: "2px solid #aab2d4", background: "transparent",
-                color: "#5e5fb7", fontWeight: 600, fontSize: "0.9rem",
-                cursor: "pointer",
-              }}
-            >
-              <RotateCcw size={14} />
-              Reset
-            </button>
+        {/* Footer Actions */}
+        <div style={{ marginTop: "40px", display: "flex", flexDirection: "column", alignItems: "center", gap: "20px" }}>
+          {!hasSubmitted ? (
+            <div style={{ display: "flex", gap: "12px", width: "100%", justifyContent: "center" }}>
+              {placedCount > 0 && (
+                <button
+                  onClick={handleReset}
+                  style={{
+                    padding: "0 24px",
+                    height: "48px",
+                    borderRadius: "12px",
+                    border: "2px solid #e2e8f0",
+                    background: "white",
+                    color: "#64748b",
+                    fontWeight: 600,
+                    fontSize: "0.95rem",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#f8fafc";
+                    e.currentTarget.style.borderColor = "#cbd5e1";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "white";
+                    e.currentTarget.style.borderColor = "#e2e8f0";
+                  }}
+                >
+                  <RotateCcw size={16} />
+                  Reset
+                </button>
+              )}
+              
+              <button
+                onClick={handleSubmit}
+                disabled={!allPlaced || isSubmitting}
+                style={{
+                  height: "48px",
+                  padding: "0 40px",
+                  borderRadius: "12px",
+                  border: "none",
+                  background: allPlaced ? "#6366f1" : "#cbd5e1", // Changed to indigo-500 to match MultipleChoiceQuestion
+                  color: "#fff",
+                  fontWeight: 600,
+                  fontSize: "0.95rem",
+                  cursor: allPlaced ? "pointer" : "not-allowed",
+                  transition: "all 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  opacity: allPlaced ? 1 : 0.6,
+                }}
+                onMouseEnter={(e) => {
+                  if (allPlaced && !isSubmitting) {
+                    e.currentTarget.style.background = "#4f46e5"; // hover:indigo-600
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (allPlaced && !isSubmitting) {
+                    e.currentTarget.style.background = "#6366f1"; // back to indigo-500
+                  }
+                }}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="animate-spin" size={20} />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    Submit Answer
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </>
+                )}
+              </button>
+            </div>
+          ) : (
+            <div style={{ 
+              background: "#f0fdf4", 
+              color: "#166534", 
+              padding: "12px 24px", 
+              borderRadius: "12px", 
+              fontWeight: 600,
+              fontSize: "0.95rem"
+            }}>
+              Response Submitted
+            </div>
           )}
-          <button
-            onClick={handleSubmit}
-            disabled={hasSubmitted || isSubmitting || !allPlaced}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              minWidth: "160px",
-              height: "48px",
-              padding: "0 24px",
-              borderRadius: "9999px",
-              fontSize: "1rem",
-              fontWeight: 500,
-              transition: "all 0.2s",
-              boxShadow: "0 4px 8px rgba(0,0,0,0.05)",
-              cursor: hasSubmitted || isSubmitting || !allPlaced ? "not-allowed" : "pointer",
-              opacity: hasSubmitted || isSubmitting || !allPlaced ? 0.6 : 1,
-              backgroundColor: hasSubmitted ? "#10b981" : "#5e5fb7",
-              color: "white",
-              border: "none",
-            }}
-          >
-            {isSubmitting ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : hasSubmitted ? (
-              "Submitted!"
-            ) : (
-              "Submit"
-            )}
-          </button>
+
+          <p style={{ fontSize: "0.85rem", color: "#64748b", fontWeight: 500 }}>
+            {placedCount} / {items.length} items placed
+          </p>
         </div>
       </div>
     </div>
