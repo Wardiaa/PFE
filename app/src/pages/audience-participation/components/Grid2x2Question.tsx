@@ -366,10 +366,7 @@ const Grid2x2Question: React.FC<Grid2x2QuestionProps> = ({ question, onSubmit, i
               )}
             </div>
 
-            {/* Min Y label */}
-            <div style={{ textAlign: "left", fontSize: "0.72rem", color: "#888", marginTop: "2px", paddingLeft: "4px" }}>
-              {yAxis.minLabel}
-            </div>
+            
 
             {/* X-axis labels */}
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px", paddingLeft: "4px", paddingRight: "4px" }}>

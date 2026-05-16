@@ -22,6 +22,7 @@ function App() {
           {/* Home route WITHOUT MainLayout */}
           <Route path="/" element={<Home />} />
           <Route path="auth" element={<AuthPage />} />
+          <Route path="audience-participation" element={<AudienceParticipation />} />
           {/* All other routes WITH MainLayout */}
           <Route element={<MainLayout />}>
             <Route path="dashboard" element={<Dashboard />} />
@@ -29,7 +30,6 @@ function App() {
             <Route path="admin" element={<AdminDashboard />} />
             <Route path="session/:id/host" element={<HostSession />} />
             <Route path="results/:id" element={<Results />} />
-            <Route path="audience-participation" element={<AudienceParticipation />} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

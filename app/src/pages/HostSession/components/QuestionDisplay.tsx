@@ -1,10 +1,11 @@
 import React from "react";
 import { motion } from "framer-motion";
+import { Users } from "lucide-react";
 import AppIcon from "../../../components/AppIcon";
 import ScalingQuestionDisplay from "./ScalingQuestionDisplay";
 import RankingQuestionDisplay from "./RankingQuestionDisplay";
-import Grid2x2QuestionDisplay from "./Grid2x2QuestionDisplay"; // NEW
-import VoteQuestionDisplay from "./VoteQuestionDisplay"; // NEW
+import Grid2x2QuestionDisplay from "./Grid2x2QuestionDisplay";
+import VoteQuestionDisplay from "./VoteQuestionDisplay";
 import type {
   Question,
   QuestionResponses,
@@ -84,6 +85,28 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
     const hasImage = !!option.imageUrl || !!option.image;
     const hasNoText = !option.text || option.text.trim() === '';
     return hasImage && hasNoText;
+  };
+
+  // Helper to get total responses count for grid-2x2
+  const getGridTotalResponses = (): number => {
+    const gridResponses = responses as Grid2x2Responses;
+    return gridResponses?.totalResponses ?? gridResponses?.individualResponses?.length ?? 0;
+  };
+
+  // Helper to get total votes for vote questions
+  const getVoteTotalVotes = (): number => {
+    const voteResponses = responses as VoteResponses;
+    if (voteResponses.total) return voteResponses.total;
+    
+    let total = 0;
+    if (voteResponses) {
+      Object.entries(voteResponses).forEach(([key, value]) => {
+        if (key !== "individualResponses" && key !== "total" && typeof value === "number") {
+          total += value;
+        }
+      });
+    }
+    return total;
   };
 
   const renderQuestionContent = () => {
@@ -557,7 +580,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
     );
   };
 
-  // ── Grid 2x2 renderer (NEW) ────────────────────────────────────────
+  // ── Grid 2x2 renderer ────────────────────────────────────────────────
   const renderGrid2x2 = (responses: Grid2x2Responses) => {
     return (
       <Grid2x2QuestionDisplay
@@ -576,7 +599,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
     );
   };
 
-  // ── Vote renderer (NEW) ────────────────────────────────────────────
+  // ── Vote renderer ────────────────────────────────────────────────────
   const renderVote = (responses: VoteResponses) => {
     return (
       <VoteQuestionDisplay
@@ -598,22 +621,45 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
   return (
     <div className="w-full">
       <div className="mb-5 sm:mb-6 md:mb-8 lg:mb-10">
-        <div className="flex items-start gap-2.5 sm:gap-3 md:gap-4 mb-3 sm:mb-4 md:mb-6">
-          <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg bg-primary flex items-center justify-center mt-0.5">
-            <span className="text-sm sm:text-lg md:text-xl font-bold text-primary-foreground">
-              {question.number}
-            </span>
+        <div className="flex items-start justify-between gap-2.5 sm:gap-3 md:gap-4 mb-3 sm:mb-4 md:mb-6">
+          <div className="flex items-start gap-2.5 sm:gap-3 md:gap-4 flex-1 min-w-0">
+            <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg bg-primary flex items-center justify-center mt-0.5">
+              <span className="text-sm sm:text-lg md:text-xl font-bold text-primary-foreground">
+                {question.number}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-foreground leading-tight">
+                {question.text}
+              </h2>
+              {(question as any).isSpeedQuestion && (
+                <p className="mt-1.5 text-sm font-semibold text-primary">
+                  Speed · Top {(question as any).speedMaxAdvance ?? 3} advance
+                </p>
+              )}
+            </div>
           </div>
-          <div className="flex-1">
-            <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-foreground leading-tight">
-              {question.text}
-            </h2>
-            {(question as any).isSpeedQuestion && (
-              <p className="mt-1.5 text-sm font-semibold text-primary">
-                Speed · Top {(question as any).speedMaxAdvance ?? 3} advance
-              </p>
-            )}
-          </div>
+          
+          {/* Stats Badge - only for grid-2x2 and vote questions when showing results */}
+          {((question.type === "grid-2x2" || question.type === "vote") && showResults) && (
+            <div className="flex-shrink-0">
+              {question.type === "vote" ? (
+                <div className="flex items-center gap-2 bg-muted/50 rounded-full px-4 py-2">
+                  <Users className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-semibold">
+                    {getVoteTotalVotes()} vote{getVoteTotalVotes() !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              ) : question.type === "grid-2x2" ? (
+                <div className="flex items-center gap-2 bg-muted/50 rounded-full px-4 py-2">
+                  <Users className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-semibold">
+                    {getGridTotalResponses()} response{getGridTotalResponses() !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          )}
         </div>
 
         {question.description && (

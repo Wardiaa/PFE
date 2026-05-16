@@ -3,7 +3,7 @@
 
 import React, { useMemo } from "react";
 import { motion } from "framer-motion";
-import { Users, Trophy, BarChart3, Vote as VoteIcon, EyeOff } from "lucide-react";
+import { Users, Trophy, BarChart3, EyeOff } from "lucide-react";
 
 interface VoteOption {
   id: string;
@@ -111,7 +111,7 @@ const VoteQuestionDisplay: React.FC<VoteQuestionDisplayProps> = ({
       <div className="w-full max-w-5xl mx-auto px-4 py-8">
         <div className="bg-card/50 backdrop-blur-sm border border-border rounded-3xl p-10 text-center">
           <div className="inline-flex p-4 rounded-2xl bg-primary/10 text-primary mb-6">
-            <VoteIcon className="w-8 h-8" />
+            <Trophy className="w-8 h-8" />
           </div>
           <h3 className="text-2xl font-bold mb-2">Waiting for votes...</h3>
           <p className="text-muted-foreground mb-8">
@@ -134,42 +134,6 @@ const VoteQuestionDisplay: React.FC<VoteQuestionDisplayProps> = ({
 
   return (
     <div className="w-full max-w-5xl mx-auto px-4 py-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-xl font-bold text-foreground">{question.text}</h2>
-          {question.description && (
-            <p className="text-sm text-muted-foreground mt-1">{question.description}</p>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-muted/50 rounded-full px-4 py-2">
-            <Users className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-semibold">{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</span>
-          </div>
-          
-          {/* Reveal / Hide Winner Toggle Button - Always visible when winner exists */}
-          {winner && onRevealWinner && (
-            <button
-              onClick={onRevealWinner}
-              className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-all shadow-md"
-            >
-              {revealWinner ? (
-                <>
-                  <EyeOff size={16} />
-                  Hide Winner
-                </>
-              ) : (
-                <>
-                  <Trophy size={16} />
-                  Reveal Winner
-                </>
-              )}
-            </button>
-          )}
-        </div>
-      </div>
-
       {questionImage && (
         <div className="mb-6 rounded-xl overflow-hidden border border-border bg-muted/20 flex justify-center p-2">
           <img src={questionImage} alt="" className="max-h-48 object-contain" />
@@ -180,10 +144,32 @@ const VoteQuestionDisplay: React.FC<VoteQuestionDisplayProps> = ({
         {/* Main results area */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-card border border-border rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-primary" />
-              Vote Distribution
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-primary" />
+                Vote Distribution
+              </h3>
+              
+              {/* Reveal / Hide Winner Toggle Button - placed in header of results area */}
+              {winner && onRevealWinner && (
+                <button
+                  onClick={onRevealWinner}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-all shadow-md"
+                >
+                  {revealWinner ? (
+                    <>
+                      <EyeOff size={14} />
+                      Hide Winner
+                    </>
+                  ) : (
+                    <>
+                      <Trophy size={14} />
+                      Reveal Winner
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
             
             <div className="space-y-4">
               {sortedOptions.map((option, idx) => {
@@ -200,8 +186,6 @@ const VoteQuestionDisplay: React.FC<VoteQuestionDisplayProps> = ({
                     transition={{ delay: idx * 0.05 }}
                     className={`relative ${isWinner ? 'bg-amber-50 dark:bg-amber-950/20 rounded-xl p-3 -mx-3' : ''}`}
                   >
-                  
-                    
                     <div className="flex items-start gap-3">
                       {!imageOnly && (
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${

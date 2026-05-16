@@ -161,19 +161,6 @@ const Grid2x2QuestionDisplay: React.FC<Grid2x2QuestionDisplayProps> = ({
 
   return (
     <div className="w-full max-w-5xl mx-auto px-4 py-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-xl font-bold text-foreground">{question.text}</h2>
-          {question.description && (
-            <p className="text-sm text-muted-foreground mt-1">{question.description}</p>
-          )}
-        </div>
-        <div className="flex items-center gap-3 bg-muted/50 rounded-full px-4 py-2">
-          <Users className="w-4 h-4 text-muted-foreground" />
-          <span className="text-sm font-semibold">{totalResponses} responses</span>
-        </div>
-      </div>
 
       {questionImage && (
         <div className="mb-6 rounded-xl overflow-hidden border border-border bg-muted/20 flex justify-center p-2">
@@ -192,7 +179,25 @@ const Grid2x2QuestionDisplay: React.FC<Grid2x2QuestionDisplayProps> = ({
 
             {/* Grid container */}
             <div style={{ position: "relative", width: "100%", paddingBottom: "8px" }}>
+              {/* Y-axis label - positioned on the left side (vertical text) */}
+              <div style={{
+                position: "absolute",
+                left: 0,
+                top: "50%",
+                transform: "translateX(-4px) translateY(-50%) rotate(-90deg)",
+                transformOrigin: "center center",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                color: "#555",
+                whiteSpace: "nowrap",
+                pointerEvents: "none",
+                zIndex: 2,
+              }}>
+                {yAxis.label} →
+              </div>
+
               <div style={{ marginLeft: "36px" }}>
+                {/* OUTER TOP Y-AXIS LABEL - should be yAxis.maxLabel ONLY */}
                 <div style={{ textAlign: "left", fontSize: "0.7rem", color: "#888", marginBottom: "2px", paddingLeft: "4px" }}>
                   {yAxis.maxLabel}
                 </div>
@@ -232,18 +237,30 @@ const Grid2x2QuestionDisplay: React.FC<Grid2x2QuestionDisplayProps> = ({
                     );
                   })}
 
-                  {/* Quadrant labels */}
+                  {/* INNER QUADRANT LABELS - Show both X and Y axis values */}
+                  {/* Top-Left: High Y, Low X */}
                   <div style={{ position: "absolute", top: 0, left: 0, width: "50%", height: "50%", display: "flex", alignItems: "flex-start", justifyContent: "flex-start", padding: "8px", pointerEvents: "none" }}>
-                    <span style={{ fontSize: "0.6rem", color: "#a0a4c0", fontWeight: 500 }}>{yAxis.maxLabel} / {xAxis.minLabel}</span>
+                    <span style={{ fontSize: "0.6rem", color: "#a0a4c0", fontWeight: 500 }}>
+                      {yAxis.maxLabel} / {xAxis.minLabel}
+                    </span>
                   </div>
+                  {/* Top-Right: High Y, High X */}
                   <div style={{ position: "absolute", top: 0, left: "50%", width: "50%", height: "50%", display: "flex", alignItems: "flex-start", justifyContent: "flex-end", padding: "8px", pointerEvents: "none" }}>
-                    <span style={{ fontSize: "0.6rem", color: "#a0a4c0", fontWeight: 500 }}>{yAxis.maxLabel} / {xAxis.maxLabel}</span>
+                    <span style={{ fontSize: "0.6rem", color: "#a0a4c0", fontWeight: 500 }}>
+                      {yAxis.maxLabel} / {xAxis.maxLabel}
+                    </span>
                   </div>
+                  {/* Bottom-Left: Low Y, Low X */}
                   <div style={{ position: "absolute", top: "50%", left: 0, width: "50%", height: "50%", display: "flex", alignItems: "flex-end", justifyContent: "flex-start", padding: "8px", pointerEvents: "none" }}>
-                    <span style={{ fontSize: "0.6rem", color: "#a0a4c0", fontWeight: 500 }}>{yAxis.minLabel} / {xAxis.minLabel}</span>
+                    <span style={{ fontSize: "0.6rem", color: "#a0a4c0", fontWeight: 500 }}>
+                      {yAxis.minLabel} / {xAxis.minLabel}
+                    </span>
                   </div>
+                  {/* Bottom-Right: Low Y, High X */}
                   <div style={{ position: "absolute", top: "50%", left: "50%", width: "50%", height: "50%", display: "flex", alignItems: "flex-end", justifyContent: "flex-end", padding: "8px", pointerEvents: "none" }}>
-                    <span style={{ fontSize: "0.6rem", color: "#a0a4c0", fontWeight: 500 }}>{yAxis.minLabel} / {xAxis.maxLabel}</span>
+                    <span style={{ fontSize: "0.6rem", color: "#a0a4c0", fontWeight: 500 }}>
+                      {yAxis.minLabel} / {xAxis.maxLabel}
+                    </span>
                   </div>
 
                   {/* Placed item dots with size based on frequency */}
@@ -289,10 +306,7 @@ const Grid2x2QuestionDisplay: React.FC<Grid2x2QuestionDisplayProps> = ({
                   })}
                 </div>
 
-                <div style={{ textAlign: "left", fontSize: "0.7rem", color: "#888", marginTop: "2px", paddingLeft: "4px" }}>
-                  {yAxis.minLabel}
-                </div>
-
+                {/* X-axis labels (bottom) */}
                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px", paddingLeft: "4px", paddingRight: "4px" }}>
                   <span style={{ fontSize: "0.7rem", color: "#888" }}>{xAxis.minLabel}</span>
                   <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#555" }}>{xAxis.label} →</span>

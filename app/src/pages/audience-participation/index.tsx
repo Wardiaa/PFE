@@ -11,6 +11,7 @@
 //     question resets the speed state, satisfying the "don't disappear until next
 //     question" requirement.
 // GRID 2x2 & VOTE: Added support for grid-2x2 and vote question types
+// UI UPDATE: Collapsible session info header (3-dots menu)
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -41,6 +42,7 @@ import type {
   Participant,
 } from "../../lib/presentation.types";
 import AppIcon from "../../components/AppIcon";
+import { MoreHorizontal, ChevronUp, ChevronDown } from "lucide-react";
 
 import { EliminationOverlay } from "./components/EliminationOverlay";
 import { SpectatorMode } from "./components/SpectatorMode";
@@ -180,6 +182,9 @@ const AudienceParticipation: React.FC = () => {
   const [isFinalDecision, setIsFinalDecision] = useState<boolean>(false);
   const [finalDecisionTimer, setFinalDecisionTimer] = useState<number>(20);
   const [hasMadeDecision, setHasMadeDecision] = useState<boolean>(false);
+
+  // ── UI STATE: Collapsible session info header ───────────────────────
+  const [isHeaderOpen, setIsHeaderOpen] = useState<boolean>(false);
 
   const participantSessionRef = useRef<ParticipantSession | null>(null);
   const currentQuestionRef = useRef<Question | null>(null);
@@ -1569,6 +1574,7 @@ const AudienceParticipation: React.FC = () => {
     setIsFinalDecision(false);
     setHasMadeDecision(false);
     setShowResults(false);
+    setIsHeaderOpen(false); // Reset header state
   };
 
   const handleRetry = () => {
@@ -1585,10 +1591,7 @@ const AudienceParticipation: React.FC = () => {
       return (
         <div className="fixed top-0 left-0 right-0 z-50">
           <div className="flex justify-between px-4 pt-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold shadow-sm border bg-background border-border text-foreground">
-              <AppIcon name={isPaused ? "PauseCircle" : "Infinity"} size={12} />
-              <span>{isPaused ? "Paused" : "No timer"}</span>
-            </div>
+           
           </div>
         </div>
       );
@@ -1621,6 +1624,75 @@ const AudienceParticipation: React.FC = () => {
             <span>{`${timerRemaining}s`}</span>
           </div>
         </div>
+      </div>
+    );
+  };
+
+  // ── Collapsible Session Info Header (3-dots menu) ─────────────────────────
+  const renderSessionInfo = () => {
+    if (sessionState === "join" || !participantSession) return null;
+
+    return (
+      <div className="relative z-50 flex justify-end mb-2">
+        {/* 3-dots button */}
+        <button
+          onClick={() => setIsHeaderOpen(!isHeaderOpen)}
+          className="w-8 h-8 rounded-full bg-card border border-border shadow-sm hover:bg-muted transition-colors flex items-center justify-center"
+          aria-label="Session info"
+        >
+          <MoreHorizontal size={16} className="text-muted-foreground" />
+        </button>
+        
+        {/* Dropdown menu */}
+        {isHeaderOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setIsHeaderOpen(false)} />
+            <div className="absolute top-10 right-0 z-50 w-64 bg-card rounded-xl shadow-xl border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className="p-3 border-b border-border bg-muted/20">
+                <p className="text-xs font-medium text-foreground truncate">
+                  {participantSession.session.presentation.title}
+                </p>
+                <p className="font-mono text-sm font-bold mt-1 tracking-wider">
+                  {participantSession.session.code}
+                </p>
+              </div>
+              <div className="p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Status</span>
+                  <div className="flex items-center gap-1.5">
+                    <div className={`w-1.5 h-1.5 rounded-full ${isPaused ? "bg-yellow-500" : "bg-success"}`} />
+                    <span className="text-xs font-medium">{isPaused ? "Paused" : "Live"}</span>
+                  </div>
+                </div>
+                {sessionState === "question" && currentQuestion && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Question</span>
+                    <span className="text-xs font-medium">
+                      {currentQuestion.number} / {participantSession.session.presentation.questions.length}
+                    </span>
+                  </div>
+                )}
+                {participantSession.participantName && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Joined as</span>
+                    <span className="text-xs font-medium truncate max-w-[120px]">
+                      {participantSession.participantName}
+                    </span>
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    setIsHeaderOpen(false);
+                    handleJoinNewSession();
+                  }}
+                  className="w-full mt-2 text-center text-xs text-red-500 hover:text-red-600 py-1.5 border-t border-border pt-2 transition-colors"
+                >
+                  Leave Session
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     );
   };
@@ -1842,62 +1914,6 @@ const AudienceParticipation: React.FC = () => {
     }
   };
 
-  const getSessionTitle = () => {
-    if (sessionState === "join" || !participantSession) return null;
-    return (
-      <div className="max-w-2xl mx-auto mb-6 md:mb-8">
-        <div className="bg-card rounded-xl p-4 md:p-6 shadow-sm border border-border">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="flex-1 min-w-0">
-              <h3 className="text-base md:text-lg font-semibold text-foreground truncate">
-                {participantSession.session.presentation.title}
-              </h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Code: {participantSession.session.code} • Joined as{" "}
-                {participantSession.participantName}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-success/10 border border-success/20">
-              <div
-                className={`w-2 h-2 rounded-full ${isPaused ? "bg-yellow-500" : "bg-success "}`}
-              />
-              <span className="text-sm font-medium text-success whitespace-nowrap">
-                {isPaused ? "Paused" : "Live"}
-              </span>
-            </div>
-          </div>
-
-          {sessionState === "question" && currentQuestion && (
-            <div className="mt-4 pt-4 border-t border-border">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">
-                  Question {currentQuestion.number} of{" "}
-                  {participantSession.session.presentation.questions.length}
-                </span>
-                <div className="flex gap-1">
-                  {participantSession.session.presentation.questions.map(
-                    (_, index) => (
-                    <div
-                      key={index}
-                      className={`w-2 h-2 rounded-full transition-colors duration-250 ${
-                          index === currentQuestion.number - 1
-                            ? "bg-primary"
-                            : index < currentQuestion.number - 1
-                              ? "bg-success"
-                              : "bg-muted"
-                      }`}
-                    />
-                    ),
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   // Detect Fin de Partie: all players eliminated, no winner.
   useEffect(() => {
     if (!isElimination || revealedWinner || isGameOver) return;
@@ -2013,11 +2029,13 @@ const AudienceParticipation: React.FC = () => {
 
       {renderTimerBar()}
 
+      {/* Collapsible Session Info Header */}
+      {renderSessionInfo()}
+
       <main
-        className={`main-content ${sessionState === "question" ? "pt-8" : ""}`}
+        className={`main-content ${sessionState === "question" ? "pt-0" : ""}`}
       >
         <div className="container mx-auto px-4 py-8 md:py-12 lg:py-16">
-          {getSessionTitle()}
           <div className="flex items-center justify-center min-h-[calc(100vh-300px)]">
             {renderContent()}
           </div>
