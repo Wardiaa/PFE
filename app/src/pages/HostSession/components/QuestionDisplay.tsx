@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { Users } from "lucide-react";
+import { Users, Star } from "lucide-react";
 import AppIcon from "../../../components/AppIcon";
 import ScalingQuestionDisplay from "./ScalingQuestionDisplay";
 import RankingQuestionDisplay from "./RankingQuestionDisplay";
@@ -121,6 +121,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
           responses as MultipleChoiceResponses,
         );
       case "rating":
+      case "rating-scale":
         return renderRating(responses as RatingResponses);
       case "open-text":
       case "open_text":
@@ -299,28 +300,36 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
     );
   };
 
+  // Star rating renderer - STARS ONLY
   const renderRating = (responses: RatingResponses) => {
-    const ratings = [1, 2, 3, 4, 5];
+    // Get the max scale from the question (default to 5)
+    const scaleMax = (question as any).scale?.max || 5;
+    const ratings = Array.from({ length: scaleMax }, (_, i) => i + 1);
+    const total = Number(responses.total) || 0;
+
+    // Calculate average rating (convert to stars)
+    const averageRating = responses.average ? parseFloat(responses.average) : 0;
+    const averageStars = averageRating.toFixed(1);
 
     return (
       <div className="space-y-4 md:space-y-6">
-        <div className="flex justify-center gap-2 sm:gap-3 md:gap-4 mb-4 md:mb-6 flex-wrap sm:flex-nowrap">
+        {/* Stars grid - responsive flex wrap */}
+        <div className="flex justify-center gap-2 sm:gap-3 md:gap-4 mb-4 md:mb-6 flex-wrap">
           {ratings.map((rating) => {
             const count = Number(responses[rating]) || 0;
-            const total = Number(responses.total) || 0;
-            const percentage =
-              total > 0 ? Math.round((count / total) * 100) : 0;
+            const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
 
             return (
               <div key={rating} className="flex flex-col items-center gap-1.5 sm:gap-2">
                 <div
-                  className={`w-11 h-11 sm:w-13 sm:h-13 md:w-16 md:h-16 rounded-xl flex items-center justify-center text-lg sm:text-xl md:text-2xl font-bold transition-all duration-300 ${
+                  className={`w-11 h-11 sm:w-13 sm:h-13 md:w-16 md:h-16 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all duration-300 ${
                     count > 0
-                      ? "bg-yellow-500 text-white shadow-lg scale-110"
+                      ? "bg-amber-500 text-white shadow-lg scale-110"
                       : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  {rating}
+                  <Star className={`w-5 h-5 ${count > 0 ? "fill-white" : ""}`} />
+                  <span className="text-xs font-bold">{rating}</span>
                 </div>
                 {showResults && (
                   <div className="text-center">
@@ -335,6 +344,12 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
           })}
         </div>
 
+        {/* Labels */}
+        <div className="flex items-center justify-between px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          <span>{(question as any).labels?.min || "Low"}</span>
+          <span>{(question as any).labels?.max || "High"}</span>
+        </div>
+
         {showResults && (
           <div className="bg-card border-2 border-border rounded-xl p-4 md:p-6">
             <div className="flex items-center justify-between mb-4">
@@ -344,13 +359,16 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                   Average Rating
                 </span>
               </div>
-              <span className="text-2xl md:text-3xl font-bold text-primary">
-                {responses.average || "0.0"}
-              </span>
+              <div className="flex items-center gap-1">
+                <span className="text-2xl md:text-3xl font-bold text-primary">
+                  {averageStars}
+                </span>
+                <Star className="w-5 h-5 fill-amber-400 text-amber-400" />
+              </div>
             </div>
             <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground">
               <AppIcon name="Users" size={15} />
-              <span>Based on {responses.total || 0} responses</span>
+              <span>Based on {total} responses</span>
             </div>
           </div>
         )}
@@ -373,10 +391,11 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                     .map((rating, idx) => (
                       <span
                         key={idx}
-                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 text-xs font-medium"
+                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-xs font-medium"
                         title={rating.participantName || undefined}
                       >
-                        <span className="font-bold">{rating.rating}★</span>
+                        <Star className="w-3 h-3 fill-current" />
+                        <span className="font-bold">{rating.rating}</span>
                         {rating.participantName && (
                           <span className="max-w-[5rem] truncate">
                             {rating.participantName}

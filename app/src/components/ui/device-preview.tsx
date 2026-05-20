@@ -12,23 +12,6 @@ interface DevicePreviewProps {
 }
 
 // ─── CSS variable → concrete colour mapping (mirroring real audience page) ───
-// bg-background     → white
-// bg-card           → white
-// border-border     → #e2e8f0 (slate-200)
-// bg-primary        → #4f46e5 (indigo-600)
-// bg-primary/5      → #eef2ff (indigo-50)
-// bg-primary/10     → indigo-100/60
-// border-primary    → #4f46e5 (indigo-600)
-// text-foreground   → #0f172a (slate-900)
-// text-muted-foreground → #64748b (slate-500)
-// bg-muted          → #f1f5f9 (slate-100)
-// bg-muted/60       → rgb(241 245 249/0.6)
-// bg-success/10     → rgb(34 197 94/0.1)
-// border-success/20 → rgb(34 197 94/0.2)
-// text-success      → #16a34a (green-600)
-// bg-success        → #22c55e (green-500)
-// bg-secondary/10   → slate-100
-
 const normalizeType = (t: string) => {
   if (["SINGLE_CHOICE","MULTIPLE_CHOICE","TRUE_FALSE","POLL","multiple-choice"].includes(t)) return "multiple-choice";
   if (["OPEN_TEXT","open-text"].includes(t)) return "open-text";
@@ -48,17 +31,12 @@ const IconSend = ({ size = 12 }: { size?: number }) => (
     <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
   </svg>
 );
-const IconUsers = ({ size = 12 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
-    <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
-  </svg>
-);
 
 export function DevicePreview({ title, themeId, questions, currentQuestionIndex }: DevicePreviewProps) {
   const [device, setDevice] = useState<"mobile" | "desktop">("mobile");
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
+  const [hoveredRating, setHoveredRating] = useState<number | null>(null);
 
   const theme = themes.find((t) => t.id === themeId) || themes[0];
   const question = questions[currentQuestionIndex] || questions[0];
@@ -83,24 +61,30 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
   const scaleMin = 1;
   const scaleMax = displayQuestion.scale?.max || 5;
   const ratings = Array.from({ length: scaleMax - scaleMin + 1 }, (_, i) => scaleMin + i);
-  const displayStyle = displayQuestion.displayStyle || "numbers";
-
-  const getRatingColor = (r: number) => {
-    const pct = ((r - scaleMin) / (scaleMax - scaleMin)) * 100;
-    if (pct <= 33) return "#ef4444";
-    if (pct <= 66) return "#f59e0b";
-    return "#22c55e";
-  };
 
   // Scale factor — bigger for mobile to make content readable
-  // Mobile frame width is 300px, we increase scale to 0.72 (was 0.48)
-  // Desktop frame uses 0.62 (unchanged)
   const S = device === "mobile" ? 0.72 : 0.62;
+
+  // Star SVG component
+  const StarIcon = ({ filled, size }: { filled: boolean; size: number }) => (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={filled ? "#fbbf24" : "none"}
+      stroke="#fbbf24"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  );
 
   // ── Shared screen content (matches the real page's DOM tree) ───────────────
   const renderScreen = () => (
     <div className="w-full h-full overflow-y-auto bg-white flex flex-col">
-      {/* Timer bar: h-1.5 w-full bg-muted/60 + inner bg-primary at 60% */}
+      {/* Timer bar */}
       <div
         className="flex-shrink-0 w-full"
         style={{ height: Math.max(3, 6 * S), backgroundColor: "rgb(241 245 249 / 0.6)" }}
@@ -108,12 +92,12 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
         <div className="h-full bg-indigo-600" style={{ width: "60%" }} />
       </div>
 
-      {/* container mx-auto px-4 py-8 */}
+      {/* container */}
       <div
         className="mx-auto w-full"
         style={{ padding: `${32 * S}px ${16 * S}px`, maxWidth: 672 * S }}
       >
-        {/* ── Session header card: bg-card rounded-xl p-4 shadow-sm border border-border ── */}
+        {/* Session header card */}
         <div
           className="bg-white rounded-xl border border-slate-200"
           style={{
@@ -124,16 +108,13 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
         >
           <div className="flex items-center justify-between flex-wrap" style={{ gap: 8 * S }}>
             <div className="flex-1 min-w-0">
-              {/* text-base font-semibold text-foreground */}
               <p className="font-semibold text-slate-900 truncate" style={{ fontSize: 15 * S }}>
                 {title || "Untitled Session"}
               </p>
-              {/* text-sm text-muted-foreground mt-1 */}
               <p className="text-slate-500" style={{ fontSize: 13 * S, marginTop: 4 * S }}>
                 Code: ABC123 • Joined as Participant
               </p>
             </div>
-            {/* bg-success/10 border border-success/20 px-3 py-1.5 rounded-lg */}
             <div
               className="flex items-center rounded-lg border flex-shrink-0"
               style={{
@@ -143,19 +124,17 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
                 borderColor: "rgb(34 197 94 / 0.2)",
               }}
             >
-              
               <div
-                className="rounded-full bg-green-500 "
+                className="rounded-full bg-green-500"
                 style={{ width: 7 * S, height: 7 * S }}
               />
-              {/* text-sm font-medium text-success */}
               <span className="font-medium text-green-600" style={{ fontSize: 13 * S }}>
                 Live
               </span>
             </div>
           </div>
 
-          {/* Progress row: mt-4 pt-4 border-t border-border */}
+          {/* Progress row */}
           {hasQuestions && (
             <div
               className="flex items-center justify-between border-t border-slate-200"
@@ -174,10 +153,10 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
                       height: 7 * S,
                       backgroundColor:
                         i === currentQuestionIndex
-                          ? "#4f46e5"  // bg-primary (indigo-600)
+                          ? "#4f46e5"
                           : i < currentQuestionIndex
-                          ? "#22c55e"  // bg-success (green-500)
-                          : "#e2e8f0", // bg-muted (slate-200)
+                          ? "#22c55e"
+                          : "#e2e8f0",
                     }}
                   />
                 ))}
@@ -186,7 +165,7 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
           )}
         </div>
 
-        {/* ── Question card: bg-card rounded-xl p-6 shadow-lg border border-border ── */}
+        {/* Question card */}
         <div
           className="bg-white rounded-xl border border-slate-200"
           style={{
@@ -207,27 +186,26 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
               style={{ width: 28 * S, height: 28 * S }}
             >
               {displayType === "multiple-choice" && (
-                <svg width={16 * S} height={16 * S} viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width={16 * S} height={16 * S} viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2">
                   <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
                 </svg>
               )}
               {displayType === "open-text" && (
-                <svg width={16 * S} height={16 * S} viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width={16 * S} height={16 * S} viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2">
                   <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
                 </svg>
               )}
               {displayType === "rating-scale" && (
-                <svg width={16 * S} height={16 * S} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width={16 * S} height={16 * S} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                 </svg>
               )}
               {displayType === "word-cloud" && (
-                <svg width={16 * S} height={16 * S} viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width={16 * S} height={16 * S} viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2">
                   <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
                 </svg>
               )}
             </div>
-            {/* text-sm font-medium text-muted-foreground */}
             <span className="font-medium text-slate-500" style={{ fontSize: 13 * S }}>
               {displayType === "multiple-choice" && "Multiple Choice"}
               {displayType === "open-text" && "Open Response"}
@@ -236,7 +214,7 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
             </span>
           </div>
 
-          {/* text-xl font-bold text-foreground leading-tight */}
+          {/* Question title */}
           <h2
             className="font-bold text-slate-900 leading-tight"
             style={{ fontSize: 18 * S, marginBottom: 16 * S }}
@@ -244,7 +222,7 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
             {displayQuestion.title}
           </h2>
 
-          {/* ── Multiple choice answer area ── */}
+          {/* Multiple choice answer area */}
           {displayType === "multiple-choice" && (
             <div style={{ marginBottom: 16 * S }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 * S }}>
@@ -262,7 +240,6 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
                     }}
                   >
                     <div className="flex items-center" style={{ gap: 10 * S }}>
-                      {/* Radio circle: w-5 h-5 rounded-full border-2 */}
                       <div
                         className="rounded-full border-2 flex items-center justify-center flex-shrink-0"
                         style={{
@@ -274,7 +251,6 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
                       >
                         {selectedOption === opt.id && <IconCheck size={Math.round(10 * S)} />}
                       </div>
-                      {/* text-base font-medium text-foreground */}
                       <span
                         className="font-medium text-slate-900 flex-1"
                         style={{ fontSize: 14 * S }}
@@ -285,7 +261,6 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
                   </button>
                 ))}
               </div>
-              {/* Submit button */}
               <div
                 className="w-full flex items-center justify-center rounded-xl font-semibold"
                 style={{
@@ -299,11 +274,10 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
               >
                 Submit Answer <IconSend size={Math.round(12 * S)} />
               </div>
-             
             </div>
           )}
 
-          {/* ── Open text answer area ── */}
+          {/* Open text answer area */}
           {displayType === "open-text" && (
             <div style={{ marginBottom: 16 * S }}>
               <div
@@ -321,83 +295,62 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
               >
                 Submit Response <IconSend size={Math.round(12 * S)} />
               </div>
-              
             </div>
           )}
 
-          {/* ── Rating scale answer area ── */}
+          {/* Rating scale answer area - STARS ONLY */}
           {displayType === "rating-scale" && (
             <div style={{ marginBottom: 16 * S }}>
-              {/* grid gap-2 gridTemplateColumns repeat */}
+              {/* Stars grid */}
               <div
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: `repeat(${ratings.length}, minmax(0, 1fr))`,
-                  gap: 6 * S,
+                  display: "flex",
+                  justifyContent: "center",
+                  gap: 8 * S,
+                  flexWrap: "wrap",
                 }}
               >
                 {ratings.map((r) => {
                   const isSelected = selectedRating === r;
+                  const isHovered = hoveredRating === r;
+                  const filled = (hoveredRating !== null && r <= hoveredRating) || (selectedRating !== null && r <= selectedRating);
+                  
                   return (
                     <button
                       key={r}
                       onClick={() => setSelectedRating(r)}
-                      className="rounded-xl border-2 flex items-center justify-center transition-all"
-                      style={{
-                        height: 36 * S,
-                        borderColor: isSelected ? "#4f46e5" : "#e2e8f0",
-                        backgroundColor: isSelected ? "#4f46e5" : "#ffffff",
-                        transform: isSelected ? "scale(1.05)" : "scale(1)",
-                        boxShadow: isSelected ? "0 4px 6px -1px rgb(0 0 0/0.2)" : "none",
-                      }}
+                      onMouseEnter={() => setHoveredRating(r)}
+                      onMouseLeave={() => setHoveredRating(null)}
+                      className="transition-all duration-150 hover:scale-110 focus:outline-none"
+                      style={{ width: 32 * S, height: 32 * S }}
                     >
-                      {displayStyle === "stars" && (
-                        <svg width={14 * S} height={14 * S} viewBox="0 0 24 24" fill={isSelected ? "white" : "#fbbf24"} stroke="none">
-                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                        </svg>
-                      )}
-                      {displayStyle === "hearts" && (
-                        <svg width={14 * S} height={14 * S} viewBox="0 0 24 24" fill={isSelected ? "white" : "#fb7185"} stroke="none">
-                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                        </svg>
-                      )}
-                      {displayStyle === "smileys" && (
-                        <svg width={14 * S} height={14 * S} viewBox="0 0 24 24" fill="none" stroke={isSelected ? "white" : "#eab308"} strokeWidth="2">
-                          <circle cx="12" cy="12" r="10"/>
-                          <path strokeLinecap="round" d="M8 13s1.5 3 4 3 4-3 4-3"/>
-                          <circle cx="9" cy="10" r="1" fill={isSelected ? "white" : "#eab308"}/>
-                          <circle cx="15" cy="10" r="1" fill={isSelected ? "white" : "#eab308"}/>
-                        </svg>
-                      )}
-                      {displayStyle === "numbers" && (
-                        <span
-                          className="font-bold"
-                          style={{ fontSize: 13 * S, color: isSelected ? "#fff" : getRatingColor(r) }}
-                        >
-                          {r}
-                        </span>
-                      )}
+                      <StarIcon filled={filled} size={28 * S} />
                     </button>
                   );
                 })}
               </div>
-              {/* text-[9px] font-bold text-muted-foreground uppercase tracking-widest */}
+              
+              {/* Labels */}
               <div
                 className="flex items-center justify-between font-bold text-slate-400 uppercase tracking-widest"
-                style={{ marginTop: 10 * S, paddingLeft: 6 * S, paddingRight: 6 * S, fontSize: 8 * S }}
+                style={{ marginTop: 12 * S, paddingLeft: 6 * S, paddingRight: 6 * S, fontSize: 8 * S }}
               >
                 <span>{displayQuestion.labels?.min || "Low"}</span>
                 <span>{displayQuestion.labels?.max || "High"}</span>
               </div>
+              
+              {/* Selected feedback */}
               {selectedRating !== null && (
                 <p className="text-center text-slate-500" style={{ fontSize: 11 * S, marginTop: 10 * S }}>
-                  You selected: <span className="font-semibold text-slate-900">{selectedRating}</span>
+                  You selected: <span className="font-semibold text-slate-900">{selectedRating} {selectedRating === 1 ? 'star' : 'stars'}</span>
                 </p>
               )}
+              
+              {/* Submit button */}
               <div
                 className="w-full flex items-center justify-center rounded-xl font-semibold"
                 style={{
-                  marginTop: 8 * S,
+                  marginTop: 12 * S,
                   padding: `${9 * S}px`,
                   fontSize: 13 * S,
                   gap: 6 * S,
@@ -407,11 +360,10 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
               >
                 Submit Rating <IconSend size={Math.round(12 * S)} />
               </div>
-              
             </div>
           )}
 
-          {/* ── Word cloud answer area ── */}
+          {/* Word cloud answer area */}
           {displayType === "word-cloud" && (
             <div style={{ marginBottom: 16 * S }}>
               <div
@@ -430,7 +382,6 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
               >
                 Submit Words <IconSend size={Math.round(12 * S)} />
               </div>
-              
             </div>
           )}
         </div>
@@ -445,7 +396,7 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
         <Button
           variant={device === "mobile" ? "secondary" : "ghost"}
           size="sm"
-          onClick={() => { setDevice("mobile"); setSelectedOption(null); setSelectedRating(null); }}
+          onClick={() => { setDevice("mobile"); setSelectedOption(null); setSelectedRating(null); setHoveredRating(null); }}
           className="h-8 gap-1.5"
         >
           <Smartphone className="w-3.5 h-3.5" /> Mobile
@@ -453,7 +404,7 @@ export function DevicePreview({ title, themeId, questions, currentQuestionIndex 
         <Button
           variant={device === "desktop" ? "secondary" : "ghost"}
           size="sm"
-          onClick={() => { setDevice("desktop"); setSelectedOption(null); setSelectedRating(null); }}
+          onClick={() => { setDevice("desktop"); setSelectedOption(null); setSelectedRating(null); setHoveredRating(null); }}
           className="h-8 gap-1.5"
         >
           <Monitor className="w-3.5 h-3.5" /> Desktop

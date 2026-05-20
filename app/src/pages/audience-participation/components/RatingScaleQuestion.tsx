@@ -20,7 +20,7 @@ interface Question {
   scale?: Scale;
   labels?: Labels;
   responseCount?: number;
-  displayStyle?: 'numbers' | 'stars' | 'hearts' | 'smileys';
+  displayStyle?: 'stars';
 }
 
 interface RatingScaleQuestionProps {
@@ -32,7 +32,6 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
   const [hoveredRating, setHoveredRating] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  // PRIORITY 2: Add hasSubmitted state to prevent double submissions
   const [hasSubmitted, setHasSubmitted] = useState<boolean>(false);
   const questionImage = question?.image || question?.imageUrl;
 
@@ -47,137 +46,58 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
     (_, i) => scale.min + i
   );
 
-  const displayStyle = question?.displayStyle || 'numbers';
-
   const handleRatingSelect = (rating: number): void => {
     if (!isSubmitting && !hasSubmitted) {
       setSelectedRating(rating);
     }
   };
 
-  // PRIORITY 2: Updated handleSubmit with guard clause and error recovery
   const handleSubmit = async (): Promise<void> => {
     if (selectedRating === null) return;
-    if (hasSubmitted) return; // Guard against double submission
+    if (hasSubmitted) return;
     
     setHasSubmitted(true);
     setIsSubmitting(true);
     
     try {
       await onSubmit({ rating: selectedRating });
-      // Success - stay disabled
     } catch (error) {
       console.error("Submission failed:", error);
-      // On error, re-enable so user can retry
       setHasSubmitted(false);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const getRatingColor = (rating: number): string => {
-    const percentage = ((rating - scale.min) / (scale.max - scale.min)) * 100;
-    if (percentage <= 33) return 'hsl(var(--destructive))';
-    if (percentage <= 66) return 'hsl(var(--warning, 45 95% 60%))';
-    return 'hsl(var(--success, 160 70% 50%))';
-  };
-
-  const renderRatingButton = (rating: number) => {
-    const isSelected = selectedRating === rating;
-    const isHovered = hoveredRating === rating;
-
-    const baseClass = `w-10 h-10 md:w-12 md:h-12 rounded-xl border-2 flex items-center justify-center transition-all duration-250 ${
-      isSelected
-        ? 'border-primary bg-primary shadow-lg scale-105'
-        : isHovered
-        ? 'border-primary/70 bg-primary/10 scale-105 shadow-md'
-        : 'border-border bg-background hover:border-primary/50 hover:bg-muted hover:scale-102'
-    } ${isSubmitting || hasSubmitted ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`;
-
-    if (displayStyle === 'stars') {
-      return (
+  // Star rendering helper
+  const renderStars = (rating: number, isHovered: boolean, isSelected: boolean) => {
+    const stars = [];
+    for (let i = 1; i <= scale.max; i++) {
+      const isFilled = i <= (hoveredRating !== null ? hoveredRating : selectedRating || 0);
+      stars.push(
         <button
-          key={rating}
-          onClick={() => handleRatingSelect(rating)}
-          onMouseEnter={() => setHoveredRating(rating)}
+          key={i}
+          onClick={() => handleRatingSelect(i)}
+          onMouseEnter={() => setHoveredRating(i)}
           onMouseLeave={() => setHoveredRating(null)}
           disabled={isSubmitting || hasSubmitted}
-          className={baseClass}
+          className="focus:outline-none transition-transform duration-150 hover:scale-110"
         >
-          <AppIcon
-            name="Star"
-            size={16}
-            color={isSelected ? 'hsl(var(--primary-foreground))' : 'currentColor'}
-            className={isSelected ? '' : 'text-amber-400 fill-amber-400'}
-          />
+          <svg
+            width={32}
+            height={32}
+            viewBox="0 0 24 24"
+            fill={isFilled ? "#fbbf24" : "none"}
+            stroke="#fbbf24"
+            strokeWidth="1.5"
+            className="transition-all duration-150"
+          >
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
         </button>
       );
     }
-
-    if (displayStyle === 'hearts') {
-      return (
-        <button
-          key={rating}
-          onClick={() => handleRatingSelect(rating)}
-          onMouseEnter={() => setHoveredRating(rating)}
-          onMouseLeave={() => setHoveredRating(null)}
-          disabled={isSubmitting || hasSubmitted}
-          className={baseClass}
-        >
-          <AppIcon
-            name="Heart"
-            size={16}
-            color={isSelected ? 'hsl(var(--primary-foreground))' : 'currentColor'}
-            className={isSelected ? '' : 'text-rose-400 fill-rose-400'}
-          />
-        </button>
-      );
-    }
-
-    if (displayStyle === 'smileys') {
-      return (
-        <button
-          key={rating}
-          onClick={() => handleRatingSelect(rating)}
-          onMouseEnter={() => setHoveredRating(rating)}
-          onMouseLeave={() => setHoveredRating(null)}
-          disabled={isSubmitting || hasSubmitted}
-          className={baseClass}
-        >
-          <AppIcon
-            name="Smile"
-            size={16}
-            color={isSelected ? 'hsl(var(--primary-foreground))' : 'currentColor'}
-            className={isSelected ? '' : 'text-yellow-500'}
-          />
-        </button>
-      );
-    }
-
-    // Default: numbers
-    return (
-      <button
-        key={rating}
-        onClick={() => handleRatingSelect(rating)}
-        onMouseEnter={() => setHoveredRating(rating)}
-        onMouseLeave={() => setHoveredRating(null)}
-        disabled={isSubmitting || hasSubmitted}
-        className={baseClass}
-      >
-        <span
-          className="text-base md:text-lg font-bold"
-          style={{
-            color: isSelected
-              ? 'hsl(var(--primary-foreground))'
-              : isHovered
-              ? 'hsl(var(--primary))'
-              : getRatingColor(rating),
-          }}
-        >
-          {rating}
-        </span>
-      </button>
-    );
+    return stars;
   };
 
   return (
@@ -212,8 +132,34 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
         </div>
 
         <div className="mb-8">
-          <div className="grid gap-2 md:gap-3" style={{ gridTemplateColumns: `repeat(${ratings.length}, minmax(0, 1fr))` }}>
-            {ratings.map((rating) => renderRatingButton(rating))}
+          <div className="flex justify-center gap-2 flex-wrap">
+            {ratings.map((rating) => (
+              <button
+                key={rating}
+                onClick={() => handleRatingSelect(rating)}
+                onMouseEnter={() => setHoveredRating(rating)}
+                onMouseLeave={() => setHoveredRating(null)}
+                disabled={isSubmitting || hasSubmitted}
+                className="focus:outline-none transition-transform duration-150 hover:scale-110"
+              >
+                <svg
+                  width={40}
+                  height={40}
+                  viewBox="0 0 24 24"
+                  fill={
+                    (hoveredRating !== null && rating <= hoveredRating) ||
+                    (selectedRating !== null && rating <= selectedRating)
+                      ? "#fbbf24"
+                      : "none"
+                  }
+                  stroke="#fbbf24"
+                  strokeWidth="1.5"
+                  className="transition-all duration-150"
+                >
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+              </button>
+            ))}
           </div>
 
           <div className="flex items-center justify-between mt-3 px-2 text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
@@ -224,7 +170,7 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
           {selectedRating !== null && (
             <div className="mt-4 text-center">
               <p className="text-sm md:text-base text-muted-foreground">
-                You selected: <span className="font-semibold text-foreground">{selectedRating}</span>
+                You selected: <span className="font-semibold text-foreground">{selectedRating} {selectedRating === 1 ? 'star' : 'stars'}</span>
               </p>
             </div>
           )}
@@ -235,7 +181,7 @@ const RatingScaleQuestion: React.FC<RatingScaleQuestionProps> = ({ question, onS
           size="lg"
           fullWidth
           onClick={handleSubmit}
-          disabled={hasSubmitted || isSubmitting || selectedRating === null} // 👈 Updated disabled condition
+          disabled={hasSubmitted || isSubmitting || selectedRating === null}
           loading={isSubmitting}
           iconName="Send"
           iconPosition="right"

@@ -1,4 +1,6 @@
 // question-type-selector.tsx — Updated to include Scales + Ranking + Grid 2x2 + Vote question types
+// Rating Scale now uses Star icon only (removed BarChart2)
+
 import React from "react";
 import { cn } from "../../lib/utils";
 import { Card, CardContent } from "./card";
@@ -6,7 +8,7 @@ import {
   ListChecks, 
   MessageSquare, 
   Cloud, 
-  BarChart2, 
+  Star,
   SlidersHorizontal, 
   ArrowUpDown,
   Grid3X3,
@@ -52,9 +54,9 @@ export function QuestionTypeSelector({ onSelect, selectedType }: QuestionTypeSel
     {
       id: 'rating-scale',
       name: 'Rating Scale',
-      icon: BarChart2,
-      description: 'Numeric or star-based ratings',
-      color: 'bg-info/20 text-info'
+      icon: Star,
+      description: 'Star-based rating',
+      color: 'bg-amber-500/20 text-amber-600'
     },
     {
       id: 'scales',

@@ -274,11 +274,12 @@ export interface Grid2x2Responses {
 }
 
 /** Aggregated responses for a Vote question. */
-export interface VoteResponses {
-  [optionId: string]: number;
+export type VoteResponses = {
   total?: number;
   individualResponses?: IndividualVoteResponse[];
-}
+} & {
+  [optionId: string]: number | IndividualVoteResponse[] | undefined;
+};
 
 export type QuestionResponses =
   | MultipleChoiceResponses

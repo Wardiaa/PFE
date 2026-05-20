@@ -160,21 +160,14 @@ export function Header({
 
         <div className="w-[1px] h-6 bg-slate-200 hidden lg:block" />
 
-        {/* Main Action Button (NEXT / PUBLISH) */}
-        {step < 5 ? (
+        {/* Main Action Button (NEXT button) */}
+        {step < 5 && (
           <button 
             onClick={() => setStep(step + 1)} 
             className="h-10 px-6 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-black uppercase tracking-wider flex items-center gap-2 transition-all active:scale-[0.98]"
           >
             NEXT
             <ChevronRight className="w-4 h-4 stroke-[3px]" />
-          </button>
-        ) : (
-          <button 
-            onClick={onPublish}
-            className="h-10 px-7 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-black uppercase tracking-wider transition-all"
-          >
-            PUBLISH SESSION
           </button>
         )}
       </div>

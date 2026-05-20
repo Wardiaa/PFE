@@ -131,8 +131,8 @@ export function Step5({ context, isPublishing, isSavingDraft, onHandleCreate, on
               {/* Meta chips — minimal, monochromatic */}
               <div className="flex flex-wrap gap-2 mb-6">
                 {[
-                  { icon: Users,  label: `${context.settings.maxParticipants} max` },
-                  { icon: Globe,  label: context.settings.participationMode.replace("_", " ").toLowerCase() },
+                 /* { icon: Users,  label: `${context.settings.maxParticipants} max` },
+                  { icon: Globe,  label: context.settings.participationMode.replace("_", " ").toLowerCase() },*/
                   { icon: Timer,  label: `${context.settings.timeLimit} min` },
                   { icon: Star,   label: `${totalPoints} pts` },
                 ].map(({ icon: Icon, label }) => (

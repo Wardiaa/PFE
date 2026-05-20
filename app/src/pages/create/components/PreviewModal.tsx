@@ -87,14 +87,12 @@ function MultipleChoicePreview({ question, scale }: { question: Question; scale:
   const options = question.options || [];
   const s = scale;
 
-  // Check if an option has only an image and no text
   const isImageOnlyOption = (opt: any) => {
     return opt.imageUrl && (!opt.text || opt.text.trim() === "");
   };
 
   return (
     <div className="space-y-3 mb-6">
-      {/* Grid layout of 2 columns for options */}
       <div className="grid grid-cols-2 gap-3">
         {options.map((opt: any) => (
           <button
@@ -108,7 +106,6 @@ function MultipleChoicePreview({ question, scale }: { question: Question; scale:
             style={{ minHeight: isImageOnlyOption(opt) ? "auto" : 56 * s }}
           >
             {isImageOnlyOption(opt) ? (
-              // Image-only option - show full image without padding
               <div className="relative w-full">
                 <img
                   src={opt.imageUrl}
@@ -160,7 +157,6 @@ function MultipleChoicePreview({ question, scale }: { question: Question; scale:
           No options added yet
         </p>
       )}
-      {/* Submit button — mirrors Button variant=default size=lg fullWidth */}
       <button
         disabled={!selected}
         className={`w-full flex items-center justify-center gap-2 rounded-xl font-semibold transition-all ${
@@ -170,7 +166,6 @@ function MultipleChoicePreview({ question, scale }: { question: Question; scale:
       >
         Submit Answer <IconSend size={Math.round(14 * s)} />
       </button>
-     
     </div>
   );
 }
@@ -206,88 +201,64 @@ function OpenTextPreview({ scale }: { scale: number }) {
       >
         Submit Response <IconSend size={Math.round(14 * s)} />
       </button>
-      
     </div>
   );
 }
 
-// ─── Rating Scale ─────────────────────────────────────────────────────────────
+// ─── Rating Scale (STAR ONLY - Updated) ──────────────────────────────────────
 function RatingPreview({ question, scale: s }: { question: Question; scale: number }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
   const scaleMin = 1;
   const scaleMax = (question as any).scale?.max || 5;
   const ratings = Array.from({ length: scaleMax - scaleMin + 1 }, (_, i) => scaleMin + i);
-  const displayStyle = (question as any).displayStyle || "numbers";
+  // Force stars only
+  const displayStyle = "stars";
 
-  const getRatingColor = (r: number) => {
-    const pct = ((r - scaleMin) / (scaleMax - scaleMin)) * 100;
-    if (pct <= 33) return "#ef4444";
-    if (pct <= 66) return "#f59e0b";
-    return "#22c55e";
-  };
+  // Star SVG component
+  const StarIcon = ({ filled, size }: { filled: boolean; size: number }) => (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={filled ? "#fbbf24" : "none"}
+      stroke="#fbbf24"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  );
 
   return (
     <div className="mb-8">
-      {/* Grid — exact original: grid gap-2, gridTemplateColumns repeat */}
+      {/* Star buttons grid */}
       <div
-        className="grid"
-        style={{
-          gridTemplateColumns: `repeat(${ratings.length}, minmax(0, 1fr))`,
-          gap: 8 * s,
-        }}
+        className="flex justify-center gap-2"
+        style={{ gap: 8 * s }}
       >
         {ratings.map((r) => {
           const isSelected = selected === r;
           const isHovered = hovered === r;
+          const filled = (hovered !== null && r <= hovered) || (selected !== null && r <= selected);
+          
           return (
             <button
               key={r}
               onClick={() => setSelected(r)}
               onMouseEnter={() => setHovered(r)}
               onMouseLeave={() => setHovered(null)}
-              className={`rounded-xl border-2 flex items-center justify-center transition-all duration-150 ${
-                isSelected
-                  ? "border-indigo-600 bg-indigo-600 shadow-lg scale-105"
-                  : isHovered
-                  ? "border-indigo-400 bg-indigo-50 scale-105 shadow-md"
-                  : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-100"
-              }`}
-              style={{ width: "100%", height: 40 * s }}
+              className="transition-all duration-150 hover:scale-110 focus:outline-none"
+              style={{ width: 40 * s, height: 40 * s }}
             >
-              {displayStyle === "stars" && (
-                <svg width={16 * s} height={16 * s} viewBox="0 0 24 24" fill={isSelected ? "white" : "#fbbf24"} stroke="none">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                </svg>
-              )}
-              {displayStyle === "hearts" && (
-                <svg width={16 * s} height={16 * s} viewBox="0 0 24 24" fill={isSelected ? "white" : "#fb7185"} stroke="none">
-                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                </svg>
-              )}
-              {displayStyle === "smileys" && (
-                <svg width={16 * s} height={16 * s} viewBox="0 0 24 24" fill="none" stroke={isSelected ? "white" : "#eab308"} strokeWidth="2">
-                  <circle cx="12" cy="12" r="10"/><path strokeLinecap="round" d="M8 13s1.5 3 4 3 4-3 4-3"/>
-                  <circle cx="9" cy="10" r="1" fill={isSelected ? "white" : "#eab308"}/><circle cx="15" cy="10" r="1" fill={isSelected ? "white" : "#eab308"}/>
-                </svg>
-              )}
-              {displayStyle === "numbers" && (
-                <span
-                  className="font-bold"
-                  style={{
-                    fontSize: 15 * s,
-                    color: isSelected ? "#fff" : isHovered ? "#4f46e5" : getRatingColor(r),
-                  }}
-                >
-                  {r}
-                </span>
-              )}
+              <StarIcon filled={filled} size={32 * s} />
             </button>
           );
         })}
       </div>
 
-      {/* Labels — exact original: text-[9px] font-bold text-muted-foreground uppercase tracking-widest */}
+      {/* Labels */}
       <div
         className="flex items-center justify-between font-bold text-slate-400 uppercase tracking-widest px-2"
         style={{ marginTop: 12 * s, fontSize: 9 * s }}
@@ -300,7 +271,7 @@ function RatingPreview({ question, scale: s }: { question: Question; scale: numb
       {selected !== null && (
         <div className="text-center" style={{ marginTop: 16 * s }}>
           <p className="text-slate-500" style={{ fontSize: 13 * s }}>
-            You selected: <span className="font-semibold text-slate-900">{selected}</span>
+            You selected: <span className="font-semibold text-slate-900">{selected} {selected === 1 ? 'star' : 'stars'}</span>
           </p>
         </div>
       )}
@@ -315,7 +286,6 @@ function RatingPreview({ question, scale: s }: { question: Question; scale: numb
       >
         Submit Rating <IconSend size={Math.round(14 * s)} />
       </button>
-      
     </div>
   );
 }
@@ -355,7 +325,6 @@ function WordCloudPreview({ question, scale: s }: { question: Question; scale: n
         </span>
       </div>
 
-      {/* Word chips — bg-primary/10 border border-primary/20 */}
       {wordArray.length > 0 && (
         <div
           className="rounded-xl bg-slate-100/60 border border-slate-200 flex flex-wrap"
@@ -407,7 +376,7 @@ function QuestionCard({ question, scale = 1 }: { question: Question; scale?: num
       className="bg-white rounded-xl shadow-lg border border-slate-200"
       style={{ padding: `${24 * s}px` }}
     >
-      {/* Type indicator — flex items-center gap-2 mb-3; icon in w-8 h-8 rounded-lg */}
+      {/* Type indicator */}
       <div className="flex items-center" style={{ gap: 8 * s, marginBottom: 12 * s }}>
         <div
           className={`flex items-center justify-center rounded-lg flex-shrink-0 ${cfg.iconBg}`}
@@ -420,7 +389,7 @@ function QuestionCard({ question, scale = 1 }: { question: Question; scale?: num
         </span>
       </div>
 
-      {/* Question title — text-xl font-bold text-foreground leading-tight */}
+      {/* Question title */}
       <h2
         className="font-bold text-slate-900 leading-tight"
         style={{ fontSize: Math.min(22, 22 * s), marginBottom: 4 * s }}
@@ -435,7 +404,7 @@ function QuestionCard({ question, scale = 1 }: { question: Question; scale?: num
         </p>
       )}
 
-      {/* Question image — full image visible, never cropped, only scaled down */}
+      {/* Question image */}
       {((question as any).imageUrl || (question as any).image) && (
         <div
           className="rounded-xl border border-slate-200 bg-slate-100 flex justify-center"
@@ -499,7 +468,7 @@ function SessionHeader({
           }}
         >
           <div
-            className="rounded-full bg-green-500  "
+            className="rounded-full bg-green-500"
             style={{ width: 8 * s, height: 8 * s }}
           />
           <span className="font-medium text-green-600 whitespace-nowrap" style={{ fontSize: 14 * s }}>
@@ -576,7 +545,7 @@ function PhoneFrame({ question, totalQuestions, currentIndex }: { question: Ques
           className="absolute left-1/2 -translate-x-1/2 bg-slate-800 z-20"
           style={{ top: 0, width: 96, height: 24, borderBottomLeftRadius: 12, borderBottomRightRadius: 12 }}
         />
-        {/* Screen — bg-background (white) */}
+        {/* Screen */}
         <div className="w-full h-full overflow-y-auto bg-white" style={{ paddingTop: 28 }}>
           <TimerBarStub scale={SCALE} />
           <div style={{ padding: `${8 * SCALE}px ${16 * SCALE}px ${32 * SCALE}px` }}>
@@ -610,7 +579,7 @@ function DesktopFrame({ question, totalQuestions, currentIndex }: { question: Qu
             <span className="text-xs text-slate-400">your-session.app/join</span>
           </div>
         </div>
-        {/* Page — no internal scrolling, expands naturally */}
+        {/* Page */}
         <div className="bg-white">
           <TimerBarStub scale={SCALE} />
           <div

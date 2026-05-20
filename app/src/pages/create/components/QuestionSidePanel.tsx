@@ -2,6 +2,7 @@
 // Added skipAllowed toggle in Interactivity panel when isEliminationMode is true
 // SPEED QUESTION UPDATE: Added isSpeedQuestion toggle and speedMaxAdvance input
 // GRID 2x2 & VOTE UPDATE: Added edit panels for grid-2x2 and vote question types
+// RATING SCALE UPDATE: Removed hearts, smileys, numbers - stars only
 
 import { useState, useEffect, type ChangeEvent, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -832,6 +833,20 @@ export function QuestionSidePanel({
     onUpdateQuestion({ options: items.filter((_, i) => i !== idx) } as any);
   };
 
+  // ── Rating scale helpers (stars only) ─────────────────────────────────────
+  const updateRatingScaleConfig = (field: "scaleMax" | "minLabel" | "maxLabel", value: string | number) => {
+    if (!currentQuestion) return;
+    
+    if (field === "scaleMax") {
+      const max = typeof value === 'number' ? value : parseInt(value as string, 10);
+      onUpdateQuestion({ scale: { min: 1, max: isNaN(max) ? 5 : max } });
+    } else if (field === "minLabel") {
+      onUpdateQuestion({ labels: { ...(currentQuestion.labels || {}), min: value as string } });
+    } else if (field === "maxLabel") {
+      onUpdateQuestion({ labels: { ...(currentQuestion.labels || {}), max: value as string } });
+    }
+  };
+
   // ── Edit Panel ─────────────────────────────────────────────────────────────
   const renderEditPanel = () => {
     if (!currentQuestion) {
@@ -860,16 +875,17 @@ export function QuestionSidePanel({
 
     const isGrid2x2Type = currentQuestion.type === "grid-2x2" || (currentQuestion as any).type === "GRID_2X2";
     const isVoteType = currentQuestion.type === "vote" || (currentQuestion as any).type === "VOTE";
+    const isRatingScaleType = currentQuestion.type === "rating-scale" || currentQuestion.type === "RATING";
 
     let questionTypeLabel = "Question";
     if (isGrid2x2Type) questionTypeLabel = "Grid 2×2";
     else if (isVoteType) questionTypeLabel = "Vote";
     else if (isRankingType) questionTypeLabel = "Ranking";
     else if (isScalingType) questionTypeLabel = "Scales";
+    else if (isRatingScaleType) questionTypeLabel = "Rating Scale";
     else if (currentQuestion.type === "multiple-choice") questionTypeLabel = "Multiple Choice";
     else if (currentQuestion.type === "open-text") questionTypeLabel = "Open Text";
     else if (currentQuestion.type === "word-cloud") questionTypeLabel = "Word Cloud";
-    else if (currentQuestion.type === "rating-scale") questionTypeLabel = "Rating Scale";
 
     // ── Grid 2x2 render ───────────────────────────────────────────────────────
     if (isGrid2x2Type) {
@@ -974,6 +990,139 @@ export function QuestionSidePanel({
           </div>
 
           <VoteFields question={currentQuestion} onUpdate={onUpdateQuestion} />
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Question Image</label>
+            <ImageUploadWidget
+              currentImageUrl={currentQuestion.imageUrl || undefined}
+              onImageSelect={(imageUrl) => onUpdateQuestion({ imageUrl })}
+              onImageRemove={() => onUpdateQuestion({ imageUrl: null })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Actions</label>
+            <div className="grid grid-cols-2 gap-2">
+              {onDuplicateQuestion && (
+                <button
+                  onClick={onDuplicateQuestion}
+                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all text-xs font-semibold text-slate-600"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-indigo-500" />
+                  Duplicate
+                </button>
+              )}
+              {onDeleteQuestion && (
+                <button
+                  onClick={onDeleteQuestion}
+                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 transition-all text-xs font-semibold text-rose-500"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Rating Scale render (STARS ONLY - stars below slider) ──────────────────────────────────────
+    if (isRatingScaleType) {
+      const currentScaleMax = (currentQuestion as any).scale?.max || 5;
+      const currentMinLabel = (currentQuestion as any).labels?.min || "Low";
+      const currentMaxLabel = (currentQuestion as any).labels?.max || "High";
+
+      return (
+        <div className="space-y-6">
+          <div className="flex items-center gap-3">
+            <button className="p-1 hover:bg-slate-100 rounded-lg">
+              <ArrowLeft className="w-5 h-5 text-slate-600" />
+            </button>
+            <h2 className="text-lg font-medium text-slate-800">{questionTypeLabel}</h2>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Question</label>
+            <input
+              type="text"
+              value={currentQuestion.title || ""}
+              onChange={(e) => onUpdateQuestion({ title: e.target.value })}
+              className="w-full px-4 py-3 bg-[#F1F3F5] rounded-xl border border-transparent focus:border-slate-200 outline-none text-sm font-medium"
+              placeholder="How would you rate this?"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Description (optional)</label>
+            <textarea
+              value={currentQuestion.description || ""}
+              onChange={(e) => onUpdateQuestion({ description: e.target.value })}
+              className="w-full px-4 py-3 bg-[#F1F3F5] rounded-xl border border-transparent focus:border-slate-200 outline-none text-sm resize-none min-h-[80px]"
+              placeholder="Add additional context or instructions..."
+            />
+          </div>
+
+          {/* Star scale configuration */}
+          <div className="space-y-3">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Star Scale</label>
+            
+            {/* Slider row */}
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-500 flex-shrink-0">1</span>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                step={1}
+                value={currentScaleMax}
+                onChange={(e) => updateRatingScaleConfig("scaleMax", parseInt(e.target.value, 10))}
+                className="flex-1 h-2 rounded-lg appearance-none cursor-pointer bg-slate-200 accent-indigo-600"
+              />
+              <span className="text-xs text-slate-500 flex-shrink-0">10</span>
+              <span className="text-sm font-bold text-indigo-600 w-8 text-right">{currentScaleMax}</span>
+            </div>
+
+            {/* Stars displayed below the slider - WRAPPING LAYOUT */}
+            <div className="flex flex-wrap justify-center gap-1.5 pt-2">
+              {Array.from({ length: currentScaleMax }).map((_, i) => (
+                <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400 flex-shrink-0" />
+              ))}
+            </div>
+
+            {/* Labels */}
+            <div className="flex justify-between text-[10px] text-slate-500 pt-1">
+              <span>{currentMinLabel}</span>
+              <span>{currentMaxLabel}</span>
+            </div>
+          </div>
+
+          {/* Scale labels edit inputs */}
+          <div className="space-y-3">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Scale Labels</label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] text-slate-500 block mb-1">Low label</label>
+                <input
+                  type="text"
+                  value={currentMinLabel}
+                  onChange={(e) => updateRatingScaleConfig("minLabel", e.target.value)}
+                  className="w-full px-3 py-2 bg-[#F1F3F5] rounded-xl text-sm border border-transparent focus:border-slate-200 outline-none"
+                  placeholder="e.g., Poor, Low, Bad"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500 block mb-1">High label</label>
+                <input
+                  type="text"
+                  value={currentMaxLabel}
+                  onChange={(e) => updateRatingScaleConfig("maxLabel", e.target.value)}
+                  className="w-full px-3 py-2 bg-[#F1F3F5] rounded-xl text-sm border border-transparent focus:border-slate-200 outline-none"
+                  placeholder="e.g., Excellent, High, Great"
+                />
+              </div>
+            </div>
+          </div>
 
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Question Image</label>
@@ -1353,7 +1502,7 @@ export function QuestionSidePanel({
         <ComingSoon>
           <section className="space-y-3">
             <div className="flex items-center gap-2"><h3 className="text-sm font-bold text-slate-800">Reactions</h3><HelpCircle className="w-3.5 h-3.5 text-slate-300" /></div>
-            <div className="flex gap-1.5">{ [PawPrint, Heart, HelpCircle, ThumbsUp, ThumbsDown].map((Icon, i) => (<button key={i} className={cn("w-9 h-9 rounded-lg border flex items-center justify-center transition-all", i === 3 ? "border-[#6366F1] bg-indigo-50/50" : "border-slate-200 bg-white hover:border-slate-300")}><Icon className={cn("w-4 h-4", i === 3 ? "text-slate-800" : "text-slate-800")} fill={i === 3 ? "currentColor" : "none"} /></button>)) }</div>
+            <div className="flex gap-1.5">{ [Heart, PawPrint, HelpCircle, ThumbsUp, ThumbsDown].map((Icon, i) => (<button key={i} className={cn("w-9 h-9 rounded-lg border flex items-center justify-center transition-all", i === 3 ? "border-[#6366F1] bg-indigo-50/50" : "border-slate-200 bg-white hover:border-slate-300")}><Icon className={cn("w-4 h-4", i === 3 ? "text-slate-800" : "text-slate-800")} fill={i === 3 ? "currentColor" : "none"} /></button>)) }</div>
           </section>
         </ComingSoon>
 
