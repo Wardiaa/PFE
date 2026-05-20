@@ -19,6 +19,8 @@ import {
   ChevronDown,
   SlidersHorizontal,
   ListOrdered,
+  Grid3X3,
+  Vote, 
 } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -148,6 +150,34 @@ const TYPE_META: Record<
     bg: "bg-violet-50",
     border: "border-violet-200",
     label: "Rank",
+  },
+  "grid-2x2": {
+    icon: Grid3X3,
+    color: "text-emerald-600",
+    bg: "bg-emerald-50",
+    border: "border-emerald-200",
+    label: "Grid",
+  },
+  "GRID_2X2": {
+    icon: Grid3X3,
+    color: "text-emerald-600",
+    bg: "bg-emerald-50",
+    border: "border-emerald-200",
+    label: "Grid",
+  },
+  "vote": {
+    icon: Vote,
+    color: "text-rose-600",
+    bg: "bg-rose-50",
+    border: "border-rose-200",
+    label: "Vote",
+  },
+  "VOTE": {
+    icon: Vote,
+    color: "text-rose-600",
+    bg: "bg-rose-50",
+    border: "border-rose-200",
+    label: "Vote",
   },
 };
 

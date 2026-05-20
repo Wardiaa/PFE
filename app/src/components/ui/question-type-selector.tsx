@@ -47,7 +47,7 @@ export function QuestionTypeSelector({ onSelect, selectedType }: QuestionTypeSel
       name: 'Word Cloud',
       icon: Cloud,
       description: 'Visual word frequency display',
-      color: 'bg-accent/20 text-accent'
+      color: 'bg-accent text-primary'
     },
     {
       id: 'rating-scale',
