@@ -35,9 +35,9 @@ const WordCloudVisual: React.FC<{ words: Word[] }> = ({ words }) => {
   
   const getFontWeight = (count: number, maxCount: number) => {
     const ratio = count / maxCount;
-    if (ratio > 0.8) return 900; // Extra heavy for the main word
-    if (ratio > 0.5) return 700; 
-    return 500; 
+    if (ratio > 0.8) return 900;
+    if (ratio > 0.5) return 700;
+    return 500;
   };
 
   useEffect(() => {
@@ -56,7 +56,7 @@ const WordCloudVisual: React.FC<{ words: Word[] }> = ({ words }) => {
     // Controlled scaling so words aren't too huge or too small
     const fontSizeScale = scaleLinear()
       .domain([minCount, maxCount])
-      .range([22, 85]); 
+      .range([22, 85]);
     
     const sorted = [...words].sort((a, b) => b.count - a.count);
     
@@ -638,6 +638,27 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
   };
 
   const renderWordCloud = (responses: WordCloudResponses) => {
+    // Group words by participant and get unique words per participant
+    const participantWordsMap = new Map<string, Set<string>>();
+    
+    if (responses.individualWords && responses.individualWords.length > 0) {
+      responses.individualWords.forEach((submission) => {
+        if (submission.participantName && submission.words && submission.words.length > 0) {
+          if (!participantWordsMap.has(submission.participantName)) {
+            participantWordsMap.set(submission.participantName, new Set());
+          }
+          const wordSet = participantWordsMap.get(submission.participantName)!;
+          submission.words.forEach(word => wordSet.add(word.toLowerCase()));
+        }
+      });
+    }
+
+    // Convert to array of { participantName, uniqueWords }
+    const participantUniqueWords = Array.from(participantWordsMap.entries()).map(([name, wordsSet]) => ({
+      participantName: name,
+      uniqueWords: Array.from(wordsSet),
+    }));
+
     return (
       <div className="bg-card border-2 border-border rounded-xl p-4 sm:p-6 md:p-8 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
@@ -658,10 +679,6 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                 <AppIcon name="Hash" size={14} className="text-muted-foreground" />
                 <span className="font-bold text-sm">{responses.uniqueWords || 0} Words</span>
              </div>
-             <div className="flex items-center gap-2">
-                <Users size={14} className="text-muted-foreground" />
-                <span className="font-bold text-sm">{(responses.individualWords?.length) || 0} Voters</span>
-             </div>
           </div>
         </div>
 
@@ -669,28 +686,44 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
           <WordCloudVisual words={responses.words} />
         ) : (
           <div className="h-[400px] flex flex-col items-center justify-center border-2 border-dashed border-border rounded-2xl bg-muted/5 gap-3">
-             <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
              <p className="text-muted-foreground font-medium italic">Collecting thoughts...</p>
           </div>
         )}
 
-        {showResults && responses.individualWords && responses.individualWords.length > 0 && (
+        {showResults && participantUniqueWords.length > 0 && !hideParticipantNames && (
           <div className="mt-8">
             <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.25em] mb-4 block">
-              Recent Feed
+              Participants & Their Words
             </span>
-            <div className="flex flex-wrap gap-2 max-h-[100px] overflow-y-auto">
-              {responses.individualWords
-                .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-                .slice(0, 15)
-                .map((submission, idx) => (
-                  <div
-                    key={idx}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-semibold animate-in fade-in zoom-in duration-300"
-                  >
-                    {submission.words.join(", ")}
+            <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2">
+              {participantUniqueWords.map((participant, idx) => (
+                <div
+                  key={idx}
+                  className="bg-muted/30 rounded-xl p-3 border border-border/50"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold">
+                      {participant.participantName.charAt(0).toUpperCase()}
+                    </span>
+                    <span className="font-semibold text-sm text-foreground">
+                      {participant.participantName}
+                    </span>
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      {participant.uniqueWords.length} word{participant.uniqueWords.length !== 1 ? 's' : ''}
+                    </span>
                   </div>
-                ))}
+                  <div className="flex flex-wrap gap-1.5 ml-8">
+                    {participant.uniqueWords.map((word, wordIdx) => (
+                      <span
+                        key={wordIdx}
+                        className="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-medium"
+                      >
+                        {word}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
