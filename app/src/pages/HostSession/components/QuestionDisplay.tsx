@@ -1,6 +1,8 @@
-import React from "react";
-import { motion } from "framer-motion";
+import React, { useEffect, useState, useRef, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Users, Star } from "lucide-react";
+import cloud from "d3-cloud";
+import { scaleLinear, scaleSqrt } from "d3-scale";
 import AppIcon from "../../../components/AppIcon";
 import ScalingQuestionDisplay from "./ScalingQuestionDisplay";
 import RankingQuestionDisplay from "./RankingQuestionDisplay";
@@ -19,18 +21,174 @@ import type {
   VoteResponses,
 } from "../../../lib/presentation.types";
 
-interface QuestionDisplayProps {
-  question: Question;
-  responses: QuestionResponses;
-  showResults?: boolean;
-  showCorrectAnswer?: boolean;
-  onResponseUpdate?: () => void;
-  hideParticipantNames?: boolean;
-  /** For vote questions: reveals the winner when true */
-  revealVoteWinner?: boolean;
-  /** Callback when host clicks "Reveal Winner" on vote question */
-  onRevealVoteWinner?: () => void;
+interface Word {
+  text: string;
+  count: number;
 }
+
+const WordCloudVisual: React.FC<{ words: Word[] }> = ({ words }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [positions, setPositions] = useState<any[]>([]);
+
+  // The refined indigo/navy palette from your "fast creative" goal screenshot
+  const colors = ["#2D366D", "#4B56A8", "#5D68BD", "#8892D6", "#94A3B8"];
+  
+  const getFontWeight = (count: number, maxCount: number) => {
+    const ratio = count / maxCount;
+    if (ratio > 0.8) return 900; // Extra heavy for the main word
+    if (ratio > 0.5) return 700; 
+    return 500; 
+  };
+
+  useEffect(() => {
+    if (!containerRef.current || words.length === 0) {
+      setPositions([]);
+      return;
+    }
+
+    const width = containerRef.current.offsetWidth;
+    const height = 400;
+    
+    const counts = words.map(w => w.count);
+    const minCount = Math.min(...counts);
+    const maxCount = Math.max(...counts);
+    
+    // Controlled scaling so words aren't too huge or too small
+    const fontSizeScale = scaleLinear()
+      .domain([minCount, maxCount])
+      .range([22, 85]); 
+    
+    const sorted = [...words].sort((a, b) => b.count - a.count);
+    
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d")!;
+    
+    const positions_arr: Array<{text: string, size: number, x: number, y: number, color: string, fontWeight: number}> = [];
+    const placedBounds: Array<{x: number, y: number, w: number, h: number}> = [];
+    
+    // Increased padding for better separation
+    const PADDING = 18; // Solid padding between blocks
+    
+    const checkOverlap = (x: number, y: number, w: number, h: number): boolean => {
+      for (const b of placedBounds) {
+        const horizontalOverlap = Math.abs(x - b.x) < (w / 2 + b.w / 2 + PADDING);
+        const verticalOverlap = Math.abs(y - b.y) < (h / 2 + b.h / 2 + PADDING);
+        if (horizontalOverlap && verticalOverlap) return true;
+      }
+      return false;
+    };
+    
+    // Sort by count descending to place larger words first (they're harder to place)
+    for (let i = 0; i < sorted.length; i++) {
+      const word = sorted[i];
+      const size = fontSizeScale(word.count);
+      const fontWeight = getFontWeight(word.count, maxCount);
+      
+      // Match exactly the font being rendered to avoid measurement drift
+      ctx.font = `${fontWeight} ${size}px "Inter", "Plus Jakarta Sans", system-ui, sans-serif`;
+      const metrics = ctx.measureText(word.text);
+      
+      // More generous dimensions to prevent any possible touching
+      const wordW = metrics.width * 1.15; // 15% extra width buffer
+      const wordH = size * 1.45; // 45% extra height buffer for descenders/ascenders
+      
+      let x = 0, y = 0, angle = 0, radius = 0;
+      let foundSpot = false;
+      let attempts = 0;
+      let maxAttempts = 4000; // More attempts to find a good spot
+      
+      // Spiral outward with slower radius growth for more precise placement
+      while (!foundSpot && attempts < maxAttempts) {
+        // Wider oval shape (1.6x) to encourage horizontal spread
+        x = Math.round(Math.cos(angle) * radius * 1.6);
+        y = Math.round(Math.sin(angle) * radius);
+        
+        if (!checkOverlap(x, y, wordW, wordH)) {
+          foundSpot = true;
+        } else {
+          angle += 0.12; // Smaller angle increment for finer search
+          radius += 0.6; // Slower radius growth for more placement options
+        }
+        attempts++;
+      }
+      
+      // If we couldn't find a spot after max attempts, place it at the edge
+      // but still ensure minimal overlap by pushing it outward
+      if (!foundSpot) {
+        // Place at a larger radius as a fallback
+        const fallbackAngle = (i * 137.5) * Math.PI / 180; // Golden angle
+        const fallbackRadius = Math.max(width, height) / 2.5;
+        x = Math.round(Math.cos(fallbackAngle) * fallbackRadius * 1.6);
+        y = Math.round(Math.sin(fallbackAngle) * fallbackRadius);
+      }
+      
+      positions_arr.push({
+        text: word.text,
+        size,
+        x,
+        y,
+        color: colors[i % colors.length],
+        fontWeight
+      });
+      
+      placedBounds.push({ x, y, w: wordW, h: wordH });
+    }
+    
+    // Auto-centering the group with fallback for empty array
+    if (positions_arr.length === 0) {
+      setPositions([]);
+      return;
+    }
+    
+    const avgX = positions_arr.reduce((acc, p) => acc + p.x, 0) / positions_arr.length;
+    const avgY = positions_arr.reduce((acc, p) => acc + p.y, 0) / positions_arr.length;
+    
+    // Center the entire cloud in the container
+    const centerX = width / 2;
+    const centerY = height / 2;
+    
+    setPositions(positions_arr.map(p => ({
+      ...p,
+      x: p.x - avgX + centerX,
+      y: p.y - avgY + centerY
+    })));
+  }, [words]);
+
+  return (
+    <div 
+      ref={containerRef}
+      className="relative w-full bg-slate-50/40 dark:bg-slate-950/20 rounded-2xl border border-border/30 overflow-hidden"
+      style={{ height: '450px' }}
+    >
+      <AnimatePresence>
+        {positions.map((word, i) => (
+          <motion.span
+            key={`${word.text}-${i}`}
+            initial={{ opacity: 0, scale: 0.7 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: i * 0.008, duration: 0.35 }}
+            className="absolute select-none cursor-default whitespace-nowrap text-center flex items-center justify-center"
+            style={{
+              fontSize: `${word.size}px`,
+              fontWeight: word.fontWeight,
+              color: word.color,
+              left: `${word.x}px`,
+              top: `${word.y}px`,
+              transform: `translate(-50%, -50%)`,
+              lineHeight: 1.2, // Slightly increased line height
+              letterSpacing: word.size > 50 ? '-0.06em' : '-0.02em',
+              fontFamily: '"Plus Jakarta Sans", "Inter", sans-serif',
+              textShadow: '0 1px 0 rgba(255,255,255,0.1)',
+              zIndex: word.size > 60 ? 10 : 1 // Larger words on top
+            }}
+          >
+            {word.text}
+          </motion.span>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 // ── Compact participant names chip list ──────────────────────────────────────
 const MAX_VISIBLE = 8;
@@ -69,6 +227,19 @@ const ParticipantChips: React.FC<ParticipantChipsProps> = ({ names }) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+interface QuestionDisplayProps {
+  question: Question;
+  responses: QuestionResponses;
+  showResults?: boolean;
+  showCorrectAnswer?: boolean;
+  onResponseUpdate?: () => void;
+  hideParticipantNames?: boolean;
+  /** For vote questions: reveals the winner when true */
+  revealVoteWinner?: boolean;
+  /** Callback when host clicks "Reveal Winner" on vote question */
+  onRevealVoteWinner?: () => void;
+}
 
 const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
   question,
@@ -467,108 +638,62 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
   };
 
   const renderWordCloud = (responses: WordCloudResponses) => {
-    const sizes = [
-      "text-sm",
-      "text-base",
-      "text-lg",
-      "text-xl",
-      "text-2xl",
-      "text-3xl",
-    ];
-    const colors = [
-      "text-primary",
-      "text-secondary",
-      "text-yellow-600",
-      "text-green-600",
-    ];
-
     return (
-      <div className="bg-card border-2 border-border rounded-xl p-4 sm:p-6 md:p-8">
-        <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-lg bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center">
-            <AppIcon name="Cloud" size={20} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm sm:text-base md:text-lg text-muted-foreground mb-3 sm:mb-4">
-              Participants submit single words or short phrases. Popular
-              responses appear larger.
-            </p>
-            <div className="flex items-center gap-2 text-sm md:text-base text-foreground">
-              <AppIcon name="Hash" size={16} />
-              <span className="font-semibold">
-                {responses.uniqueWords || 0}
-              </span>
-              <span className="text-muted-foreground">
-                unique words submitted
-              </span>
+      <div className="bg-card border-2 border-border rounded-xl p-4 sm:p-6 md:p-8 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+              <AppIcon name="Cloud" size={24} className="text-indigo-500" />
             </div>
+            <div>
+              <h3 className="text-xl font-black text-foreground">Word Cloud</h3>
+              <p className="text-sm text-muted-foreground leading-tight">
+                Watch the conversation grow in real-time.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 bg-muted/30 px-4 py-2 rounded-full self-start">
+             <div className="flex items-center gap-2 border-r border-border pr-4">
+                <AppIcon name="Hash" size={14} className="text-muted-foreground" />
+                <span className="font-bold text-sm">{responses.uniqueWords || 0} Words</span>
+             </div>
+             <div className="flex items-center gap-2">
+                <Users size={14} className="text-muted-foreground" />
+                <span className="font-bold text-sm">{(responses.individualWords?.length) || 0} Voters</span>
+             </div>
           </div>
         </div>
 
-        {showResults && responses.words && responses.words.length > 0 && (
-          <div className="flex flex-wrap gap-2 md:gap-3 justify-center items-center min-h-32 sm:min-h-40 md:min-h-48">
-            {responses.words.map((word, index) => {
-              const sizeClass =
-                sizes[Math.min(word.count - 1, sizes.length - 1)] || sizes[0];
-              const colorClass = word.color || colors[index % colors.length];
-
-              return (
-                <span
-                  key={index}
-                  className={`${sizeClass} ${colorClass} font-semibold transition-all duration-300 hover:scale-110 cursor-default`}
-                >
-                  {word.text}
-                </span>
-              );
-            })}
+        {showResults && responses.words && responses.words.length > 0 ? (
+          <WordCloudVisual words={responses.words} />
+        ) : (
+          <div className="h-[400px] flex flex-col items-center justify-center border-2 border-dashed border-border rounded-2xl bg-muted/5 gap-3">
+             <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+             <p className="text-muted-foreground font-medium italic">Collecting thoughts...</p>
           </div>
         )}
 
-        {showResults &&
-          responses.individualWords &&
-          responses.individualWords.length > 0 && (
-            <div className="mt-4 sm:mt-6">
-              <div className="flex items-center gap-2 mb-3">
-                <AppIcon name="List" size={18} />
-                <span className="text-sm md:text-base font-medium text-foreground">
-                  Individual Submissions
-                </span>
-              </div>
-              <div className="space-y-2 max-h-36 sm:max-h-40 overflow-y-auto">
-                {responses.individualWords
-                  .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-                  .slice(0, 8)
-                  .map((submission, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between text-sm bg-muted/50 rounded-lg p-2 sm:p-3 gap-2"
-                    >
-                      <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
-                        {submission.words.map((word, wordIdx) => (
-                          <span
-                            key={wordIdx}
-                            className="px-2 py-0.5 bg-primary/10 text-primary rounded text-xs font-medium"
-                          >
-                            {word}
-                          </span>
-                        ))}
-                        <span className="text-muted-foreground text-xs ml-1">
-                          {new Date(submission.timestamp).toLocaleTimeString()}
-                        </span>
-                      </div>
-                      {submission.participantName && !hideParticipantNames && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium flex-shrink-0">
-                          <span className="w-3.5 h-3.5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[8px] font-bold">
-                            {submission.participantName.charAt(0).toUpperCase()}
-                          </span>
-                          <span className="max-w-[5rem] truncate">{submission.participantName}</span>
-                        </span>
-                      )}
-                    </div>
-                  ))}
-              </div>
+        {showResults && responses.individualWords && responses.individualWords.length > 0 && (
+          <div className="mt-8">
+            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.25em] mb-4 block">
+              Recent Feed
+            </span>
+            <div className="flex flex-wrap gap-2 max-h-[100px] overflow-y-auto">
+              {responses.individualWords
+                .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+                .slice(0, 15)
+                .map((submission, idx) => (
+                  <div
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-semibold animate-in fade-in zoom-in duration-300"
+                  >
+                    {submission.words.join(", ")}
+                  </div>
+                ))}
             </div>
-          )}
+          </div>
+        )}
       </div>
     );
   };
