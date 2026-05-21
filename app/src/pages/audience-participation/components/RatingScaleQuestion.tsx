@@ -20,7 +20,7 @@ interface Question {
   scale?: Scale;
   labels?: Labels;
   responseCount?: number;
-  displayStyle?: 'stars';
+  displayStyle?: 'stars' | 'numbers' | 'hearts' | 'smileys';
 }
 
 interface RatingScaleQuestionProps {

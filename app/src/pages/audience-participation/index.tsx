@@ -1169,6 +1169,15 @@ const AudienceParticipation: React.FC = () => {
           currentQuestionRef.current = currentQ;
           setTimerTotal(timeLimit ?? 0);
           
+          // A timed question whose wall-clock end has already passed means the
+          // timer is expired. Late-joining participants must see WaitingState
+          // instead of the question form so they cannot submit answers after
+          // time has run out (standard mode only — elimination mode blocks
+          // mid-session joins entirely).
+          const isTimedQuestion = timeLimit !== null && timeLimit > 0;
+          const timerAlreadyExpired =
+            isTimedQuestion && (!endsAtMs || endsAtMs <= Date.now());
+
           if (endsAtMs && endsAtMs > Date.now()) {
             const remaining = Math.max(0, Math.ceil((endsAtMs - Date.now()) / 1000));
             setTimerRemaining(remaining);
@@ -1178,20 +1187,41 @@ const AudienceParticipation: React.FC = () => {
               startWallClockCountdown(endsAtMs);
             }
           } else {
-            const remaining = timeLimit ?? 0;
+            // If the timer has expired set remaining to 0; otherwise fall back
+            // to the full timeLimit for untimed / no-anchor questions.
+            const remaining = timerAlreadyExpired ? 0 : (timeLimit ?? 0);
             setTimerRemaining(remaining);
             timerRemainingRef.current = remaining;
           }
-          
-          setQuestionActive(true);
-          questionActiveRef.current = true;
-          setQuestionClosed(false);
-          questionClosedRef.current = false;
+
+          // Mark the question as closed when the timer has already expired so
+          // the submit / skip guards inside handleSubmitResponse and
+          // handleSkipResponse also block any late submissions.
+          if (timerAlreadyExpired) {
+            setQuestionActive(false);
+            questionActiveRef.current = false;
+            setQuestionClosed(true);
+            questionClosedRef.current = true;
+          } else {
+            setQuestionActive(true);
+            questionActiveRef.current = true;
+            setQuestionClosed(false);
+            questionClosedRef.current = false;
+          }
+
           setShowCorrectAnswerFeedback(false);
           setSubmittedOptionId(null);
           setShowAnswerReveal(false);
-          setSessionState(hasAlreadyResponded ? "submitted" : "question");
-          sessionStateRef.current = hasAlreadyResponded ? "submitted" : "question";
+
+          // Late-joining participants with an expired timer see WaitingState
+          // (even if they have not yet responded) so they cannot answer.
+          if (timerAlreadyExpired && !hasAlreadyResponded) {
+            setSessionState("waiting");
+            sessionStateRef.current = "waiting";
+          } else {
+            setSessionState(hasAlreadyResponded ? "submitted" : "question");
+            sessionStateRef.current = hasAlreadyResponded ? "submitted" : "question";
+          }
         } else {
           setSessionState("waiting");
           sessionStateRef.current = "waiting";
