@@ -1630,8 +1630,7 @@ const AudienceParticipation: React.FC = () => {
     const isWarning = timerRemaining <= 10 && timerRemaining > 0;
 
     let barColor = "bg-primary";
-    if (isPaused) barColor = "bg-yellow-500";
-    else if (isWarning) barColor = "bg-red-500";
+    if (isWarning )  barColor = "bg-red-500";
 
     return (
       <div className="fixed top-0 left-0 right-0 z-50">
@@ -1644,10 +1643,8 @@ const AudienceParticipation: React.FC = () => {
         <div className="flex justify-between px-4 pt-1">
           <div
             className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold shadow-sm border ${
-              isPaused
-                ? "bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-950/40 dark:border-yellow-800 dark:text-yellow-400"
-                : isWarning
-                  ? "bg-red-50 border-red-200 text-red-700 dark:bg-red-950/40 dark:border-red-800 dark:text-red-400 "
+              isWarning
+                  ? "bg-background border-border text-red-700 dark:bg-red-950/40 dark:border-red-800 dark:text-red-400 "
                   : "bg-background border-border text-foreground"
             }`}
           >
@@ -1746,11 +1743,11 @@ const AudienceParticipation: React.FC = () => {
             {isPaused && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 flex items-center justify-center">
                 <div className="bg-card rounded-xl p-8 text-center max-w-md mx-4">
-                  <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                  <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-100  flex items-center justify-center">
                     <AppIcon
                       name="Pause"
                       size={40}
-                      className="text-yellow-500"
+                      className="dark:bg-yellow-900/20"
                     />
                   </div>
                   <h2 className="text-2xl font-bold text-foreground mb-2">

@@ -209,6 +209,10 @@ const HostSession: React.FC = () => {
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
   const [showMobileParticipants, setShowMobileParticipants] = useState<boolean>(false);
   const [showVoteWinner, setShowVoteWinner] = useState<boolean>(false);
+  // ── Copy link button state ────────────────────────────────────────────────
+  const [isCopySuccess, setIsCopySuccess] = useState<boolean>(false);
+  // ── Start presentation loading state ──────────────────────────────────────
+  const [isStarting, setIsStarting] = useState<boolean>(false);
 
   // ── Leave warning state ───────────────────────────────────────────────────
   const [showLeaveWarning, setShowLeaveWarning] = useState<boolean>(false);
@@ -1084,45 +1088,71 @@ const HostSession: React.FC = () => {
     setShowCorrectAnswer(false);
   };
 
+  // ── Copy link handler with inline confirmation ────────────────────────────
+  const handleCopyLink = useCallback(() => {
+    const joinUrl = `${window.location.origin}/audience-participation?code=${session?.code}`;
+    navigator.clipboard.writeText(joinUrl);
+    
+    // Show success state
+    setIsCopySuccess(true);
+    
+    // Reset after 2 seconds
+    setTimeout(() => {
+      setIsCopySuccess(false);
+    }, 2000);
+  }, [session?.code]);
+
   // ── Action handlers ───────────────────────────────────────────────────────
 
   const handleStart = async (): Promise<void> => {
+    // Guard against double submission
+    if (isStarting) return;
     if (!session) return;
+    
     const firstQuestion = session.presentation.questions[0];
     if (!firstQuestion) {
       toast({ title: "Error", description: "No questions found", variant: "destructive" });
       return;
     }
 
-    const timeLimit = getQuestionTimeLimit(firstQuestion);
+    setIsStarting(true);
+    
+    try {
+      const timeLimit = getQuestionTimeLimit(firstQuestion);
 
-    await SessionService.updateSessionStatus(session.id, "ACTIVE");
-    const { startedAt, endsAt } = await SessionService.setCurrentQuestion(
-      session.id,
-      0,
-      firstQuestion.id,
-      timeLimit,
-    );
-
-    setCurrentQuestionIndex(0);
-    applyQuestionTimer(firstQuestion, endsAt ?? undefined);
-    applyQuestionSettings(firstQuestion);
-    setIsPaused(false);
-    isPausedRef.current = false;
-
-    sendMessage({
-      type: "SESSION_START",
-      payload: {
-        sessionId: session.id,
-        questionId: firstQuestion.id,
-        questionIndex: 0,
+      await SessionService.updateSessionStatus(session.id, "ACTIVE");
+      const { startedAt, endsAt } = await SessionService.setCurrentQuestion(
+        session.id,
+        0,
+        firstQuestion.id,
         timeLimit,
-        startedAt,
-        endsAt,
-      },
-    });
+      );
 
-    toast({ title: "Session Started", description: "Participants can now join and answer" });
+      setCurrentQuestionIndex(0);
+      applyQuestionTimer(firstQuestion, endsAt ?? undefined);
+      applyQuestionSettings(firstQuestion);
+      setIsPaused(false);
+      isPausedRef.current = false;
+
+      sendMessage({
+        type: "SESSION_START",
+        payload: {
+          sessionId: session.id,
+          questionId: firstQuestion.id,
+          questionIndex: 0,
+          timeLimit,
+          startedAt,
+          endsAt,
+        },
+      });
+
+      toast({ title: "Session Started", description: "Participants can now join and answer" });
+    } catch (error) {
+      console.error("Failed to start session:", error);
+      toast({ title: "Error", description: "Failed to start session", variant: "destructive" });
+    } finally {
+      setIsStarting(false);
+    }
   };
 
   const handlePrevious = async (): Promise<void> => {
@@ -1380,16 +1410,6 @@ const HostSession: React.FC = () => {
     setShowVoteWinner((prev) => !prev);  // Toggle
   };
 
-  const handleCopyLink = (): void => {
-    const joinUrl = `${window.location.origin}/audience-participation?code=${session?.code}`;
-    navigator.clipboard.writeText(joinUrl);
-    toast({
-      title: "Link Copied!",
-      description: "Share this link with participants to join",
-      duration: 2000,
-    });
-  };
-
   // ── Leave warning handlers ─────────────────────────────────────────────────
   const signalSessionEnd = () => {
     window.dispatchEvent(new CustomEvent("syncra:session-end-requested"));
@@ -1593,13 +1613,28 @@ const HostSession: React.FC = () => {
                       <div className="text-xs sm:text-sm uppercase tracking-wider opacity-75">
                         Scan to join
                       </div>
+                      {/* Copy Link Button with inline success state */}
                       <Button
                         variant="secondary"
                         size="sm"
-                        className="w-full bg-white text-primary hover:bg-white/90"
+                        className={`w-full transition-all duration-200 ${
+                          isCopySuccess
+                            ? "bg-green-500 text-white hover:bg-green-600"
+                            : "bg-white text-primary hover:bg-white/90"
+                        }`}
                         onClick={handleCopyLink}
                       >
-                        <AppIcon name="Copy" className="mr-2 h-4 w-4" /> Copy Link
+                        {isCopySuccess ? (
+                          <>
+                            <AppIcon name="Check" className="mr-2 h-4 w-4" />
+                            Copied!
+                          </>
+                        ) : (
+                          <>
+                            <AppIcon name="Copy" className="mr-2 h-4 w-4" />
+                            Copy Link
+                          </>
+                        )}
                       </Button>
                       <Button
                         variant="secondary"
@@ -1692,23 +1727,55 @@ const HostSession: React.FC = () => {
                   </AnimatePresence>
                 </div>
 
+                {/* ── UPDATED Start Presentation Button with loading state ── */}
                 <Button
                   size="lg"
-                  className="w-full mt-4 bg-white text-primary hover:bg-white/90 font-bold text-lg shadow-xl"
+                  className={`w-full mt-4 font-bold text-lg shadow-xl transition-all duration-200 ${
+                    isStarting
+                      ? "bg-white/50 text-primary cursor-not-allowed"
+                      : "bg-white text-primary hover:bg-white/90"
+                  }`}
                   onClick={handleStart}
+                  disabled={isStarting}
                 >
-                  Start Presentation <AppIcon name="Play" className="ml-2 h-5 w-5" />
+                  {isStarting ? (
+                    <>
+                      <AppIcon name="Loader2" className="mr-2 h-5 w-5 animate-spin" />
+                      Starting...
+                    </>
+                  ) : (
+                    <>
+                      Start Presentation
+                      <AppIcon name="Play" className="ml-2 h-5 w-5" />
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
 
             <div className="md:hidden mt-4 pb-safe">
+              {/* ── UPDATED Mobile Start Presentation Button with loading state ── */}
               <Button
                 size="lg"
-                className="w-full bg-white text-primary hover:bg-white/90 font-bold text-base shadow-xl"
+                className={`w-full font-bold text-base shadow-xl transition-all duration-200 ${
+                  isStarting
+                    ? "bg-white/50 text-primary cursor-not-allowed"
+                    : "bg-white text-primary hover:bg-white/90"
+                }`}
                 onClick={handleStart}
+                disabled={isStarting}
               >
-                Start Presentation <AppIcon name="Play" className="ml-2 h-5 w-5" />
+                {isStarting ? (
+                  <>
+                    <AppIcon name="Loader2" className="mr-2 h-5 w-5 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    Start Presentation
+                    <AppIcon name="Play" className="ml-2 h-5 w-5" />
+                  </>
+                )}
               </Button>
             </div>
           </div>

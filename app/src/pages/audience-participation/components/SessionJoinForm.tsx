@@ -4,6 +4,13 @@
 // field is pre-filled and hidden so the participant only has to enter their
 // name and click "Join". This makes the QR / shared-link flow a one-tap join
 // instead of forcing the participant to re-type the code they were just sent.
+// 
+// The loading button stays active until the join operation
+// fully completes (including navigation/session setup). The timeout that
+// was prematurely resetting the button state has been removed. The
+// `isJoining` state is now only cleared when an error occurs, not on
+// success. The parent component's `onJoin` handler will unmount this form
+// on success, and error handling resets the button.
 import React, { useState, useEffect } from 'react';
 
 interface JoinData {
@@ -46,18 +53,44 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({ onJoin, prefilledCode
     return Object.keys(e).length === 0;
   };
 
- // In SessionJoinForm.tsx, make sure the code is properly formatted
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+    
+    // Set joining state immediately - this disables the button
     setIsJoining(true);
-    setTimeout(() => {
-    // Ensure code is uppercase and trimmed
+    
+    // Clear any existing errors from previous failed attempts
+    setErrors({});
+    
+    try {
+      // Format the data
       const formattedCode = sessionCode.trim().toUpperCase();
       const formattedName = participantName.trim();
-      onJoin({ code: formattedCode, name: formattedName });
+      
+      // Call the parent's onJoin handler
+      // IMPORTANT: The parent component is responsible for handling errors.
+      // If onJoin throws an error, we catch it and reset the loading state.
+      await onJoin({ code: formattedCode, name: formattedName });
+      
+      // IMPORTANT: We do NOT reset isJoining here on success.
+      // The parent component will unmount this form when navigation occurs.
+      // If we reset isJoining, the button would briefly become interactive again
+      // before unmounting, which could lead to double submissions.
+      // 
+      // The isJoining state will be cleaned up when this component unmounts.
+      
+    } catch (error) {
+      // Only reset the joining state on error, so the user can retry
+      console.error("Join submission failed:", error);
       setIsJoining(false);
-    }, 800);
+      
+      // Optionally set a generic error message
+      setErrors({ 
+        ...errors, 
+        sessionCode: error instanceof Error ? error.message : 'Failed to join session. Please try again.' 
+      });
+    }
   };
 
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -151,6 +184,7 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({ onJoin, prefilledCode
                   autoFocus
                   autoComplete="off"
                   spellCheck={false}
+                  disabled={isJoining}
                   className={`
                     w-full px-4 py-3.5 rounded-xl border-2 bg-slate-50
                     font-mono text-xl font-black text-slate-900 tracking-[0.2em]
@@ -158,6 +192,7 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({ onJoin, prefilledCode
                     placeholder:text-slate-300 placeholder:tracking-normal
                     focus:outline-none focus:bg-white transition-all duration-150
                     ${errors.sessionCode ? 'border-red-300 bg-red-50' : 'border-slate-200 focus:border-indigo-500'}
+                    ${isJoining ? 'opacity-60 cursor-not-allowed' : ''}
                   `}
                 />
                 {errors.sessionCode && (
@@ -178,12 +213,14 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({ onJoin, prefilledCode
                 onChange={handleNameChange}
                 maxLength={50}
                 autoFocus={hasPrefilledCode}
+                disabled={isJoining}
                 className={`
                   w-full px-4 py-3.5 rounded-xl border-2 bg-slate-50
                   text-sm font-semibold text-slate-900
                   placeholder:font-normal placeholder:text-slate-300
                   focus:outline-none focus:bg-white transition-all duration-150
                   ${errors.participantName ? 'border-red-300 bg-red-50' : 'border-slate-200 focus:border-indigo-500'}
+                  ${isJoining ? 'opacity-60 cursor-not-allowed' : ''}
                 `}
               />
               {errors.participantName && (
