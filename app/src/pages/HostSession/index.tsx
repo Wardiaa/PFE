@@ -213,6 +213,8 @@ const HostSession: React.FC = () => {
   const [isCopySuccess, setIsCopySuccess] = useState<boolean>(false);
   // ── Start presentation loading state ──────────────────────────────────────
   const [isStarting, setIsStarting] = useState<boolean>(false);
+  // ── End session loading state ─────────────────────────────────────────────
+  const [isEnding, setIsEnding] = useState<boolean>(false);
 
   // ── Leave warning state ───────────────────────────────────────────────────
   const [showLeaveWarning, setShowLeaveWarning] = useState<boolean>(false);
@@ -1378,11 +1380,23 @@ const HostSession: React.FC = () => {
 
   const handleEnd = (): void => setIsEndModalOpen(true);
 
+  // ── Updated handleConfirmEnd with loading state ───────────────────────────
   const handleConfirmEnd = async (): Promise<void> => {
+    // Guard against double submission
+    if (isEnding) return;
     if (!session) return;
-    sendMessage({ type: "SESSION_END", payload: {} });
-    await SessionService.updateSessionStatus(session.id, "ENDED");
-    navigate(`/results/${session.id}`);
+
+    setIsEnding(true);
+
+    try {
+      sendMessage({ type: "SESSION_END", payload: {} });
+      await SessionService.updateSessionStatus(session.id, "ENDED");
+      navigate(`/results/${session.id}`);
+    } catch (error) {
+      console.error("Failed to end session:", error);
+      toast({ title: "Error", description: "Failed to end session", variant: "destructive" });
+      setIsEnding(false);
+    }
   };
 
   const handleToggleQuestionResults = (): void => {
@@ -1727,7 +1741,7 @@ const HostSession: React.FC = () => {
                   </AnimatePresence>
                 </div>
 
-                {/* ── UPDATED Start Presentation Button with loading state ── */}
+                {/* Start Presentation Button with loading state */}
                 <Button
                   size="lg"
                   className={`w-full mt-4 font-bold text-lg shadow-xl transition-all duration-200 ${
@@ -1754,7 +1768,7 @@ const HostSession: React.FC = () => {
             </div>
 
             <div className="md:hidden mt-4 pb-safe">
-              {/* ── UPDATED Mobile Start Presentation Button with loading state ── */}
+              {/* Mobile Start Presentation Button with loading state */}
               <Button
                 size="lg"
                 className={`w-full font-bold text-base shadow-xl transition-all duration-200 ${
@@ -1923,6 +1937,7 @@ const HostSession: React.FC = () => {
           onClose={() => setIsEndModalOpen(false)}
           onConfirm={handleConfirmEnd}
           onViewResults={handleViewFinalResults}
+          isEnding={isEnding}
         />
 
         <AnimatePresence>

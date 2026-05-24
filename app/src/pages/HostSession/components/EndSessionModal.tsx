@@ -1,3 +1,4 @@
+// EndSessionModal.tsx
 import React from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Button } from '../../../components/ui/button';
@@ -7,13 +8,14 @@ interface EndSessionModalProps {
   onClose: () => void;
   onConfirm: () => void;
   onViewResults: () => void;
+  isEnding?: boolean;
 }
 
 const EndSessionModal: React.FC<EndSessionModalProps> = ({
   isOpen,
   onClose,
   onConfirm,
-  onViewResults
+  isEnding = false,
 }) => {
   if (!isOpen) return null;
 
@@ -44,22 +46,22 @@ const EndSessionModal: React.FC<EndSessionModalProps> = ({
             iconPosition="left"
             onClick={onConfirm}
             className="w-full"
+            disabled={isEnding}
           >
-            End Session
-          </Button>
-          <Button
-            variant="outline"
-            icon="BarChart3"
-            iconPosition="left"
-            onClick={onViewResults}
-            className="w-full"
-          >
-            View Results First
+            {isEnding ? (
+              <>
+                <AppIcon name="Loader2" size={16} className="animate-spin mr-2" />
+                Ending...
+              </>
+            ) : (
+              "End Session"
+            )}
           </Button>
           <Button
             variant="ghost"
             onClick={onClose}
             className="w-full"
+            disabled={isEnding}
           >
             Cancel
           </Button>
