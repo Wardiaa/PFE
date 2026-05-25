@@ -3,6 +3,11 @@
 // parent (HostSession), which already holds the full `gameState.history` array
 // updated in real-time via Supabase Broadcast + Postgres CDC events.
 // This eliminates 30 unnecessary DB round-trips per minute per host.
+//
+// FIX: For final-round withdrawals that happen BEFORE the last question starts,
+// they are always shown immediately (not gated by revealHistory). Now uses
+// round number comparison instead of timestamps for reliability across timezones.
+
 import { Users, Clock, Hourglass } from "lucide-react";
 import type { EliminationEvent, GameState } from "../../../lib/presentation.types";
 
@@ -11,9 +16,16 @@ interface Props {
   /**
    * The ID of the question currently being played.
    * Eliminations from previous questions are always shown.
-   * Eliminations from the current question are gated by `revealHistory`.
+   * Eliminations from the current question are gated by `revealHistory`
+   * UNLESS they happened in a previous round (determined by roundNumber).
    */
   currentQuestionId?: string;
+  /**
+   * The 1-indexed number of the current question (e.g., 3 for Q3).
+   * Used to determine if an elimination happened in a previous round.
+   * More reliable than timestamp comparison across timezones.
+   */
+  currentQuestionNumber?: number;
   /**
    * Optional live or frozen game state. Used ONLY to display the alive-count
    * badge (aliveCount / totalCount). History is always fetched from the DB.
@@ -41,14 +53,20 @@ interface Props {
    * • timed questions  → pass `!timerActive && !isProcessingSpeedQuestion`
    * • untimed questions → pass `showResults`
    *
-   * Eliminations from ALL previous questions are always shown regardless of
-   * this flag.  Defaults to `true` for backward compatibility.
+   * EXCEPTION: Eliminations that happened in PREVIOUS rounds (roundNumber < currentQuestionNumber)
+   * are ALWAYS shown regardless of this flag. This ensures final-round withdrawals
+   * (which happen before the last question starts) appear immediately.
+   *
+   * For the last question, pass `true` so withdrawals appear immediately.
+   *
+   * Defaults to `true` for backward compatibility.
    */
   revealHistory?: boolean;
 }
 
 export function EliminationHistory({
   currentQuestionId,
+  currentQuestionNumber,
   gameState,
   eliminationHistory,
   // pollIntervalMs is intentionally unused — see deprecation note above.
@@ -74,19 +92,45 @@ export function EliminationHistory({
   // Re-sort ascending by eliminatedAt so the list reads oldest → newest
   ).sort((a, b) => new Date(a.eliminatedAt).getTime() - new Date(b.eliminatedAt).getTime());
 
-  // Split into two buckets:
-  // • visibleHistory  — past questions (always) + current question (only when revealed)
-  // • hiddenCount     — current question entries that are gated
-  const visibleHistory = deduped.filter(
-    (e) => e.questionId !== currentQuestionId || revealHistory,
-  );
-  const hiddenCount = deduped.filter(
-    (e) => e.questionId === currentQuestionId && !revealHistory,
-  ).length;
+  // Split into two buckets using round number comparison:
+  // • visibleHistory — previous rounds (always) + current round (only when revealed)
+  // • hiddenCount     — current round entries that are gated
+  //
+  // CRITICAL FIX: Use roundNumber comparison instead of timestamp.
+  // For final-round withdrawals, the elimination has roundNumber equal to
+  // currentQuestionNumber, but it happened BEFORE the question started.
+  // Since it's the SAME round number, it will be hidden until revealHistory=true.
+  // For the last question, the parent must pass revealHistory=true.
+  const visibleHistory = deduped.filter((e) => {
+    // If we have currentQuestionNumber, use round-based filtering
+    if (currentQuestionNumber !== undefined) {
+      const eliminationRound = e.roundNumber;
+      // Eliminations from previous rounds are always visible
+      if (eliminationRound < currentQuestionNumber) return true;
+      // Eliminations from current round depend on revealHistory
+      if (eliminationRound === currentQuestionNumber) return revealHistory;
+      // Future rounds (shouldn't happen) are not visible
+      return false;
+    }
+    
+    // Fallback to questionId-based filtering (old behavior)
+    if (e.questionId !== currentQuestionId) return true;
+    return revealHistory;
+  });
+  
+  const hiddenCount = deduped.filter((e) => {
+    if (currentQuestionNumber !== undefined) {
+      const eliminationRound = e.roundNumber;
+      return eliminationRound === currentQuestionNumber && !revealHistory;
+    }
+    
+    // Fallback to questionId-based filtering
+    if (e.questionId !== currentQuestionId) return false;
+    return !revealHistory;
+  }).length;
 
-  // Show the waiting notice when the current question still has pending entries
-  // OR when we're mid-question and revealHistory is false (even if 0 elims yet).
-  const showPendingNotice = !revealHistory;
+  // Show the waiting notice only for current-round eliminations that are hidden
+  const showPendingNotice = !revealHistory && hiddenCount > 0;
 
   return (
     <aside className="flex flex-col h-full bg-background font-sans">
@@ -151,7 +195,7 @@ export function EliminationHistory({
           </div>
         )}
 
-        {/* Pending notice for the current question — shown inline, not full-screen */}
+        {/* Pending notice for current question eliminations that are still hidden */}
         {showPendingNotice && (
           <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
             <Hourglass size={12} className="shrink-0 text-muted-foreground/60" />

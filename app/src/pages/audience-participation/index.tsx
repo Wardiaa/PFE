@@ -1361,63 +1361,42 @@ const AudienceParticipation: React.FC = () => {
   const handleFinalRoundWithdraw = async () => {
     if (hasMadeDecision) return;
     
-    // IMPORTANT: Immediately exit final decision state BEFORE any other updates
-    // This makes the modal disappear right away
+    // Immediately exit final decision state
     setIsFinalDecision(false);
     setSessionState("waiting");
     sessionStateRef.current = "waiting";
     
-    // Mark as decided to prevent double execution
     setHasMadeDecision(true);
-
-    // BUG FIX (Bug 3): mark withdrawal synchronously before any await so
-    // the FINAL_ROUND_START guard sees it even if the host broadcasts the
-    // final question before our DB write completes.
-    hasWithdrawnFromFinalRoundRef.current = true;
 
     if (participantSessionRef.current) {
       const myId = participantSessionRef.current.participantId;
       const myName = participantSessionRef.current.participantName;
       const qId = currentQuestionRef.current?.id ?? "";
       const roundNum = gameState.currentRound ?? 0;
+      const sessId = participantSessionRef.current.session.id;
 
-      await SessionService.recordFinalRoundDecision(myId, false);
-
-      // Mark eliminated synchronously via the ref so the FINAL_ROUND_START
-      // handler sees it even if the broadcast arrives before React re-renders.
-      isEliminatedRef.current = true;
-      setIsEliminated(true);
-      setEliminatedAtRound(roundNum);
-
-      // BUG FIX (Final-round withdrawal): show the EliminationOverlay so the
-      // withdrawing participant goes through the same overlay → SpectatorMode
-      // flow as a regularly-eliminated participant.
-      setShowEliminationOverlay(true);
-      eliminationOverlayShownRef.current = true;
-
-      // BUG FIX (leaderboard + host history): replace the stale getGameState() DB
-      // fetch with the same local optimistic update the PLAYER_ELIMINATED handler
-      // uses for other participants. The previous fetch ran before broadcasts were
-      // sent, so the DB still showed this participant as alive (the host had not
-      // yet processed the elimination) — the withdrawing participant saw a stale
-      // leaderboard. The extra await also delayed PLAYER_ELIMINATED reaching the
-      // host, so the elimination history showed no name (FINAL_ROUND_DECISION_RESPONSE
-      // carries only participantId, not participantName).
+      // FIX: Immediately update local gameState so the participant sees themselves as eliminated
       setGameState((prev) => {
-        const participant = prev.alive.find((p) => p.id === myId);
-        if (!participant) return prev;
+        // Remove myself from alive
+        const stillAlive = prev.alive.filter((p) => p.id !== myId);
+        // Add myself to eliminated
+        const me = prev.alive.find((p) => p.id === myId);
+        const newEliminated = me
+          ? [
+              ...prev.eliminated,
+              {
+                ...me,
+                isAlive: false,
+                eliminatedAtRound: roundNum,
+                eliminatedAtQuestionId: qId,
+              },
+            ]
+          : prev.eliminated;
+
         return {
           ...prev,
-          alive: prev.alive.filter((p) => p.id !== myId),
-          eliminated: [
-            ...prev.eliminated,
-            {
-              ...participant,
-              isAlive: false,
-              eliminatedAtRound: roundNum ?? null,
-              eliminatedAtQuestionId: qId ?? null,
-            },
-          ],
+          alive: stillAlive,
+          eliminated: newEliminated,
           history: [
             ...prev.history,
             {
@@ -1431,9 +1410,26 @@ const AudienceParticipation: React.FC = () => {
         };
       });
 
-      // Broadcast immediately — no extra await before this point, so the host
-      // receives PLAYER_ELIMINATED (with participantName) before
-      // FINAL_ROUND_DECISION_RESPONSE.
+      // Mark eliminated in state
+      setIsEliminated(true);
+      isEliminatedRef.current = true;
+      setEliminatedAtRound(roundNum);
+
+      // Show elimination overlay
+      setShowEliminationOverlay(true);
+      eliminationOverlayShownRef.current = true;
+
+      // Write to database (async, don't wait)
+      SessionService.recordFinalRoundDecision(
+        myId,
+        false,
+        sessId,
+        qId,
+        roundNum,
+        myName
+      );
+
+      // Broadcast to host
       sendMessage({
         type: SESSION_EVENTS.PLAYER_ELIMINATED,
         payload: {

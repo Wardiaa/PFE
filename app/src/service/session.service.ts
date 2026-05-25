@@ -7,6 +7,9 @@
 //     100 concurrent participants).
 //   • joinSession enforces a hard participant cap (maxParticipants from context
 //     settings) before inserting, preventing silent oversubscription.
+//
+// FIX: recordFinalRoundDecision now writes to elimination_log when participant withdraws,
+//      so final-round withdrawals appear in elimination history on the host side.
 
 import { supabase } from "../lib/supabase";
 import type {
@@ -1466,22 +1469,66 @@ export class SessionService {
   }
 
   /**
-  * Record participant's final round decision
+  * Record participant's final round decision AND write to elimination_log if they withdraw
+  * Now writes to elimination_log AND updates participants table when participant withdraws
+  *      so final-round withdrawals appear in elimination history AND counts update correctly.
   */
   static async recordFinalRoundDecision(
     participantId: string,
-    choseContinue: boolean
+    choseContinue: boolean,
+    sessionId?: string,
+    questionId?: string,
+    roundNumber?: number,
+    participantName?: string
   ): Promise<boolean> {
     try {
-      const { error } = await supabase
+      // First update the participant's choice
+      const { error: updateError } = await supabase
         .from("participants")
         .update({ chose_continue: choseContinue })
         .eq("id", participantId);
 
-      if (error) {
-        console.error("[recordFinalRoundDecision] Error:", error);
+      if (updateError) {
+        console.error("[recordFinalRoundDecision] Update error:", updateError);
         return false;
       }
+
+      // If the participant chose NOT to continue (withdrew), mark them as eliminated
+      // AND write to elimination_log
+      if (!choseContinue && sessionId && questionId && roundNumber && participantName) {
+        // Mark participant as eliminated in participants table
+        const { error: eliminateError } = await supabase
+          .from("participants")
+          .update({
+            is_alive: false,
+            eliminated_at_round: roundNumber,
+            eliminated_at_question_id: questionId,
+          })
+          .eq("id", participantId);
+
+        if (eliminateError) {
+          console.error("[recordFinalRoundDecision] Failed to mark participant eliminated:", eliminateError);
+        }
+
+        // Write to elimination_log
+        const { error: logError } = await supabase
+          .from("elimination_log")
+          .insert({
+            session_id: sessionId,
+            participant_id: participantId,
+            participant_name: participantName,
+            question_id: questionId,
+            round_number: roundNumber,
+            eliminated_at: new Date().toISOString(),
+          });
+
+        if (logError) {
+          console.error("[recordFinalRoundDecision] Failed to write to elimination_log:", logError);
+        } else {
+          console.log("[recordFinalRoundDecision] Withdrawal written to elimination_log for:", participantName);
+        }
+      }
+
       return true;
     } catch (error) {
       console.error("[recordFinalRoundDecision] Exception:", error);
