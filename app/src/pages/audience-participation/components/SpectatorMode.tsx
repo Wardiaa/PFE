@@ -70,6 +70,17 @@ export function SpectatorMode({
   showAnswerReveal = false,
   submittedOptionId = null,
 }: Props) {
+  // BUG FIX: Use the question's own 1-indexed number for the "Question en cours"
+  // display instead of gameState.currentRound.
+  //   • currentRound starts at 0 during Q1 (no eliminations yet), so it would
+  //     display "Q 0" for the first question.
+  //   • For spectators, currentRound is only refreshed via GAME_STATE_UPDATE
+  //     broadcasts which are not sent after regular (non-speed) elimination
+  //     rounds, so it stays frozen at the round when they were eliminated.
+  // currentQuestion.number is always accurate: set to questionIndex + 1 in
+  // loadQuestion and updated on every QUESTION_CHANGE broadcast.
+  const displayRoundNumber = currentQuestion?.number ?? (gameState.currentRound > 0 ? gameState.currentRound : 1);
+
   return (
     <div className="cpl-theme min-h-screen px-4 py-8 sm:py-12">
       {/* Keyframes powering the subtle fade-in on green/red answer reveal
@@ -112,7 +123,7 @@ export function SpectatorMode({
         {currentQuestion ? (
           <div className="cpl-card p-6 sm:p-8 mb-6">
             <div className="text-xs uppercase tracking-widest text-[color:var(--cpl-text-dim)] mb-2">
-              Question en cours · Q {gameState.currentRound}
+              Question en cours · Q {displayRoundNumber}
             </div>
             <h2 className="cpl-display text-xl sm:text-2xl text-white mb-4">
               {currentQuestion.text}
@@ -210,7 +221,7 @@ export function SpectatorMode({
             Default-collapsed to keep the screen compact when there are
             many players. */}
         {!hideEliminationBanner && (
-          <LiveLeaderboard gameState={gameState} defaultCollapsed />
+          <LiveLeaderboard gameState={gameState} currentQuestionNumber={currentQuestion?.number} defaultCollapsed />
         )}
       </div>
     </div>

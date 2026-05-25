@@ -24,6 +24,12 @@ interface Props {
    * to `true` on small screens or when many players are connected.
    */
   defaultCollapsed?: boolean;
+  /**
+   * The current active question's 1-indexed number. When provided this is
+   * shown in the header badge instead of gameState.currentRound, which
+   * starts at 0 on Q1 and is not broadcast after regular elimination rounds.
+   */
+  currentQuestionNumber?: number;
 }
 
 const initials = (name: string) =>
@@ -86,6 +92,7 @@ export function LiveLeaderboard({
   gameState,
   highlightParticipantId,
   defaultCollapsed = false,
+  currentQuestionNumber,
 }: Props) {
   const [collapsed, setCollapsed] = useState<boolean>(defaultCollapsed);
 
@@ -134,7 +141,10 @@ export function LiveLeaderboard({
             {aliveCount}/{totalCount}
           </div>
           <div className="text-[10px] uppercase tracking-widest text-[color:var(--cpl-text-dim)]">
-            Question {currentRound}
+            {/* BUG FIX: prefer currentQuestionNumber (passed by parent) over
+                currentRound — currentRound starts at 0 on Q1 and is not
+                broadcast after regular elimination rounds. */}
+            Question {currentQuestionNumber ?? (currentRound > 0 ? currentRound : '—')}
           </div>
         </div>
       </button>

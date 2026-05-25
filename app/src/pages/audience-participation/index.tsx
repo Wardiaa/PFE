@@ -201,6 +201,13 @@ const AudienceParticipation: React.FC = () => {
   // Ref mirror of speedAnsweredCorrectly — safe to read inside broadcast callbacks.
   const speedAnsweredCorrectlyRef = useRef<boolean>(false);
 
+  // BUG FIX (Bug 3): tracks whether THIS participant explicitly chose "No" in
+  // the final-round decision. Used in the FINAL_ROUND_START guard so that only
+  // withdrawn participants are blocked from receiving the final question.
+  // Legitimate spectators (eliminated in a prior round) must still receive it
+  // so SpectatorMode can display it in read-only mode.
+  const hasWithdrawnFromFinalRoundRef = useRef<boolean>(false);
+
   // OPTIMIZED: wall-clock anchor reference
   const questionEndsAtRef = useRef<number | null>(null);
 
@@ -669,6 +676,22 @@ const AudienceParticipation: React.FC = () => {
             questionClosedRef.current = true;
             stopLocalCountdown();
           }
+          // BUG FIX: For untimed speed questions the host sends FORCE_QUESTION_CLOSE
+          // when "Show Results" is clicked (timer never expires naturally). Participants
+          // who haven't answered yet would be left on the frozen question form with
+          // no feedback while the host processes results in the background.
+          // Fix: transition unanswered participants to speed_waiting so they see
+          // SpeedQuestionWaiting, and when SPEED_QUESTION_RESULTS arrives shortly
+          // after they are processed correctly (eliminated or advancing).
+          if (
+            currentQuestionRef.current?.isSpeedQuestion &&
+            sessionStateRef.current === "question" &&
+            !isEliminatedRef.current
+          ) {
+            setIsSpeedWaiting(true);
+            setSessionState("speed_waiting");
+            sessionStateRef.current = "speed_waiting";
+          }
           break;
         }
 
@@ -689,31 +712,76 @@ const AudienceParticipation: React.FC = () => {
           const ev = payload as unknown as EliminationEvent;
           setEliminationEvents((prev) => [...prev, ev]);
 
-          if (participantSessionRef.current?.session.id) {
-            SessionService.getGameState(
-              participantSessionRef.current.session.id,
-            )
-              .then((newState) => {
-                setGameState(newState);
-                const me = newState.eliminated.find(
-                  (p) => p.id === participantSessionRef.current?.participantId,
-                );
-                if (me && !isEliminatedRef.current) {
-                  setIsEliminated(true);
-                  setEliminatedAtRound(
-                    me.eliminatedAtRound ?? newState.currentRound,
-                  );
-                }
-              })
-              .catch((err) =>
-                console.error("Failed to refresh game state:", err),
-              );
+          // BUG FIX: Participant count inconsistency.
+          // Previously each participant called getGameState() independently on
+          // receiving PLAYER_ELIMINATED. These DB queries ran at slightly different
+          // times, so fast participants saw the updated count while slow ones still
+          // saw the old count — causing every participant to potentially show a
+          // different totalPlayers or alive count for a few seconds.
+          //
+          // Fix: update gameState locally (move participant from alive → eliminated)
+          // so all clients apply the same deterministic change to the same starting
+          // state. The host's GAME_STATE_UPDATE broadcast (sent after processing)
+          // will arrive shortly and overwrite with the authoritative DB values,
+          // so any minor local inaccuracy corrects itself automatically.
+          setGameState((prev) => {
+            const participant = prev.alive.find((p) => p.id === ev.participantId);
+            if (!participant) return prev; // already eliminated or not in state yet
+            return {
+              ...prev,
+              alive: prev.alive.filter((p) => p.id !== ev.participantId),
+              eliminated: [
+                ...prev.eliminated,
+                {
+                  ...participant,
+                  isAlive: false,
+                  eliminatedAtRound: ev.roundNumber ?? null,
+                  eliminatedAtQuestionId: ev.questionId ?? null,
+                },
+              ],
+              history: [
+                ...prev.history,
+                {
+                  participantId: ev.participantId,
+                  participantName: ev.participantName,
+                  questionId: ev.questionId,
+                  roundNumber: ev.roundNumber,
+                  eliminatedAt:
+                    ev.eliminatedAt instanceof Date
+                      ? ev.eliminatedAt
+                      : new Date(ev.eliminatedAt as unknown as string),
+                },
+              ],
+            };
+          });
+
+          // Check if the eliminated participant is the local user.
+          const myId = participantSessionRef.current?.participantId;
+          if (myId && ev.participantId === myId && !isEliminatedRef.current) {
+            setIsEliminated(true);
+            isEliminatedRef.current = true;
+            setEliminatedAtRound(ev.roundNumber);
           }
           break;
         }
 
         case SESSION_EVENTS.GAME_STATE_UPDATE: {
-          setGameState(payload as unknown as GameState);
+          const incoming = payload as unknown as GameState;
+          setGameState((prev) => {
+            // BUG FIX: monotonic guard against stale host broadcasts.
+            // When a participant connects, the host may respond with a
+            // GAME_STATE_UPDATE whose totalPlayers is lower than what the
+            // participant already knows (e.g. the host's ref was empty/stale
+            // before its own DB refresh completed). Accepting that blindly would
+            // overwrite a correctly-fetched local state, causing the "N/N → 0/0"
+            // flash. totalPlayers is monotonically non-decreasing (players only
+            // join; they are never removed), so a lower incoming count means
+            // the host's snapshot is older than ours — discard it.
+            if (prev.totalPlayers > 0 && (incoming.totalPlayers ?? 0) < prev.totalPlayers) {
+              return prev;
+            }
+            return incoming;
+          });
           break;
         }
 
@@ -805,6 +873,18 @@ const AudienceParticipation: React.FC = () => {
         }
 
         case SESSION_EVENTS.FINAL_ROUND_START: {
+          // BUG FIX (Bug 3): only block participants who explicitly withdrew.
+          // Previously the guard was `isEliminatedRef.current` which blocked ALL
+          // eliminated participants, preventing legitimate spectators from seeing
+          // the final question in read-only SpectatorMode. Now only "No" voters
+          // (hasWithdrawnFromFinalRoundRef) are blocked; spectators whose
+          // elimination happened in a prior round receive the updated
+          // currentQuestion so SpectatorMode renders the correct question text.
+          // BUG FIX (Final-round withdrawal): removed the blanket break on
+          // hasWithdrawnFromFinalRoundRef. Withdrawn participants are now
+          // properly marked isEliminated=true and receive the final question
+          // here so SpectatorMode can render it in read-only mode.
+
           const finalPayload = payload as {
             questionId: string;
             timeLimit: number;
@@ -1280,25 +1360,96 @@ const AudienceParticipation: React.FC = () => {
 
   const handleFinalRoundWithdraw = async () => {
     if (hasMadeDecision) return;
-    setHasMadeDecision(true);
     
+    // IMPORTANT: Immediately exit final decision state BEFORE any other updates
+    // This makes the modal disappear right away
+    setIsFinalDecision(false);
+    setSessionState("waiting");
+    sessionStateRef.current = "waiting";
+    
+    // Mark as decided to prevent double execution
+    setHasMadeDecision(true);
+
+    // BUG FIX (Bug 3): mark withdrawal synchronously before any await so
+    // the FINAL_ROUND_START guard sees it even if the host broadcasts the
+    // final question before our DB write completes.
+    hasWithdrawnFromFinalRoundRef.current = true;
+
     if (participantSessionRef.current) {
-      await SessionService.recordFinalRoundDecision(
-        participantSessionRef.current.participantId,
-        false,
-      );
+      const myId = participantSessionRef.current.participantId;
+      const myName = participantSessionRef.current.participantName;
+      const qId = currentQuestionRef.current?.id ?? "";
+      const roundNum = gameState.currentRound ?? 0;
+
+      await SessionService.recordFinalRoundDecision(myId, false);
+
+      // Mark eliminated synchronously via the ref so the FINAL_ROUND_START
+      // handler sees it even if the broadcast arrives before React re-renders.
+      isEliminatedRef.current = true;
+      setIsEliminated(true);
+      setEliminatedAtRound(roundNum);
+
+      // BUG FIX (Final-round withdrawal): show the EliminationOverlay so the
+      // withdrawing participant goes through the same overlay → SpectatorMode
+      // flow as a regularly-eliminated participant.
+      setShowEliminationOverlay(true);
+      eliminationOverlayShownRef.current = true;
+
+      // BUG FIX (leaderboard + host history): replace the stale getGameState() DB
+      // fetch with the same local optimistic update the PLAYER_ELIMINATED handler
+      // uses for other participants. The previous fetch ran before broadcasts were
+      // sent, so the DB still showed this participant as alive (the host had not
+      // yet processed the elimination) — the withdrawing participant saw a stale
+      // leaderboard. The extra await also delayed PLAYER_ELIMINATED reaching the
+      // host, so the elimination history showed no name (FINAL_ROUND_DECISION_RESPONSE
+      // carries only participantId, not participantName).
+      setGameState((prev) => {
+        const participant = prev.alive.find((p) => p.id === myId);
+        if (!participant) return prev;
+        return {
+          ...prev,
+          alive: prev.alive.filter((p) => p.id !== myId),
+          eliminated: [
+            ...prev.eliminated,
+            {
+              ...participant,
+              isAlive: false,
+              eliminatedAtRound: roundNum ?? null,
+              eliminatedAtQuestionId: qId ?? null,
+            },
+          ],
+          history: [
+            ...prev.history,
+            {
+              participantId: myId,
+              participantName: myName,
+              questionId: qId,
+              roundNumber: roundNum,
+              eliminatedAt: new Date(),
+            },
+          ],
+        };
+      });
+
+      // Broadcast immediately — no extra await before this point, so the host
+      // receives PLAYER_ELIMINATED (with participantName) before
+      // FINAL_ROUND_DECISION_RESPONSE.
       sendMessage({
-        type: SESSION_EVENTS.FINAL_ROUND_DECISION_RESPONSE,
+        type: SESSION_EVENTS.PLAYER_ELIMINATED,
         payload: {
-          participantId: participantSessionRef.current.participantId,
-          choseContinue: false,
+          participantId: myId,
+          participantName: myName,
+          questionId: qId,
+          roundNumber: roundNum,
+          eliminatedAt: new Date().toISOString(),
         },
       });
+
+      sendMessage({
+        type: SESSION_EVENTS.FINAL_ROUND_DECISION_RESPONSE,
+        payload: { participantId: myId, choseContinue: false },
+      });
     }
-    
-    setSessionState("ended");
-    sessionStateRef.current = "ended";
-    setIsFinalDecision(false);
   };
 
   // ── Handle speed waiting screen callbacks ───────────────────────────────
@@ -1565,6 +1716,7 @@ const AudienceParticipation: React.FC = () => {
     eliminationOverlayShownRef.current = false;
     questionEndsAtRef.current = null;
     speedAnsweredCorrectlyRef.current = false;
+    hasWithdrawnFromFinalRoundRef.current = false;
 
     setParticipantSession(null);
     setCurrentQuestion(null);
@@ -2068,14 +2220,23 @@ const AudienceParticipation: React.FC = () => {
             {renderContent()}
           </div>
 
+          {/* BUG FIX: Leaderboard visibility.
+               Previously shown to ALL participants when timerRemaining reached 0,
+               which cluttered the UI for alive participants who are about to answer
+               the next question. Now only visible to:
+               - Eliminated participants (isEliminated) — they are in spectator mode
+                 and the leaderboard is their primary view.
+               - Waiting participants (sessionState === "waiting") — covers both
+                 freshly-joined participants and the inter-question wait period. */}
           {isElimination &&
             sessionState !== "join" &&
-            (timerRemaining === 0 || showAnswerReveal || isEliminated) && (
+            (isEliminated || sessionState === "waiting") && (
               <div className="mx-auto max-w-3xl mt-8">
                 <LiveLeaderboard
                   gameState={gameState}
                   highlightParticipantId={participantSession?.participantId}
-                  defaultCollapsed
+                  currentQuestionNumber={currentQuestion?.number}
+                  defaultCollapsed={!isEliminated}
                 />
               </div>
             )}

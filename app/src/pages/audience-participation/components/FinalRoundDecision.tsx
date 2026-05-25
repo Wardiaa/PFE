@@ -1,5 +1,5 @@
 // FinalRoundDecision.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface FinalRoundDecisionProps {
@@ -17,48 +17,76 @@ export function FinalRoundDecision({
 }: FinalRoundDecisionProps) {
   const [timeLeft, setTimeLeft] = useState(decisionTimer);
   const [hasDecided, setHasDecided] = useState(false);
+  // Add a ref to track if the component should ignore further updates
+  const isActiveRef = useRef(true);
 
   // Reset when visibility changes
   useEffect(() => {
     if (visible) {
+      isActiveRef.current = true;
       setTimeLeft(decisionTimer);
       setHasDecided(false);
     }
   }, [visible, decisionTimer]);
 
-  // Timer countdown logic (optimized - no timeLeft dependency)
+  // Timer countdown logic - only run if still active and no decision made
   useEffect(() => {
-    if (!visible || timeLeft <= 0) return;
+    if (!visible || !isActiveRef.current || hasDecided || timeLeft <= 0) return;
 
     const interval = setInterval(() => {
-      setTimeLeft((prev) => prev - 1);
+      // Only update if still active and no decision made
+      if (!isActiveRef.current || hasDecided) {
+        clearInterval(interval);
+        return;
+      }
+      setTimeLeft((prev) => {
+        const newTime = prev - 1;
+        // If we hit zero, trigger auto-withdraw but only if not already decided
+        if (newTime <= 0 && !hasDecided && isActiveRef.current) {
+          // Clear interval immediately
+          clearInterval(interval);
+          // Trigger withdraw
+          setHasDecided(true);
+          isActiveRef.current = false;
+          onWithdraw();
+          return 0;
+        }
+        return newTime;
+      });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [visible]); // Removed timeLeft from dependencies
+  }, [visible, hasDecided, onWithdraw, decisionTimer]); // Removed timeLeft from dependencies
 
-  // Auto-withdraw when timer expires
+  // Auto-withdraw when timer expires (fallback)
   useEffect(() => {
-    if (visible && timeLeft === 0 && !hasDecided) {
+    if (visible && timeLeft === 0 && !hasDecided && isActiveRef.current) {
       setHasDecided(true);
+      isActiveRef.current = false;
       onWithdraw();
     }
   }, [visible, timeLeft, hasDecided, onWithdraw]);
 
   const handleContinue = () => {
-    if (hasDecided) return;
+    if (hasDecided || !isActiveRef.current) return;
+    // Immediately deactivate to prevent any further state changes
+    isActiveRef.current = false;
     setHasDecided(true);
     onContinue();
   };
 
   const handleWithdraw = () => {
-    if (hasDecided) return;
+    if (hasDecided || !isActiveRef.current) return;
+    // Immediately deactivate to prevent any further state changes
+    isActiveRef.current = false;
     setHasDecided(true);
     onWithdraw();
   };
 
-  // Calculate progress percentage
-  const progressPercentage = (timeLeft / decisionTimer) * 100;
+  // Calculate progress percentage - safe for negative values
+  const progressPercentage = decisionTimer > 0 
+    ? Math.max(0, (Math.max(0, timeLeft) / decisionTimer) * 100)
+    : 0;
 
   if (!visible) return null;
 
@@ -89,7 +117,7 @@ export function FinalRoundDecision({
                 Final Round Decision
               </span>
               <div className="px-3 py-1 bg-muted border border-border rounded text-sm font-mono font-bold text-foreground tabular-nums">
-                {timeLeft}s
+                {Math.max(0, timeLeft)}s
               </div>
             </div>
 
@@ -128,7 +156,7 @@ export function FinalRoundDecision({
               <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/60">
                 {hasDecided 
                   ? "Décision enregistrée..." 
-                  : `Sélectionnez une option (retrait automatique dans ${timeLeft}s)`
+                  : `Sélectionnez une option (retrait automatique dans ${Math.max(0, timeLeft)}s)`
                 }
               </p>
             </div>

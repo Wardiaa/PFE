@@ -257,6 +257,14 @@ const HostSession: React.FC = () => {
   const [pendingFinalRoundStart, setPendingFinalRoundStart] = useState<boolean>(false);
   // Countdown displayed in the FinalRoundWaitingOverlay
   const [finalRoundDecisionSecondsLeft, setFinalRoundDecisionSecondsLeft] = useState<number>(0);
+  // BUG FIX (Bug 4): track how many participants have submitted any decision
+  // (continue OR withdraw). Previously decidedCount was continuingParticipants.length
+  // which only counts "Yes" voters, so the overlay always showed 0/N decided
+  // until everyone happened to choose continue.
+  const [finalRoundDecidedCount, setFinalRoundDecidedCount] = useState<number>(0);
+  // Snapshot of alive.length when the decision phase begins so totalDeciding
+  // remains stable even as withdrawals move players to the eliminated list.
+  const [finalRoundDecidingTotal, setFinalRoundDecidingTotal] = useState<number>(0);
   
   // ── Debounced refresh timeout ref ─────────────────────────────────────────
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -391,9 +399,16 @@ const HostSession: React.FC = () => {
         },
       });
       
-      // Refresh game state
+      // Refresh game state and broadcast it to spectators / all participants.
+      // Without this broadcast, eliminated spectators never receive the updated
+      // alive/eliminated counts after a speed round because SPEED_QUESTION_RESULTS
+      // only carries advancingParticipantIds, not the full game state.
       const newState = await SessionService.getGameState(session.id);
       setGameState(newState);
+      sendMessageRef.current({
+        type: SESSION_EVENTS.GAME_STATE_UPDATE,
+        payload: newState as unknown as Record<string, unknown>,
+      });
       
       // Show results
       setShowResults(true);
@@ -486,10 +501,25 @@ const HostSession: React.FC = () => {
 
       if (msg.type === SESSION_EVENTS.REQUEST_GAME_STATE) {
         if (isEliminationRef.current) {
-          sendMessageRef.current?.({
-            type: SESSION_EVENTS.GAME_STATE_UPDATE,
-            payload: gameStateRef.current as unknown as Record<string, unknown>,
-          });
+          const sess = sessionRef.current;
+          if (sess) {
+            // BUG FIX: stale broadcast overwrites participant game state with 0/0.
+            // Previously the host replied with gameStateRef.current, which can be
+            // empty/stale when a participant first connects (the host's ref hasn't
+            // been refreshed to include the new joiner yet). Every client on the
+            // channel receives this GAME_STATE_UPDATE broadcast and overwrites their
+            // correctly-fetched local state with totalPlayers: 0.
+            //
+            // Fix: always do a fresh DB fetch before broadcasting so the response
+            // reflects the true current state. The host's own view is also updated.
+            SessionService.getGameState(sess.id).then((freshState) => {
+              setGameState(freshState);
+              sendMessageRef.current?.({
+                type: SESSION_EVENTS.GAME_STATE_UPDATE,
+                payload: freshState as unknown as Record<string, unknown>,
+              });
+            });
+          }
         }
         return;
       }
@@ -497,6 +527,9 @@ const HostSession: React.FC = () => {
       // Final round decision response
       if (msg.type === SESSION_EVENTS.FINAL_ROUND_DECISION_RESPONSE) {
         refreshFinalRoundParticipants();
+        // BUG FIX (Bug 4): count every decision (continue + withdraw) so the
+        // overlay progress is accurate.
+        setFinalRoundDecidedCount((prev) => prev + 1);
         return;
       }
     },
@@ -536,6 +569,9 @@ const HostSession: React.FC = () => {
     
     console.log("[HOST] Starting final round decision for", gameState.alive.length, "alive participants");
     setIsFinalRoundDecision(true);
+    // BUG FIX (Bug 4): reset per-decision counters and snapshot alive count.
+    setFinalRoundDecidedCount(0);
+    setFinalRoundDecidingTotal(gameState.alive.length);
     const decisionTime = finalRoundDecisionTimer;
     
     // Show decision screen to ALL ALIVE participants
@@ -1406,6 +1442,28 @@ const HostSession: React.FC = () => {
   };
 
   const handleToggleResultsWithNoTimer = (): void => {
+    // BUG FIX: Untimed speed question — processSpeedQuestionEnd() was never
+    // called because it was only triggered by timer expiry. For untimed speed
+    // questions the timer never runs, so the host clicking "Show Results"
+    // previously only sent FORCE_QUESTION_CLOSE without broadcasting
+    // SPEED_QUESTION_RESULTS, leaving all participants stuck with no overlays.
+    //
+    // Fix: send FORCE_QUESTION_CLOSE first (blocks any late submissions on the
+    // participant side immediately), then call processSpeedQuestionEnd() which
+    // processes the DB eliminations and broadcasts SPEED_QUESTION_RESULTS so
+    // participants see the correct elimination/advancing overlays.
+    if (
+      isElimination &&
+      isSpeedQuestion &&
+      currentQuestionTimeLimitRef.current === null &&
+      !isProcessingSpeedQuestion &&
+      !showResults
+    ) {
+      sendMessage({ type: SESSION_EVENTS.FORCE_QUESTION_CLOSE, payload: {} });
+      processSpeedQuestionEnd(); // async: processes DB + broadcasts SPEED_QUESTION_RESULTS
+      return;
+    }
+
     handleToggleQuestionResults();
     if (isElimination && currentQuestionTimeLimitRef.current === null) {
       sendMessage({ type: SESSION_EVENTS.FORCE_QUESTION_CLOSE, payload: {} });
@@ -2055,8 +2113,8 @@ const HostSession: React.FC = () => {
         {/* Final round decision overlay — prevents host screen from appearing frozen */}
         <FinalRoundWaitingOverlay
           visible={isFinalRoundDecision}
-          totalDeciding={gameState.alive.length}
-          decidedCount={continuingParticipants.length}
+          totalDeciding={finalRoundDecidingTotal || gameState.alive.length}
+          decidedCount={finalRoundDecidedCount}
           secondsRemaining={finalRoundDecisionSecondsLeft}
         />
       </div>
