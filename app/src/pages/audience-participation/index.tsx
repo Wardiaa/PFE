@@ -266,13 +266,23 @@ const AudienceParticipation: React.FC = () => {
   }, []);
 
   // ── Load skips data when participant joins ─────────────────────────
-  const loadSkipsData = useCallback(async () => {
+  // OPTIMIZED: accepts an optional `preloadedMaxSkips` parameter that is
+  // supplied by joinSession (which now returns max_skips_per_participant
+  // directly from the context row). When provided the 2-query chain
+  // sessions→contexts inside getMaxSkipsForSession is skipped entirely,
+  // saving 2 DB round-trips per participant join (200 fewer queries for
+  // 100 concurrent participants).
+  const loadSkipsData = useCallback(async (preloadedMaxSkips?: number) => {
     if (!participantSessionRef.current) return;
     
     const sessionId = participantSessionRef.current.session.id;
     const participantId = participantSessionRef.current.participantId;
     
-    const maxSkips = await SessionService.getMaxSkipsForSession(sessionId);
+    // Use preloaded value when available; fall back to a DB fetch only for
+    // the rare case where loadSkipsData is called outside of the join flow.
+    const maxSkips = preloadedMaxSkips !== undefined
+      ? preloadedMaxSkips
+      : await SessionService.getMaxSkipsForSession(sessionId);
     setMaxSkipsPerParticipant(maxSkips);
     
     const skipsUsed = await SessionService.getParticipantSkipsUsed(participantId);
@@ -280,56 +290,24 @@ const AudienceParticipation: React.FC = () => {
     setSkipsRemaining(remaining);
   }, []);
 
+  // OPTIMIZED: loadMetadata has been removed from this useEffect.
+  // The context metadata (gameMode, themeId, finalRoundDecisionTimer,
+  // maxSkipsPerParticipant) is now returned directly by SessionService.joinSession
+  // and applied synchronously in handleJoinSession, eliminating 2 extra DB
+  // round-trips (sessions→contexts) that previously fired after every join.
+  //
+  // This useEffect now only calls loadSkipsData to refresh the skips-used
+  // count from the DB (1 query). The maxSkipsPerParticipant state is already
+  // set by handleJoinSession before this fires, so loadSkipsData receives it
+  // as a preloaded value and skips its own DB fetch.
   useEffect(() => {
     const sessionId = participantSession?.session?.id;
     if (!sessionId) return;
 
-    let cancelled = false;
-
-    const loadMetadata = async () => {
-      try {
-        const { data: sessionRow, error: sessionErr } = await supabase
-          .from("sessions")
-          .select("context_id")
-          .eq("id", sessionId)
-          .maybeSingle();
-
-        if (sessionErr || !sessionRow?.context_id) return;
-
-        const { data: ctx, error: ctxErr } = await supabase
-          .from("contexts")
-          .select("game_mode, theme, final_round_decision_timer")
-          .eq("id", sessionRow.context_id)
-          .maybeSingle();
-
-        if (ctxErr || !ctx || cancelled) return;
-
-        const gameModeValue =
-          ctx?.game_mode === "elimination" ? "elimination" : "standard";
-        const themeValue = ctx?.theme || "default";
-
-        setContextMeta({
-          gameMode: gameModeValue,
-          themeId: themeValue,
-        });
-
-        isEliminationRef.current = gameModeValue === "elimination";
-        
-        if (ctx.final_round_decision_timer) {
-          setFinalDecisionTimer(ctx.final_round_decision_timer);
-        }
-      } catch (err) {
-        console.error("[Metadata] Error:", err);
-      }
-    };
-
-    loadMetadata();
-    loadSkipsData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [participantSession?.session?.id, loadSkipsData]);
+    // Pass the already-known maxSkipsPerParticipant so loadSkipsData skips
+    // the redundant getMaxSkipsForSession DB call.
+    loadSkipsData(maxSkipsPerParticipant);
+  }, [participantSession?.session?.id, loadSkipsData, maxSkipsPerParticipant]);
 
   useEffect(() => {
     if (!isElimination || !participantSession?.session.id) return;
@@ -357,12 +335,17 @@ const AudienceParticipation: React.FC = () => {
       }
     };
 
+    // OPTIMIZED: Removed setInterval(refreshGameState, 2000).
+    // Previously this polled the DB every 2 s per participant in elimination
+    // mode — 100 participants × 1 query/2 s = 50 queries/s just for game state.
+    // Game-state changes (eliminations, round advances) are already delivered
+    // in real-time via Supabase Broadcast events (PLAYER_ELIMINATED,
+    // GAME_STATE_UPDATE) which trigger setGameState updates. The one-time
+    // fetch below is enough to hydrate state on initial join.
     refreshGameState();
-    const interval = setInterval(refreshGameState, 2000);
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
     };
   }, [
     isElimination,
@@ -1112,6 +1095,22 @@ const AudienceParticipation: React.FC = () => {
       participantSessionRef.current = ps;
       setParticipantSession(ps);
 
+      // OPTIMIZED: Apply context metadata bundled in the join result.
+      // Previously these values required 2 extra DB round-trips after joining
+      // (sessions → contexts). Now they come for free from joinSession,
+      // which fetches the context row as part of its existing query.
+      const joinedGameMode = result.gameMode ?? "standard";
+      const joinedThemeId = result.themeId ?? "default";
+      setContextMeta({ gameMode: joinedGameMode, themeId: joinedThemeId });
+      isEliminationRef.current = joinedGameMode === "elimination";
+      if (result.finalRoundDecisionTimer) {
+        setFinalDecisionTimer(result.finalRoundDecisionTimer);
+      }
+      // Set maxSkipsPerParticipant immediately so the loadSkipsData call
+      // below can use it without an extra DB round-trip.
+      const joinedMaxSkips = result.maxSkipsPerParticipant ?? 1;
+      setMaxSkipsPerParticipant(joinedMaxSkips);
+
       const joinedCode = joinData.code.toUpperCase();
       if (searchParams.get("code") !== joinedCode) {
         setSearchParams({ code: joinedCode }, { replace: true });
@@ -1121,7 +1120,9 @@ const AudienceParticipation: React.FC = () => {
       setIsPaused(paused);
       isPausedRef.current = paused;
 
-      await loadSkipsData();
+      // Pass the preloaded maxSkips to avoid the redundant
+      // getMaxSkipsForSession DB call inside loadSkipsData.
+      await loadSkipsData(joinedMaxSkips);
 
       if (
         result.session.status === "ACTIVE" &&

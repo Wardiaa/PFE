@@ -1,5 +1,12 @@
 // src/lib/session.service.ts
 // COMPLETE VERSION - includes all methods for elimination, speed questions, skip, grid-2x2, and vote
+// OPTIMIZED:
+//   • joinSession now returns gameMode, themeId, finalRoundDecisionTimer, and
+//     maxSkipsPerParticipant so participants never need extra DB round-trips
+//     after joining (saves 2 queries per participant = 200 fewer queries for
+//     100 concurrent participants).
+//   • joinSession enforces a hard participant cap (maxParticipants from context
+//     settings) before inserting, preventing silent oversubscription.
 
 import { supabase } from "../lib/supabase";
 import type {
@@ -45,6 +52,17 @@ export interface JoinSessionResult {
    *  late-joining participants can start their wall-clock countdown from the
    *  correct anchor without a separate DB round-trip. */
   currentQuestionEndsAt?: number;
+  // ── OPTIMIZED: context metadata bundled into join response ─────────────────
+  /** Game mode of the session's context — avoids a post-join context query. */
+  gameMode: GameMode;
+  /** Theme ID of the session's context — avoids a post-join context query. */
+  themeId: string;
+  /** Seconds allocated for the final-round continue/withdraw decision screen. */
+  finalRoundDecisionTimer: number;
+  /** Maximum number of skips each participant is allowed to use. Avoids the
+   *  2-query chain (sessions → contexts) that was previously fired per
+   *  participant after joining. */
+  maxSkipsPerParticipant: number;
 }
 
 export class SessionService {
@@ -187,10 +205,13 @@ export class SessionService {
       if (session.status === "ENDED") throw new Error("This session has already ended.");
 
       // Run context + questions fetch in parallel.
+      // OPTIMIZED: context query now also fetches final_round_decision_timer,
+      // max_skips_per_participant, and settings so we don't need separate
+      // post-join queries for these values on the participant side.
       const [{ data: context }, { data: questionsRaw }] = await Promise.all([
         supabase
           .from("contexts")
-          .select("id, title, game_mode, theme")
+          .select("id, title, game_mode, theme, final_round_decision_timer, max_skips_per_participant, settings")
           .eq("id", session.context_id)
           .maybeSingle(),
         supabase
@@ -207,6 +228,29 @@ export class SessionService {
           "You cannot join this elimination session after it has started. Participants must join before the session begins.",
         );
       }
+
+      // ── OPTIMIZED: Hard participant cap enforcement ─────────────────────────
+      // Previously the app relied on a JSONB `settings.maxParticipants` field
+      // that was never checked at insert time. Now we count current participants
+      // and reject early — before opening a DB insert — if the session is full.
+      // This also prevents Realtime connection oversubscription.
+      const maxParticipants: number =
+        (context?.settings as any)?.maxParticipants ?? 100;
+
+      const { count: currentCount, error: countError } = await supabase
+        .from("participants")
+        .select("*", { count: "exact", head: true })
+        .eq("session_id", session.id);
+
+      if (countError) {
+        console.error("Failed to count participants:", countError);
+        // Non-fatal: continue without enforcement if the count query fails.
+      } else if (currentCount !== null && currentCount >= maxParticipants) {
+        throw new Error(
+          `This session is full (${maxParticipants} participants maximum). Please contact the host.`,
+        );
+      }
+      // ── End cap enforcement ─────────────────────────────────────────────────
 
       const { data: participant, error: participantError } = await supabase
         .from("participants")
@@ -232,6 +276,8 @@ export class SessionService {
         title: context?.title ?? "Untitled Session",
         game_mode: context?.game_mode ?? "standard",
         theme: context?.theme ?? "default",
+        final_round_decision_timer: context?.final_round_decision_timer ?? 20,
+        max_skips_per_participant: context?.max_skips_per_participant ?? 1,
         questions: questionsRaw ?? [],
       };
 
@@ -285,6 +331,11 @@ export class SessionService {
         currentQuestionEndsAt: session.current_question_ends_at
           ? new Date(session.current_question_ends_at).getTime()
           : undefined,
+        // ── OPTIMIZED: bundled context metadata ────────────────────────────
+        gameMode: (finalContext.game_mode ?? "standard") as GameMode,
+        themeId: finalContext.theme ?? "default",
+        finalRoundDecisionTimer: finalContext.final_round_decision_timer,
+        maxSkipsPerParticipant: finalContext.max_skips_per_participant,
       };
     } catch (error) {
       console.error("Join session error:", error);
@@ -676,8 +727,8 @@ export class SessionService {
             timestamp: new Date(),
           });
 
-          aggregated.itemPlacements = aggregated.itemPlacements || {};
           Object.entries(answer.placements).forEach(([itemId, placement]) => {
+            if (!aggregated.itemPlacements) aggregated.itemPlacements = {};
             if (!aggregated.itemPlacements[itemId]) {
               aggregated.itemPlacements[itemId] = { placements: [], centroid: { x: 50, y: 50 } };
             }
@@ -744,7 +795,7 @@ export class SessionService {
                 timestamp: new Date(),
               });
             });
-        }
+          }
 
         // ── Ranking answers ──────────────────────────────────────────────
         } else if (answer.rankingOrder && Array.isArray(answer.rankingOrder)) {
@@ -775,7 +826,7 @@ export class SessionService {
               participantName,
               timestamp: new Date(),
             });
-        }
+          }
 
         // ── Choice answers ─────────────────────────────────────────────
         } else if (answer.optionId) {
@@ -957,66 +1008,124 @@ export class SessionService {
   }
 
   /**
-   * OPTIMIZED: Runs the three queries in parallel with Promise.all.
-   * For elimination sessions with the get_game_state RPC installed, a single
-   * RPC call replaces the three parallel queries.
+   * OPTIMIZED: Tries the existing get_game_state RPC first (1 DB round-trip),
+   * then falls back to three parallel queries.
+   *
+   * The RPC response shape (verified against the installed function):
+   *   {
+   *     alive:        camelCase Participant[]   — pre-filtered is_alive = true
+   *     eliminated:   camelCase Participant[]   — pre-filtered is_alive = false
+   *     totalPlayers: number
+   *     currentRound: number                   — MAX(round_number) from elimination_log
+   *     history:      camelCase EliminationEvent[]
+   *   }
+   *
+   * NOTE: The RPC does not include skipsUsed in participant rows.
+   * It defaults to 0 here; the real value is tracked via getParticipantSkipsUsed.
    */
   static async getGameState(sessionId: string): Promise<GameState> {
+    // ── Maps a camelCase participant row from the RPC response ────────────
+    const mapRpcParticipant = (p: any) => ({
+      id: p.id,
+      name: p.name,
+      score: p.score ?? 0,
+      // RPC returns 'avatar' (alias for avatar_url)
+      avatar: p.avatar ?? undefined,
+      isAnonymous: p.isAnonymous ?? false,
+      joinedAt: new Date(p.joinedAt),
+      isAlive: p.isAlive === true,
+      eliminatedAtRound: p.eliminatedAtRound ?? null,
+      eliminatedAtQuestionId: p.eliminatedAtQuestionId ?? null,
+      // skipsUsed is not included in the RPC projection; default to 0.
+      skipsUsed: 0,
+    });
+
+    // ── Maps a camelCase history row from the RPC response ───────────────
+    const mapRpcHistory = (e: any): EliminationEvent => ({
+      participantId: e.participantId,
+      participantName: e.participantName,
+      questionId: e.questionId,
+      roundNumber: e.roundNumber,
+      eliminatedAt: new Date(e.eliminatedAt),
+    });
+
+    // ── Maps a snake_case participant row from the fallback DB queries ────
+    const mapDbParticipant = (p: any) => ({
+      id: p.id,
+      name: p.name,
+      score: p.score ?? 0,
+      avatar: p.avatar_url ?? undefined,
+      isAnonymous: p.is_anonymous,
+      joinedAt: new Date(p.joined_at),
+      isAlive: p.is_alive === true,
+      eliminatedAtRound: p.eliminated_at_round ?? null,
+      eliminatedAtQuestionId: p.eliminated_at_question_id ?? null,
+      skipsUsed: p.skips_used ?? 0,
+    });
+
+    const mapDbHistory = (row: any): EliminationEvent => ({
+      participantId: row.participant_id,
+      participantName: row.participant_name,
+      questionId: row.question_id,
+      roundNumber: row.round_number,
+      eliminatedAt: new Date(row.eliminated_at),
+    });
+
+    try {
+      // ── Fast path: single RPC call ────────────────────────────────────
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc("get_game_state", { p_session_id: sessionId });
+
+      if (!rpcError && rpcData) {
+        // The RPC already pre-splits alive/eliminated and returns camelCase,
+        // so we can map directly without filtering.
+        return {
+          alive:       (rpcData.alive       ?? []).map(mapRpcParticipant),
+          eliminated:  (rpcData.eliminated  ?? []).map(mapRpcParticipant),
+          winner:      null,
+          totalPlayers: rpcData.totalPlayers ?? 0,
+          currentRound: rpcData.currentRound ?? 0,
+          history:     (rpcData.history     ?? []).map(mapRpcHistory),
+        };
+      }
+
+      if (rpcError) {
+        console.warn("[getGameState] RPC error, using fallback:", rpcError.message);
+      }
+    } catch {
+      // Unexpected RPC error — fall through to query path.
+    }
+
+    // ── Fallback path: three parallel queries (used when RPC unavailable) ─
     try {
       const [{ data: participants }, { data: history }, { data: session }] =
         await Promise.all([
-        supabase
-          .from("participants")
+          supabase
+            .from("participants")
             .select(
               "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id, skips_used",
             )
-          .eq("session_id", sessionId),
-        supabase
-          .from("elimination_log")
-          .select("*")
-          .eq("session_id", sessionId)
-          .order("eliminated_at", { ascending: true }),
-        supabase
-          .from("sessions")
-          .select("current_question_index, status, context_id")
-          .eq("id", sessionId)
-          .maybeSingle(),
-      ]);
+            .eq("session_id", sessionId),
+          supabase
+            .from("elimination_log")
+            .select("*")
+            .eq("session_id", sessionId)
+            .order("eliminated_at", { ascending: true }),
+          supabase
+            .from("sessions")
+            .select("current_question_index, status, context_id")
+            .eq("id", sessionId)
+            .maybeSingle(),
+        ]);
 
-      const allParticipants = (participants || []).map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        score: p.score ?? 0,
-        avatar: p.avatar_url ?? undefined,
-        isAnonymous: p.is_anonymous,
-        joinedAt: new Date(p.joined_at),
-        isAlive: p.is_alive === true,
-        eliminatedAtRound: p.eliminated_at_round ?? null,
-        eliminatedAtQuestionId: p.eliminated_at_question_id ?? null,
-        skipsUsed: p.skips_used ?? 0,
-      }));
-
-      const alive = allParticipants.filter((p) => p.isAlive);
-      const eliminated = allParticipants.filter((p) => !p.isAlive);
-
-      const eliminationHistory: EliminationEvent[] = (history || []).map((row: any) => ({
-        participantId: row.participant_id,
-        participantName: row.participant_name,
-        questionId: row.question_id,
-        roundNumber: row.round_number,
-        eliminatedAt: new Date(row.eliminated_at),
-      }));
-
-      // Use participants count directly for accuracy
-      const totalPlayers = allParticipants.length;
-
+      const allParticipants = (participants ?? []).map(mapDbParticipant);
       return {
-        alive,
-        eliminated,
-        winner: null,
-        totalPlayers,
+        alive:       allParticipants.filter((p) => p.isAlive),
+        eliminated:  allParticipants.filter((p) => !p.isAlive),
+        winner:      null,
+        totalPlayers: allParticipants.length,
         currentRound: (session?.current_question_index ?? -1) + 1,
-        history: eliminationHistory,
+        history:     (history ?? []).map(mapDbHistory),
       };
     } catch (error) {
       console.error("getGameState error:", error);
@@ -1265,40 +1374,51 @@ export class SessionService {
       
       console.log("[processSpeedQuestion] Total to eliminate:", allIdsToEliminate.length);
 
-      // Eliminate all non-advancing participants
+      // OPTIMIZED: Batch eliminate all non-advancing participants.
+      // Old code fired 3 DB calls per participant (SELECT name + UPDATE + INSERT)
+      // → 3N calls total. The new approach uses:
+      //   1. One batch SELECT to fetch names and alive status for all targets
+      //   2. One batch UPDATE to mark all of them is_alive = false
+      //   3. One batch INSERT to write all new elimination_log rows
+      // → 3 calls total, regardless of how many participants are eliminated.
       if (allIdsToEliminate.length > 0) {
-        for (const participantId of allIdsToEliminate) {
-          const { data: participant } = await supabase
-            .from("participants")
-            .select("name, is_alive")
-            .eq("id", participantId)
-            .single();
+        // 1. Fetch names + alive status for all targets in one query.
+        const { data: participantRows } = await supabase
+          .from("participants")
+          .select("id, name, is_alive")
+          .in("id", allIdsToEliminate);
 
-          // Wrong-answer participants were already eliminated (and already
-          // written to elimination_log) the moment they submitted. Only mark
-          // alive→dead and write the log row for participants who are still
-          // alive at timer-end (i.e. correct-but-too-slow participants).
-          const alreadyEliminated = participant?.is_alive === false;
+        const participantMap = new Map(
+          (participantRows ?? []).map((p: any) => [p.id, p]),
+        );
 
-          await supabase
-            .from("participants")
-            .update({
-              is_alive: false,
-              eliminated_at_round: roundNumber,
-              eliminated_at_question_id: questionId,
-            })
-            .eq("id", participantId);
+        // 2. Batch-update all non-advancing participants to is_alive = false.
+        await supabase
+          .from("participants")
+          .update({
+            is_alive: false,
+            eliminated_at_round: roundNumber,
+            eliminated_at_question_id: questionId,
+          })
+          .in("id", allIdsToEliminate);
 
-          if (!alreadyEliminated) {
-            await supabase.from("elimination_log").insert({
-              session_id: sessionId,
-              participant_id: participantId,
-              participant_name: participant?.name || "Unknown",
-              question_id: questionId,
-              round_number: roundNumber,
-              eliminated_at: new Date().toISOString(),
-            });
-          }
+        // 3. Batch-insert elimination_log rows only for participants who were
+        //    still alive (wrong-answer participants were already written to the
+        //    log at submit time, so we skip them to avoid duplicate rows).
+        const eliminatedAt = new Date().toISOString();
+        const logRows = allIdsToEliminate
+          .filter((id) => participantMap.get(id)?.is_alive !== false)
+          .map((participantId) => ({
+            session_id: sessionId,
+            participant_id: participantId,
+            participant_name: participantMap.get(participantId)?.name ?? "Unknown",
+            question_id: questionId,
+            round_number: roundNumber,
+            eliminated_at: eliminatedAt,
+          }));
+
+        if (logRows.length > 0) {
+          await supabase.from("elimination_log").insert(logRows);
         }
       }
 

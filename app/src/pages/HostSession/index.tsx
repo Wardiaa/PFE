@@ -1990,8 +1990,12 @@ const HostSession: React.FC = () => {
                   </div>
                 </div>
 
+                {/* OPTIMIZED: eliminationHistory prop replaces the internal 2s DB poll.
+                    gameState.history is kept current by Broadcast events so no extra
+                    DB queries are needed inside EliminationHistory. */}
                 <EliminationHistory
                   sessionId={session.id}
+                  eliminationHistory={gameState.history}
                   gameState={gameState}
                   currentQuestionId={currentQuestion?.id}
                   revealHistory={

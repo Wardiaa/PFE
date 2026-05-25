@@ -1,7 +1,9 @@
 // EliminationHistory.tsx
-import { useEffect, useRef, useState } from "react";
+// OPTIMIZED: Removed 2s DB polling. History is now passed as a prop from the
+// parent (HostSession), which already holds the full `gameState.history` array
+// updated in real-time via Supabase Broadcast + Postgres CDC events.
+// This eliminates 30 unnecessary DB round-trips per minute per host.
 import { Users, Clock, Hourglass } from "lucide-react";
-import { SessionService } from "../../../service/session.service";
 import type { EliminationEvent, GameState } from "../../../lib/presentation.types";
 
 interface Props {
@@ -17,7 +19,21 @@ interface Props {
    * badge (aliveCount / totalCount). History is always fetched from the DB.
    */
   gameState?: GameState;
-  /** How often to poll the DB for new eliminations (ms). Defaults to 2000. */
+  /**
+   * OPTIMIZED: Elimination history passed directly from the parent instead of
+   * polling the DB. The parent's `gameState.history` array is kept up-to-date
+   * by Supabase Broadcast events (PLAYER_ELIMINATED) and Postgres CDC
+   * subscriptions on `elimination_log`, so no additional DB queries are needed.
+   *
+   * Previously this component polled `SessionService.getEliminationHistory`
+   * every `pollIntervalMs` ms — equivalent to 30 DB queries/minute per host.
+   */
+  eliminationHistory: EliminationEvent[];
+  /**
+   * @deprecated No longer used. DB polling has been replaced by prop-driven
+   * updates. Kept in the interface for a smooth migration — removing it is safe
+   * once all call-sites have been updated.
+   */
   pollIntervalMs?: number;
   /**
    * Controls whether the CURRENT question's eliminations are visible.
@@ -32,36 +48,12 @@ interface Props {
 }
 
 export function EliminationHistory({
-  sessionId,
   currentQuestionId,
   gameState,
-  pollIntervalMs = 2000,
+  eliminationHistory,
+  // pollIntervalMs is intentionally unused — see deprecation note above.
   revealHistory = true,
 }: Props) {
-  const [history, setHistory] = useState<EliminationEvent[]>([]);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Always poll in the background regardless of display gates.
-  useEffect(() => {
-    let alive = true;
-
-    const tick = async () => {
-      const h = await SessionService.getEliminationHistory(sessionId);
-      if (alive) setHistory(h);
-    };
-
-    tick();
-    intervalRef.current = setInterval(tick, pollIntervalMs);
-
-    return () => {
-      alive = false;
-      if (intervalRef.current !== null) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [sessionId, pollIntervalMs]);
-
   const aliveCount = gameState?.alive.length;
   const totalCount = gameState?.totalPlayers;
 
@@ -70,7 +62,7 @@ export function EliminationHistory({
   // answer writes one record immediately and processSpeedQuestionEnd writes
   // another at timer end.
   const deduped = Array.from(
-    history
+    eliminationHistory
       .slice()
       .sort((a, b) => new Date(b.eliminatedAt).getTime() - new Date(a.eliminatedAt).getTime())
       .reduce((map, e) => {
