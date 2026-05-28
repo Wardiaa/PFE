@@ -4,6 +4,8 @@
 // SPEED QUESTION UPDATE: Added speed question processing and final round handling
 //  Final round decision now triggers BEFORE the last question is shown.
 //      handleNext now checks if the *next* question would be the last one (not the current).
+// Untimed elimination questions now properly show the round elimination overlay
+//      when the host clicks "Show Results" (not just when timer expires).
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -257,10 +259,6 @@ const HostSession: React.FC = () => {
   const [pendingFinalRoundStart, setPendingFinalRoundStart] = useState<boolean>(false);
   // Countdown displayed in the FinalRoundWaitingOverlay
   const [finalRoundDecisionSecondsLeft, setFinalRoundDecisionSecondsLeft] = useState<number>(0);
-  // BUG FIX (Bug 4): track how many participants have submitted any decision
-  // (continue OR withdraw). Previously decidedCount was continuingParticipants.length
-  // which only counts "Yes" voters, so the overlay always showed 0/N decided
-  // until everyone happened to choose continue.
   const [finalRoundDecidedCount, setFinalRoundDecidedCount] = useState<number>(0);
   // Snapshot of alive.length when the decision phase begins so totalDeciding
   // remains stable even as withdrawals move players to the eliminated list.
@@ -425,6 +423,110 @@ const HostSession: React.FC = () => {
     }
   }, [session, currentQuestion, currentQuestionIndex, speedMaxAdvance, isProcessingSpeedQuestion, showResults, toast]);
 
+  // Process untimed question eliminations (for non-speed elimination questions) ──
+  const processUntimedQuestionEliminations = useCallback(async () => {
+    if (!session || !currentQuestion || isProcessingSpeedQuestion || showResults) return;
+    
+    console.log("[HOST] Processing untimed question eliminations...");
+    setIsProcessingSpeedQuestion(true);
+    
+    try {
+      const roundNumber = currentQuestionIndex + 1;
+      
+      // Get all participants who submitted an answer to this question
+      const { data: responsesData, error: responsesError } = await supabase
+        .from("responses")
+        .select("participant_id, is_correct, answer")
+        .eq("session_id", session.id)
+        .eq("question_id", currentQuestion.id);
+      
+      if (responsesError) {
+        console.error("[HOST] Failed to get responses:", responsesError);
+        return;
+      }
+      
+      // Filter participants who answered incorrectly
+      const wrongAnswerIds = (responsesData || [])
+        .filter(r => r.is_correct === false)
+        .map(r => r.participant_id);
+      
+      // Also get all alive participants to find those who didn't answer at all
+      const { data: allParticipants, error: participantsError } = await supabase
+        .from("participants")
+        .select("id, name")
+        .eq("session_id", session.id)
+        .eq("is_alive", true);
+      
+      if (participantsError) {
+        console.error("[HOST] Failed to get participants:", participantsError);
+        return;
+      }
+      
+      const answeredIds = (responsesData || []).map(r => r.participant_id);
+      const noAnswerIds = (allParticipants || [])
+        .filter(p => !answeredIds.includes(p.id))
+        .map(p => p.id);
+      
+      // Combine wrong answers and no-answers for elimination
+      const idsToEliminate = [...new Set([...wrongAnswerIds, ...noAnswerIds])];
+      
+      console.log("[HOST] Eliminating participants:", idsToEliminate.length);
+      
+      // Eliminate each participant
+      for (const participantId of idsToEliminate) {
+        const participant = allParticipants?.find(p => p.id === participantId);
+        if (participant) {
+          await SessionService.eliminateParticipant({
+            sessionId: session.id,
+            participantId: participant.id,
+            questionId: currentQuestion.id,
+            roundNumber,
+          });
+          
+          // Broadcast elimination
+          sendMessageRef.current({
+            type: SESSION_EVENTS.PLAYER_ELIMINATED,
+            payload: {
+              participantId: participant.id,
+              participantName: participant.name,
+              questionId: currentQuestion.id,
+              roundNumber,
+              eliminatedAt: new Date().toISOString(),
+            },
+          });
+        }
+      }
+      
+      // Refresh game state and broadcast
+      const newState = await SessionService.getGameState(session.id);
+      setGameState(newState);
+      sendMessageRef.current({
+        type: SESSION_EVENTS.GAME_STATE_UPDATE,
+        payload: newState as unknown as Record<string, unknown>,
+      });
+      
+      // Show results
+      setShowResults(true);
+      
+      // Show elimination overlay if anyone was eliminated
+      const eliminatedCount = idsToEliminate.length;
+      if (eliminatedCount > 0) {
+        setRoundEliminationCount(eliminatedCount);
+        setOverlayRoundNumber(roundNumber);
+      }
+      
+      toast({
+        title: "Results Ready",
+        description: `${eliminatedCount} participant(s) eliminated.`,
+      });
+    } catch (error) {
+      console.error("Failed to process untimed question eliminations:", error);
+      toast({ title: "Error", description: "Failed to process results", variant: "destructive" });
+    } finally {
+      setIsProcessingSpeedQuestion(false);
+    }
+  }, [session, currentQuestion, currentQuestionIndex, isProcessingSpeedQuestion, showResults, toast]);
+
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
@@ -503,14 +605,14 @@ const HostSession: React.FC = () => {
         if (isEliminationRef.current) {
           const sess = sessionRef.current;
           if (sess) {
-            // BUG FIX: stale broadcast overwrites participant game state with 0/0.
+            // bug avant: stale broadcast overwrites participant game state with 0/0.
             // Previously the host replied with gameStateRef.current, which can be
             // empty/stale when a participant first connects (the host's ref hasn't
             // been refreshed to include the new joiner yet). Every client on the
             // channel receives this GAME_STATE_UPDATE broadcast and overwrites their
             // correctly-fetched local state with totalPlayers: 0.
             //
-            // Fix: always do a fresh DB fetch before broadcasting so the response
+            // donc : always do a fresh DB fetch before broadcasting so the response
             // reflects the true current state. The host's own view is also updated.
             SessionService.getGameState(sess.id).then((freshState) => {
               setGameState(freshState);
@@ -527,8 +629,6 @@ const HostSession: React.FC = () => {
       // Final round decision response
       if (msg.type === SESSION_EVENTS.FINAL_ROUND_DECISION_RESPONSE) {
         refreshFinalRoundParticipants();
-        // BUG FIX (Bug 4): count every decision (continue + withdraw) so the
-        // overlay progress is accurate.
         setFinalRoundDecidedCount((prev) => prev + 1);
         return;
       }
@@ -569,7 +669,6 @@ const HostSession: React.FC = () => {
     
     console.log("[HOST] Starting final round decision for", gameState.alive.length, "alive participants");
     setIsFinalRoundDecision(true);
-    // BUG FIX (Bug 4): reset per-decision counters and snapshot alive count.
     setFinalRoundDecidedCount(0);
     setFinalRoundDecidingTotal(gameState.alive.length);
     const decisionTime = finalRoundDecisionTimer;
@@ -1441,14 +1540,15 @@ const HostSession: React.FC = () => {
     debouncedRefreshResponses();
   };
 
+  // Handle show results button for elimination questions ─────────
   const handleToggleResultsWithNoTimer = (): void => {
-    // BUG FIX: Untimed speed question — processSpeedQuestionEnd() was never
+    // bug avant : Untimed speed question — processSpeedQuestionEnd() was never
     // called because it was only triggered by timer expiry. For untimed speed
     // questions the timer never runs, so the host clicking "Show Results"
     // previously only sent FORCE_QUESTION_CLOSE without broadcasting
     // SPEED_QUESTION_RESULTS, leaving all participants stuck with no overlays.
     //
-    // Fix: send FORCE_QUESTION_CLOSE first (blocks any late submissions on the
+    // sol : send FORCE_QUESTION_CLOSE first (blocks any late submissions on the
     // participant side immediately), then call processSpeedQuestionEnd() which
     // processes the DB eliminations and broadcasts SPEED_QUESTION_RESULTS so
     // participants see the correct elimination/advancing overlays.
@@ -1461,6 +1561,25 @@ const HostSession: React.FC = () => {
     ) {
       sendMessage({ type: SESSION_EVENTS.FORCE_QUESTION_CLOSE, payload: {} });
       processSpeedQuestionEnd(); // async: processes DB + broadcasts SPEED_QUESTION_RESULTS
+      return;
+    }
+
+    // For non-speed untimed questions in elimination mode, we need to
+    // process eliminations BEFORE showing results. Without this, participants
+    // who answered incorrectly never see the elimination overlay because the
+    // timer never expires to trigger the elimination logic.
+    if (
+      isElimination &&
+      !isSpeedQuestion &&
+      currentQuestionTimeLimitRef.current === null &&
+      !isProcessingSpeedQuestion &&
+      !showResults
+    ) {
+      // Close the question for participants
+      sendMessage({ type: SESSION_EVENTS.FORCE_QUESTION_CLOSE, payload: {} });
+      
+      // Process eliminations for this untimed question
+      processUntimedQuestionEliminations();
       return;
     }
 

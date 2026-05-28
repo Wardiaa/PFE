@@ -70,15 +70,6 @@ export function SpectatorMode({
   showAnswerReveal = false,
   submittedOptionId = null,
 }: Props) {
-  // BUG FIX: Use the question's own 1-indexed number for the "Question en cours"
-  // display instead of gameState.currentRound.
-  //   • currentRound starts at 0 during Q1 (no eliminations yet), so it would
-  //     display "Q 0" for the first question.
-  //   • For spectators, currentRound is only refreshed via GAME_STATE_UPDATE
-  //     broadcasts which are not sent after regular (non-speed) elimination
-  //     rounds, so it stays frozen at the round when they were eliminated.
-  // currentQuestion.number is always accurate: set to questionIndex + 1 in
-  // loadQuestion and updated on every QUESTION_CHANGE broadcast.
   const displayRoundNumber = currentQuestion?.number ?? (gameState.currentRound > 0 ? gameState.currentRound : 1);
 
   return (

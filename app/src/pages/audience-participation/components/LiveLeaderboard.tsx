@@ -141,9 +141,6 @@ export function LiveLeaderboard({
             {aliveCount}/{totalCount}
           </div>
           <div className="text-[10px] uppercase tracking-widest text-[color:var(--cpl-text-dim)]">
-            {/* BUG FIX: prefer currentQuestionNumber (passed by parent) over
-                currentRound — currentRound starts at 0 on Q1 and is not
-                broadcast after regular elimination rounds. */}
             Question {currentQuestionNumber ?? (currentRound > 0 ? currentRound : '—')}
           </div>
         </div>

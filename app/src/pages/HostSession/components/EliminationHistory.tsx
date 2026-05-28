@@ -4,7 +4,7 @@
 // updated in real-time via Supabase Broadcast + Postgres CDC events.
 // This eliminates 30 unnecessary DB round-trips per minute per host.
 //
-// FIX: For final-round withdrawals that happen BEFORE the last question starts,
+// For final-round withdrawals that happen BEFORE the last question starts,
 // they are always shown immediately (not gated by revealHistory). Now uses
 // round number comparison instead of timestamps for reliability across timezones.
 
@@ -92,15 +92,6 @@ export function EliminationHistory({
   // Re-sort ascending by eliminatedAt so the list reads oldest → newest
   ).sort((a, b) => new Date(a.eliminatedAt).getTime() - new Date(b.eliminatedAt).getTime());
 
-  // Split into two buckets using round number comparison:
-  // • visibleHistory — previous rounds (always) + current round (only when revealed)
-  // • hiddenCount     — current round entries that are gated
-  //
-  // CRITICAL FIX: Use roundNumber comparison instead of timestamp.
-  // For final-round withdrawals, the elimination has roundNumber equal to
-  // currentQuestionNumber, but it happened BEFORE the question started.
-  // Since it's the SAME round number, it will be hidden until revealHistory=true.
-  // For the last question, the parent must pass revealHistory=true.
   const visibleHistory = deduped.filter((e) => {
     // If we have currentQuestionNumber, use round-based filtering
     if (currentQuestionNumber !== undefined) {

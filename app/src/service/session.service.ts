@@ -8,7 +8,7 @@
 //   • joinSession enforces a hard participant cap (maxParticipants from context
 //     settings) before inserting, preventing silent oversubscription.
 //
-// FIX: recordFinalRoundDecision now writes to elimination_log when participant withdraws,
+// recordFinalRoundDecision now writes to elimination_log when participant withdraws,
 //      so final-round withdrawals appear in elimination history on the host side.
 
 import { supabase } from "../lib/supabase";

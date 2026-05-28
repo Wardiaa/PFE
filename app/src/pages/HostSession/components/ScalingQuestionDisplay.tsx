@@ -266,7 +266,7 @@ const ScalingQuestionDisplay: React.FC<ScalingQuestionDisplayProps> = ({
         </span>
       </div>
 
-      {/* Fixed participants badge – unchanged */}
+      {/* participants badge */}
       <div className="fixed bottom-8 right-8">
         <div className="bg-foreground text-background px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 border border-background/20">
           <Users className="w-4 h-4" />
