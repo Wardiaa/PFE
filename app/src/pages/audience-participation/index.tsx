@@ -1832,12 +1832,12 @@ const AudienceParticipation: React.FC = () => {
         {isHeaderOpen && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setIsHeaderOpen(false)} />
-            <div className="absolute top-10 right-0 z-50 w-64 bg-card rounded-xl shadow-xl border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="absolute top-10 right-0 z-50 w-64 bg-popover rounded-xl shadow-xl border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-200">
               <div className="p-3 border-b border-border bg-muted/20">
                 <p className="text-xs font-medium text-foreground truncate">
                   {participantSession.session.presentation.title}
                 </p>
-                <p className="font-mono text-sm font-bold mt-1 tracking-wider">
+                <p className="font-mono text-sm font-bold mt-1 tracking-wider text-foreground">
                   {participantSession.session.code}
                 </p>
               </div>
@@ -1846,13 +1846,13 @@ const AudienceParticipation: React.FC = () => {
                   <span className="text-xs text-muted-foreground">Status</span>
                   <div className="flex items-center gap-1.5">
                     <div className={`w-1.5 h-1.5 rounded-full ${isPaused ? "bg-yellow-500" : "bg-success"}`} />
-                    <span className="text-xs font-medium">{isPaused ? "Paused" : "Live"}</span>
+                    <span className="text-xs font-medium text-foreground">{isPaused ? "Paused" : "Live"}</span>
                   </div>
                 </div>
                 {sessionState === "question" && currentQuestion && (
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Question</span>
-                    <span className="text-xs font-medium">
+                    <span className="text-xs font-medium text-foreground">
                       {currentQuestion.number} / {participantSession.session.presentation.questions.length}
                     </span>
                   </div>
@@ -1860,7 +1860,7 @@ const AudienceParticipation: React.FC = () => {
                 {participantSession.participantName && (
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Joined as</span>
-                    <span className="text-xs font-medium truncate max-w-[120px]">
+                    <span className="text-xs font-medium text-foreground truncate max-w-[120px]">
                       {participantSession.participantName}
                     </span>
                   </div>
@@ -1870,7 +1870,7 @@ const AudienceParticipation: React.FC = () => {
                     setIsHeaderOpen(false);
                     handleJoinNewSession();
                   }}
-                  className="w-full mt-2 text-center text-xs text-red-500 hover:text-red-600 py-1.5 border-t border-border pt-2 transition-colors"
+                  className="w-full mt-2 text-center text-xs text-destructive hover:text-destructive/80 py-1.5 border-t border-border pt-2 transition-colors"
                 >
                   Leave Session
                 </button>
@@ -1901,11 +1901,11 @@ const AudienceParticipation: React.FC = () => {
             {isPaused && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 flex items-center justify-center">
                 <div className="bg-card rounded-xl p-8 text-center max-w-md mx-4">
-                  <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-100  flex items-center justify-center">
+                  <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-100 dark:bg-yellow-100 flex items-center justify-center">
                     <AppIcon
                       name="Pause"
                       size={40}
-                      className="dark:bg-yellow-900/20"
+                      className="text-black"
                     />
                   </div>
                   <h2 className="text-2xl font-bold text-foreground mb-2">
