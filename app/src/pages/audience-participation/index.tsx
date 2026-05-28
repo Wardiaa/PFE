@@ -12,6 +12,8 @@
 //     question" requirement.
 // GRID 2x2 & VOTE: Added support for grid-2x2 and vote question types
 // UI UPDATE: Collapsible session info header (3-dots menu)
+// BUG FIX: Final round withdrawals now show the correct eliminatedAtRound value
+//   (the final question's number, not the previous round's number)
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -1372,7 +1374,14 @@ const AudienceParticipation: React.FC = () => {
       const myId = participantSessionRef.current.participantId;
       const myName = participantSessionRef.current.participantName;
       const qId = currentQuestionRef.current?.id ?? "";
-      const roundNum = gameState.currentRound ?? 0;
+      // Final round withdrawals must show the correct round number.
+      // Previously we used gameState.currentRound (which may be stale or 0).
+      // The final round is the last question in the presentation, so we should
+      // use currentQuestionRef.current?.number (the question's 1-indexed number)
+      // instead. This ensures the spectator banner shows e.g. "Question 8"
+      // rather than the previous round's number.
+      const finalRoundNumber = currentQuestionRef.current?.number ?? 
+        (participantSessionRef.current.session.presentation.questions.length);
       const sessId = participantSessionRef.current.session.id;
 
       // FIX: Immediately update local gameState so the participant sees themselves as eliminated
@@ -1387,7 +1396,7 @@ const AudienceParticipation: React.FC = () => {
               {
                 ...me,
                 isAlive: false,
-                eliminatedAtRound: roundNum,
+                eliminatedAtRound: finalRoundNumber,
                 eliminatedAtQuestionId: qId,
               },
             ]
@@ -1403,17 +1412,17 @@ const AudienceParticipation: React.FC = () => {
               participantId: myId,
               participantName: myName,
               questionId: qId,
-              roundNumber: roundNum,
+              roundNumber: finalRoundNumber,
               eliminatedAt: new Date(),
             },
           ],
         };
       });
 
-      // Mark eliminated in state
+      // Mark eliminated in state with the correct round number
       setIsEliminated(true);
       isEliminatedRef.current = true;
-      setEliminatedAtRound(roundNum);
+      setEliminatedAtRound(finalRoundNumber);
 
       // Show elimination overlay
       setShowEliminationOverlay(true);
@@ -1425,7 +1434,7 @@ const AudienceParticipation: React.FC = () => {
         false,
         sessId,
         qId,
-        roundNum,
+        finalRoundNumber,
         myName
       );
 
@@ -1436,7 +1445,7 @@ const AudienceParticipation: React.FC = () => {
           participantId: myId,
           participantName: myName,
           questionId: qId,
-          roundNumber: roundNum,
+          roundNumber: finalRoundNumber,
           eliminatedAt: new Date().toISOString(),
         },
       });
