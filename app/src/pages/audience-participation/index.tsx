@@ -14,6 +14,7 @@
 // UI UPDATE: Collapsible session info header (3-dots menu)
 // BUG FIX: Final round withdrawals now show the correct eliminatedAtRound value
 //   (the final question's number, not the previous round's number)
+// UI UPDATE: Added leave confirmation modal to prevent accidental session exits
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -187,6 +188,9 @@ const AudienceParticipation: React.FC = () => {
 
   // ── UI STATE: Collapsible session info header ───────────────────────
   const [isHeaderOpen, setIsHeaderOpen] = useState<boolean>(false);
+  // ── LEAVE CONFIRMATION MODAL STATE ──────────────────────────────────
+  const [showLeaveConfirmModal, setShowLeaveConfirmModal] = useState<boolean>(false);
+  const [isLeavingSession, setIsLeavingSession] = useState<boolean>(false);
 
   const participantSessionRef = useRef<ParticipantSession | null>(null);
   const currentQuestionRef = useRef<Question | null>(null);
@@ -1817,68 +1821,116 @@ const AudienceParticipation: React.FC = () => {
   const renderSessionInfo = () => {
     if (sessionState === "join" || !participantSession) return null;
 
+    const handleLeaveClick = () => {
+      setIsHeaderOpen(false);
+      setShowLeaveConfirmModal(true);
+    };
+
+    const handleConfirmLeave = () => {
+      setIsLeavingSession(true);
+      handleJoinNewSession();
+      setIsLeavingSession(false);
+      setShowLeaveConfirmModal(false);
+    };
+
     return (
-      <div className="relative z-50 flex justify-end mb-2">
-        {/* 3-dots button */}
-        <button
-          onClick={() => setIsHeaderOpen(!isHeaderOpen)}
-          className="w-8 h-8 rounded-full bg-card border border-border shadow-sm hover:bg-muted transition-colors flex items-center justify-center"
-          aria-label="Session info"
-        >
-          <MoreHorizontal size={16} className="text-muted-foreground" />
-        </button>
-        
-        {/* Dropdown menu */}
-        {isHeaderOpen && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setIsHeaderOpen(false)} />
-            <div className="absolute top-10 right-0 z-50 w-64 bg-popover rounded-xl shadow-xl border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-              <div className="p-3 border-b border-border bg-muted/20">
-                <p className="text-xs font-medium text-foreground truncate">
-                  {participantSession.session.presentation.title}
-                </p>
-                <p className="font-mono text-sm font-bold mt-1 tracking-wider text-foreground">
-                  {participantSession.session.code}
-                </p>
+      <>
+        <div className="relative z-50 flex justify-end mb-2">
+          {/* 3-dots button */}
+          <button
+            onClick={() => setIsHeaderOpen(!isHeaderOpen)}
+            className="w-8 h-8 rounded-full bg-card border border-border shadow-sm hover:bg-muted transition-colors flex items-center justify-center"
+            aria-label="Session info"
+          >
+            <MoreHorizontal size={16} className="text-muted-foreground" />
+          </button>
+          
+          {/* Dropdown menu */}
+          {isHeaderOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setIsHeaderOpen(false)} />
+              <div className="absolute top-10 right-0 z-50 w-64 bg-popover rounded-xl shadow-xl border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                <div className="p-3 border-b border-border bg-muted/20">
+                  <p className="text-xs font-medium text-foreground truncate">
+                    {participantSession.session.presentation.title}
+                  </p>
+                  <p className="font-mono text-sm font-bold mt-1 tracking-wider text-foreground">
+                    {participantSession.session.code}
+                  </p>
+                </div>
+                <div className="p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Status</span>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-1.5 h-1.5 rounded-full ${isPaused ? "bg-yellow-500" : "bg-success"}`} />
+                      <span className="text-xs font-medium text-foreground">{isPaused ? "Paused" : "Live"}</span>
+                    </div>
+                  </div>
+                  {sessionState === "question" && currentQuestion && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Question</span>
+                      <span className="text-xs font-medium text-foreground">
+                        {currentQuestion.number} / {participantSession.session.presentation.questions.length}
+                      </span>
+                    </div>
+                  )}
+                  {participantSession.participantName && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Joined as</span>
+                      <span className="text-xs font-medium text-foreground truncate max-w-[120px]">
+                        {participantSession.participantName}
+                      </span>
+                    </div>
+                  )}
+                  <button
+                    onClick={handleLeaveClick}
+                    className="w-full mt-2 text-center text-xs text-destructive hover:text-destructive/80 py-1.5 border-t border-border pt-2 transition-colors"
+                  >
+                    Leave Session
+                  </button>
+                </div>
               </div>
-              <div className="p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Status</span>
-                  <div className="flex items-center gap-1.5">
-                    <div className={`w-1.5 h-1.5 rounded-full ${isPaused ? "bg-yellow-500" : "bg-success"}`} />
-                    <span className="text-xs font-medium text-foreground">{isPaused ? "Paused" : "Live"}</span>
+            </>
+          )}
+        </div>
+
+        {/* Leave Confirmation Modal */}
+        {showLeaveConfirmModal && (
+          <>
+            <div 
+              className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm" 
+              onClick={() => setShowLeaveConfirmModal(false)} 
+            />
+            <div className="fixed left-1/2 top-1/2 z-[101] w-full max-w-sm -translate-x-1/2 -translate-y-1/2">
+              <div className="bg-popover rounded-xl shadow-xl border border-border overflow-hidden">
+                <div className="p-6">
+                  <h3 className="text-lg font-semibold text-foreground mb-2">
+                    Leave Session
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Are you sure you want to leave this session?
+                  </p>
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      onClick={() => setShowLeaveConfirmModal(false)}
+                      className="flex-1 px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm font-medium hover:bg-muted transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleConfirmLeave}
+                      disabled={isLeavingSession}
+                      className="flex-1 px-4 py-2 rounded-lg bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-colors disabled:opacity-50"
+                    >
+                      {isLeavingSession ? "Leaving..." : "Leave"}
+                    </button>
                   </div>
                 </div>
-                {sessionState === "question" && currentQuestion && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Question</span>
-                    <span className="text-xs font-medium text-foreground">
-                      {currentQuestion.number} / {participantSession.session.presentation.questions.length}
-                    </span>
-                  </div>
-                )}
-                {participantSession.participantName && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Joined as</span>
-                    <span className="text-xs font-medium text-foreground truncate max-w-[120px]">
-                      {participantSession.participantName}
-                    </span>
-                  </div>
-                )}
-                <button
-                  onClick={() => {
-                    setIsHeaderOpen(false);
-                    handleJoinNewSession();
-                  }}
-                  className="w-full mt-2 text-center text-xs text-destructive hover:text-destructive/80 py-1.5 border-t border-border pt-2 transition-colors"
-                >
-                  Leave Session
-                </button>
               </div>
             </div>
           </>
         )}
-      </div>
+      </>
     );
   };
 
