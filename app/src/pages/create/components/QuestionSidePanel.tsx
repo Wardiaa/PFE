@@ -1484,13 +1484,36 @@ export function QuestionSidePanel({
             <>
               <div className="h-px bg-slate-100 mt-2" />
               <div className="flex items-center justify-between pt-2">
-                <div><div className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-amber-500" /><span className="text-xs text-slate-600 font-medium">Speed Question</span></div><p className="text-[10px] text-slate-400 mt-0.5">Only the fastest X participants advance. Others eliminated immediately.</p></div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-xs text-slate-600 font-medium">Speed Question</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Eliminate participants based on response speed.</p>
+                </div>
                 <MentiToggle checked={q.isSpeedQuestion ?? false} onChange={(val) => onUpdateQuestion({ isSpeedQuestion: val })} />
               </div>
               {q.isSpeedQuestion && (
-                <div className="mt-3 p-3 bg-amber-50/30 rounded-xl border border-amber-200">
-                  <div className="flex items-center justify-between"><span className="text-xs font-medium text-slate-700">Max participants to advance</span><div className="flex items-center gap-2"><input type="number" min="1" max="100" value={maxAdvance} onChange={(e) => { const val = parseInt(e.target.value, 10); onUpdateQuestion({ speedMaxAdvance: isNaN(val) ? 3 : Math.max(1, val) }); }} className="w-16 px-2 py-1.5 text-center text-sm font-bold text-slate-900 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400" /><span className="text-xs text-slate-400">participants</span></div></div>
-                  <p className="text-[10px] text-amber-600 mt-2">⚡ Once {maxAdvance} participants answer OR timer ends, only the fastest {maxAdvance} advance. Others are eliminated.</p>
+                <div className="mt-2.5 ml-7 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-slate-700">Advance limit</span>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="number" 
+                        min="1" 
+                        max="100" 
+                        value={maxAdvance} 
+                        onChange={(e) => { 
+                          const val = parseInt(e.target.value, 10); 
+                          onUpdateQuestion({ speedMaxAdvance: isNaN(val) ? 3 : Math.max(1, val) }); 
+                        }} 
+                        className="w-14 px-2 py-1 text-center text-xs font-bold text-slate-900 bg-white border border-slate-200 rounded focus:ring-1 focus:ring-indigo-500 focus:outline-none" 
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-normal">
+                    Only the first {maxAdvance} participants who answer correctly will move to the next round.
+                  </p>
                 </div>
               )}
             </>
