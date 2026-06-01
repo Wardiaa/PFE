@@ -21,6 +21,7 @@ interface JoinData {
 interface SessionJoinFormProps {
   onJoin: (data: JoinData) => void;
   prefilledCode?: string;
+  restoreSlot?: React.ReactNode;
 }
 
 interface Errors {
@@ -28,7 +29,7 @@ interface Errors {
   participantName?: string;
 }
 
-const SessionJoinForm: React.FC<SessionJoinFormProps> = ({ onJoin, prefilledCode }) => {
+const SessionJoinForm: React.FC<SessionJoinFormProps> = ({ onJoin, prefilledCode, restoreSlot }) => {
   const [sessionCode, setSessionCode]         = useState((prefilledCode ?? '').toUpperCase());
   const [participantName, setParticipantName] = useState('');
   const [errors, setErrors]                   = useState<Errors>({});
@@ -227,6 +228,9 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({ onJoin, prefilledCode
                 <p className="text-xs text-red-500 font-semibold">{errors.participantName}</p>
               )}
             </div>
+
+            {/* Restore card slot — injected by the parent when a previous session exists */}
+            {restoreSlot}
 
             {/* Submit */}
             <div className="pt-1">

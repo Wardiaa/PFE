@@ -25,6 +25,23 @@
  *   FINAL_ROUND_DECISION_RESPONSE { participantId, choseContinue }
  *   FINAL_ROUND_START       { questionId, timeLimit }
  *   FINAL_ROUND_RESULTS     { winner }
+ *
+ * Session Connection & Restoration message types:
+ *   GOODBYE            { participantId, participantName }
+ *     ← sent by a participant when their tab closes (beforeunload).
+ *       Allows the host to immediately decrement the visible participant count
+ *       without waiting for the Supabase connection to time out.
+ *       In elimination mode the host should also mark the participant eliminated.
+ *   HEARTBEAT          { participantId }
+ *     ← sent by each participant every 30 s while connected.
+ *       The host can use the absence of heartbeats to detect silent disconnects
+ *       (e.g. mobile killed the tab without firing beforeunload). After 90 s of
+ *       silence (3 missed heartbeats) the host may eliminate the participant in
+ *       elimination mode.
+ *   SESSION_RESTORE    { participantId, participantName }
+ *     ← sent by a participant after a successful "Welcome back" session restore.
+ *       Allows the host to re-add the participant to their online count so the
+ *       display reflects the true number of connected participants.
  */
 
 import { useEffect, useRef, useCallback, useState } from "react";
@@ -77,6 +94,14 @@ export const SESSION_EVENTS = {
   FINAL_ROUND_DECISION_RESPONSE: "FINAL_ROUND_DECISION_RESPONSE",
   FINAL_ROUND_START: "FINAL_ROUND_START",
   FINAL_ROUND_RESULTS: "FINAL_ROUND_RESULTS",
+  // ── NEW: Session Connection & Restoration ────────────────────────────────
+  // Sent by participant on tab close (beforeunload). Host decrements count immediately.
+  // In elimination mode the host should treat this as a disconnection-elimination.
+  GOODBYE: "GOODBYE",
+  // Sent by participant every 30 s. Host uses absence to detect silent disconnects.
+  HEARTBEAT: "HEARTBEAT",
+  // Sent by participant after a successful "Welcome back" restore. Host re-adds to count.
+  SESSION_RESTORE: "SESSION_RESTORE",
 } as const;
 
 export function useSessionSocket({

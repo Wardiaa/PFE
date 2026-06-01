@@ -10,6 +10,10 @@
 //
 // recordFinalRoundDecision now writes to elimination_log when participant withdraws,
 //      so final-round withdrawals appear in elimination history on the host side.
+//
+// SESSION RESTORATION: Added restoreSession() — rebuilds a JoinSessionResult for a
+//   returning participant without creating a new DB record. Used by the "Welcome back"
+//   modal in audience-participation when a standard-mode participant refreshes the page.
 
 import { supabase } from "../lib/supabase";
 import type {
@@ -343,6 +347,138 @@ export class SessionService {
     } catch (error) {
       console.error("Join session error:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Restore a previously established participant session without creating a new
+   * DB record. Used by the "Welcome back" modal when a standard-mode participant
+   * refreshes the page or temporarily closes the tab.
+   *
+   * In elimination mode, tab close counts as an elimination and restores are
+   * blocked by the caller (audience-participation/index.tsx), so this method
+   * is never reached for elimination sessions.
+   *
+   * Returns null when:
+   *   • The session no longer exists in the database.
+   *   • The participant record has been removed (e.g. host cleanup).
+   *   • A database error prevents verification.
+   */
+  static async restoreSession(params: {
+    sessionId: string;
+    participantId: string;
+    participantToken: string;
+  }): Promise<JoinSessionResult | null> {
+    try {
+      const { sessionId, participantId } = params;
+
+      // Fetch the session row first (includes status check).
+      const { data: sessionRow, error: sessionError } = await supabase
+        .from("sessions")
+        .select(
+          "id, code, status, context_id, current_question_index, current_question_id, current_question_started_at, current_question_ends_at, is_paused, timer_paused_remaining, timer_resumed_at, participant_count, created_at",
+        )
+        .eq("id", sessionId)
+        .maybeSingle();
+
+      if (sessionError || !sessionRow) return null;
+      // Return the ended session so the caller can show the SessionEndedState
+      // instead of silently clearing the modal. Status is preserved in the result.
+      // (Caller checks result.session.status === 'ENDED' and redirects.)
+
+      // Verify the participant record still exists in the database.
+      // If the host deleted participants or the row was pruned, we cannot restore.
+      const { data: participant, error: participantError } = await supabase
+        .from("participants")
+        .select("id, token")
+        .eq("id", participantId)
+        .maybeSingle();
+
+      if (participantError || !participant) return null;
+
+      // Fetch context metadata + questions in parallel (same as joinSession).
+      const [{ data: context }, { data: questionsRaw }] = await Promise.all([
+        supabase
+          .from("contexts")
+          .select(
+            "id, title, game_mode, theme, final_round_decision_timer, max_skips_per_participant",
+          )
+          .eq("id", sessionRow.context_id)
+          .maybeSingle(),
+        supabase
+          .from("questions")
+          .select(
+            "id, title, description, type, points, time_limit, options, scale, labels, display_style, image_url, question_order, hide_participant_names, statements, skip_allowed",
+          )
+          .eq("context_id", sessionRow.context_id)
+          .order("question_order", { ascending: true }),
+      ]);
+
+      const finalContext = {
+        id: context?.id ?? sessionRow.context_id,
+        title: context?.title ?? "Untitled Session",
+        game_mode: context?.game_mode ?? "standard",
+        theme: context?.theme ?? "default",
+        final_round_decision_timer: context?.final_round_decision_timer ?? 20,
+        max_skips_per_participant: context?.max_skips_per_participant ?? 1,
+      };
+
+      const questions: Question[] = ((questionsRaw ?? []) as any[])
+        .sort((a, b) => a.question_order - b.question_order)
+        .map((q, index) => ({
+          id: q.id,
+          number: index + 1,
+          type: this.mapQuestionType(q.type),
+          text: q.title,
+          description: q.description || undefined,
+          timeLimit: q.time_limit,
+          options: q.options,
+          statements: q.statements || undefined,
+          scale: q.scale,
+          labels: q.labels,
+          points: q.points,
+          image: q.image_url || undefined,
+          displayStyle: q.display_style,
+          hideParticipantNames: q.hide_participant_names ?? false,
+          skipAllowed: q.skip_allowed ?? false,
+        }));
+
+      return {
+        session: {
+          id: sessionRow.id,
+          code: sessionRow.code,
+          participantCount: sessionRow.participant_count,
+          startTime: new Date(sessionRow.created_at),
+          presentation: {
+            id: finalContext.id,
+            title: finalContext.title,
+            questions,
+            gameMode: (finalContext.game_mode ?? "standard") as GameMode,
+            themeId: finalContext.theme ?? "default",
+          },
+          status: sessionRow.status as "WAITING" | "ACTIVE" | "PAUSED" | "ENDED",
+          currentQuestionIndex: sessionRow.current_question_index,
+          currentQuestionId: sessionRow.current_question_id,
+          currentQuestionStartedAt: sessionRow.current_question_started_at
+            ? new Date(sessionRow.current_question_started_at)
+            : undefined,
+          gameMode: (finalContext.game_mode ?? "standard") as GameMode,
+        },
+        // Reuse the stored participantId / token — no new DB participant row is created.
+        participantId,
+        participantToken: participant.token,
+        currentQuestionEndsAt: sessionRow.current_question_ends_at
+          ? new Date(sessionRow.current_question_ends_at).getTime()
+          : undefined,
+        // ── bundled context metadata (same shape as joinSession) ───────────
+        gameMode: (finalContext.game_mode ?? "standard") as GameMode,
+        themeId: finalContext.theme ?? "default",
+        finalRoundDecisionTimer: finalContext.final_round_decision_timer,
+        maxSkipsPerParticipant: finalContext.max_skips_per_participant,
+      };
+    } catch (error) {
+      console.error("[restoreSession] Error:", error);
+      return null;
     }
   }
 
@@ -953,6 +1089,7 @@ export class SessionService {
         console.error("[eliminateParticipant] Update failed:", updateError);
         return null;
       }
+
       if (logError) {
         console.error("[eliminateParticipant] Log insert failed:", logError);
       }
@@ -965,45 +1102,30 @@ export class SessionService {
         eliminatedAt: new Date(),
       };
     } catch (error) {
-      console.error("[eliminateParticipant] Error:", error);
+      console.error("eliminateParticipant error:", error);
       return null;
     }
   }
 
-  /**
-   * OPTIMIZED: Use a single DB arithmetic update instead of read-then-write.
-   * This eliminates the race condition where two concurrent score updates could
-   * both read the same old value and produce an incorrect result.
-   */
   static async incrementScore(
     participantId: string,
     delta: number,
   ): Promise<boolean> {
     try {
-      const { error } = await supabase.rpc("increment_participant_score", {
-        p_participant_id: participantId,
-        p_delta: delta,
-      });
+      const { data: row, error: fetchErr } = await supabase
+        .from("participants")
+        .select("score")
+        .eq("id", participantId)
+        .single();
 
-      if (error) {
-        // Fallback: read-modify-write (less safe but works without the RPC).
-        console.warn("increment_participant_score RPC not available, using fallback:", error.message);
-        const { data: row, error: readErr } = await supabase
-          .from("participants")
-          .select("score")
-          .eq("id", participantId)
-          .maybeSingle();
+      if (fetchErr || !row) return false;
 
-        if (readErr || !row) return false;
+      const { error: writeErr } = await supabase
+        .from("participants")
+        .update({ score: (row.score ?? 0) + delta })
+        .eq("id", participantId);
 
-        const { error: writeErr } = await supabase
-          .from("participants")
-          .update({ score: (row.score ?? 0) + delta })
-          .eq("id", participantId);
-
-        return !writeErr;
-      }
-      return true;
+      return !writeErr;
     } catch (error) {
       console.error("incrementScore error:", error);
       return false;

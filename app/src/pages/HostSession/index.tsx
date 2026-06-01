@@ -6,6 +6,22 @@
 //      handleNext now checks if the *next* question would be the last one (not the current).
 // Untimed elimination questions now properly show the round elimination overlay
 //      when the host clicks "Show Results" (not just when timer expires).
+// SESSION CONNECTION & RESTORATION:
+//   • GOODBYE handler: removes participant from local participants list immediately
+//     when they close their tab, so the host count decrements without waiting for a
+//     Supabase connection timeout (which can take 30-90 s).
+//   • SESSION_RESTORE handler: re-adds a returning participant to the local participants
+//     list after they successfully complete a "Welcome back" restore on the audience side.
+//     Fetches the participant row from DB to ensure name/score/alive status are current.
+//   • HEARTBEAT handler: presence-only signal logged for diagnostics. Can be extended
+//     to implement timeout-based elimination (90 s = 3 missed heartbeats).
+// BUG FIX: Timed elimination questions now call processUntimedQuestionEliminations()
+//   when the timer expires instead of only setShowResults(true). Previously, participants
+//   who left (tab close or explicit) as well as wrong-answer / no-answer participants were
+//   never eliminated in the DB for timed questions — the elimination pipeline was only
+//   wired to the host's "Show Results" click for untimed questions. The old 1200 ms
+//   overlay block has been removed; processUntimedQuestionEliminations() already builds
+//   the RoundEliminationsOverlay after fetching fresh game state.
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -242,6 +258,9 @@ const HostSession: React.FC = () => {
   const roundStartEliminatedCountRef = useRef<number>(0);
   const [roundEliminationCount, setRoundEliminationCount] = useState<number | null>(null);
   const [overlayRoundNumber, setOverlayRoundNumber] = useState<number>(0);
+  // Names for the current round's elimination overlay — set atomically when
+  // the overlay is triggered so the list is never stale at render time.
+  const [currentRoundEliminatedNames, setCurrentRoundEliminatedNames] = useState<string[]>([]);
   const [revealedWinner, setRevealedWinner] = useState<Participant | null>(null);
   const [isGameOver, setIsGameOver] = useState<boolean>(false);
   const isGameOverRef = useRef<boolean>(false);
@@ -266,6 +285,32 @@ const HostSession: React.FC = () => {
   
   // ── Debounced refresh timeout ref ─────────────────────────────────────────
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── currentRoundRef — readable inside ws callbacks without stale closures ─
+  const currentRoundRef = useRef<number>(0);
+  // Keep currentRoundRef synced with gameState.currentRound so the GOODBYE
+  // handler can stamp the correct round when eliminating on explicit leave.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { currentRoundRef.current = gameState.currentRound; }, [gameState.currentRound]);
+
+  // currentQuestionIndexRef: stale-closure-safe mirror of currentQuestionIndex.
+  // Used in ws callbacks so roundNumber always equals currentQuestionIndex+1,
+  // matching processUntimedQuestionEliminations exactly.
+  const currentQuestionIndexRef = useRef<number>(-1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { currentQuestionIndexRef.current = currentQuestionIndex; }, [currentQuestionIndex]);
+
+  // pendingEliminatedRef: names of explicit-leave participants for the current
+  // question. Populated synchronously in GOODBYE so the 1200 ms timer-end check
+  // can show the overlay immediately for timed questions (before processUntimed
+  // is invoked by the host).
+  const pendingEliminatedRef = useRef<{ name: string; roundNumber: number }[]>([]);
+
+  // leftDuringQuestionRef: participants who explicitly left during the CURRENT
+  // question. processUntimedQuestionEliminations picks these up and eliminates
+  // them in the same DB batch as wrong-answer participants so they appear in the
+  // same round's overlay. Cleared at question start.
+  const leftDuringQuestionRef = useRef<{ id: string; name: string }[]>([]);
 
   // ── Derived values ────────────────────────────────────────────────────────
   const isElimination = contextMeta.gameMode === "elimination";
@@ -469,10 +514,27 @@ const HostSession: React.FC = () => {
       
       // Combine wrong answers and no-answers for elimination
       const idsToEliminate = [...new Set([...wrongAnswerIds, ...noAnswerIds])];
-      
-      console.log("[HOST] Eliminating participants:", idsToEliminate.length);
-      
-      // Eliminate each participant
+
+      // Snapshot explicit leavers BEFORE any await so we don't lose entries
+      // that arrive concurrently. We clear the ref now; any new leaves after
+      // this point will be caught by the next question's processUntimed.
+      const leftEntries = leftDuringQuestionRef.current;
+      leftDuringQuestionRef.current = [];
+
+      // Explicit leavers not already in idsToEliminate (alive participants who
+      // happened to also leave in the same window).
+      const leftEntriesNew = leftEntries.filter(
+        (e) => !idsToEliminate.includes(e.id),
+      );
+
+      console.log(
+        "[HOST] Eliminating participants:",
+        idsToEliminate.length,
+        "+ explicit leavers:",
+        leftEntriesNew.length,
+      );
+
+      // ── Eliminate alive participants (wrong / no answer) ─────────────────
       for (const participantId of idsToEliminate) {
         const participant = allParticipants?.find(p => p.id === participantId);
         if (participant) {
@@ -482,8 +544,6 @@ const HostSession: React.FC = () => {
             questionId: currentQuestion.id,
             roundNumber,
           });
-          
-          // Broadcast elimination
           sendMessageRef.current({
             type: SESSION_EVENTS.PLAYER_ELIMINATED,
             payload: {
@@ -496,28 +556,65 @@ const HostSession: React.FC = () => {
           });
         }
       }
-      
-      // Refresh game state and broadcast
+
+      // ── Eliminate explicit leavers in the same batch ──────────────────────
+      // eliminateParticipant is idempotent: if the GOODBYE safety-net call
+      // already wrote to the DB it returns null without creating a duplicate
+      // elimination_log row. Either way getGameState() below will see them.
+      for (const { id: pid, name: pname } of leftEntriesNew) {
+        await SessionService.eliminateParticipant({
+          sessionId: session.id,
+          participantId: pid,
+          questionId: currentQuestion.id,
+          roundNumber,
+        });
+        sendMessageRef.current({
+          type: SESSION_EVENTS.PLAYER_ELIMINATED,
+          payload: {
+            participantId: pid,
+            participantName: pname,
+            questionId: currentQuestion.id,
+            roundNumber,
+            eliminatedAt: new Date().toISOString(),
+          },
+        });
+        console.log(`[HOST] Eliminated (explicit leave): ${pname} (round ${roundNumber})`);
+      }
+
+      // Refresh game state — runs AFTER all eliminations (alive + leavers) so
+      // newState.history contains everyone eliminated this round.
       const newState = await SessionService.getGameState(session.id);
       setGameState(newState);
+      setDisplayedGameState(newState);
       sendMessageRef.current({
         type: SESSION_EVENTS.GAME_STATE_UPDATE,
         payload: newState as unknown as Record<string, unknown>,
       });
-      
+
       // Show results
       setShowResults(true);
-      
-      // Show elimination overlay if anyone was eliminated
-      const eliminatedCount = idsToEliminate.length;
-      if (eliminatedCount > 0) {
-        setRoundEliminationCount(eliminatedCount);
+
+      // Build overlay name list from history (all eliminations this round) +
+      // any pending explicit-leave names not yet reflected in newState.history.
+      const dbNamesUntimed = newState.history
+        .filter((h) => h.roundNumber === roundNumber)
+        .map((h) => h.participantName);
+      const pendingNamesUntimed = pendingEliminatedRef.current
+        .filter(
+          (e) => e.roundNumber === roundNumber && !dbNamesUntimed.includes(e.name),
+        )
+        .map((e) => e.name);
+      const allEliminatedNames = [...dbNamesUntimed, ...pendingNamesUntimed];
+      const totalEliminated = idsToEliminate.length + leftEntriesNew.length;
+      if (allEliminatedNames.length > 0 || totalEliminated > 0) {
+        setCurrentRoundEliminatedNames(allEliminatedNames);
+        setRoundEliminationCount(Math.max(allEliminatedNames.length, totalEliminated));
         setOverlayRoundNumber(roundNumber);
       }
-      
+
       toast({
         title: "Results Ready",
-        description: `${eliminatedCount} participant(s) eliminated.`,
+        description: `${totalEliminated} participant(s) eliminated.`,
       });
     } catch (error) {
       console.error("Failed to process untimed question eliminations:", error);
@@ -630,6 +727,136 @@ const HostSession: React.FC = () => {
       if (msg.type === SESSION_EVENTS.FINAL_ROUND_DECISION_RESPONSE) {
         refreshFinalRoundParticipants();
         setFinalRoundDecidedCount((prev) => prev + 1);
+        return;
+      }
+
+      // ── GOODBYE: participant closed their tab or explicitly left ─────────────
+      // Remove the participant from the local participants list immediately so the
+      // host count decreases without waiting for a Supabase connection timeout
+      // (which can take 30–90 s).
+      // isExplicitLeave=true means the user clicked "Leave Session" — in
+      // elimination mode this also marks them eliminated in the DB and broadcasts
+      // PLAYER_ELIMINATED so all participants receive the update.
+      if (msg.type === SESSION_EVENTS.GOODBYE) {
+        const { participantId, participantName, isExplicitLeave } = msg.payload as {
+          participantId: string;
+          participantName: string;
+          isExplicitLeave?: boolean;
+        };
+        setParticipants((prev) => prev.filter((p) => p.id !== participantId));
+        console.log(`[HOST] Participant disconnected: ${participantName} (${participantId}), explicit=${isExplicitLeave ?? false}`);
+
+        if (isExplicitLeave && isElimination) {
+          const round = currentQuestionIndexRef.current + 1;
+
+          // 1. Register in leftDuringQuestionRef so processUntimedQuestionEliminations
+          //    includes this participant in the SAME elimination batch as wrong-answer
+          //    participants. This guarantees the same roundNumber, questionId, and
+          //    getGameState() snapshot — so they appear in the overlay alongside others.
+          leftDuringQuestionRef.current = [
+            ...leftDuringQuestionRef.current,
+            { id: participantId, name: participantName },
+          ];
+
+          // 2. Register in pendingEliminatedRef so the 1200 ms timer-end check can
+          //    show the overlay immediately for timed questions (before processUntimed
+          //    is invoked by the host).
+          pendingEliminatedRef.current = [
+            ...pendingEliminatedRef.current,
+            { name: participantName, roundNumber: round },
+          ];
+
+          // 3. Safety-net DB write: eliminates the participant even if the host
+          //    advances to the next question without clicking Eliminate. The call is
+          //    idempotent — processUntimedQuestionEliminations calling it again is safe.
+          const sess = sessionRef.current;
+          if (sess) {
+            const questionId = currentQuestionRef.current?.id ?? "";
+            SessionService.eliminateParticipant({
+              sessionId: sess.id,
+              participantId,
+              questionId,
+              roundNumber: round,
+            })
+              .then(() => {
+                SessionService.getGameState(sess.id).then(setGameState);
+                sendMessageRef.current({
+                  type: SESSION_EVENTS.PLAYER_ELIMINATED,
+                  payload: {
+                    participantId,
+                    participantName,
+                    roundNumber: round,
+                    eliminatedAt: new Date().toISOString(),
+                  },
+                });
+                console.log(`[HOST] Safety-net eliminated: ${participantName} (round ${round})`);
+              })
+              .catch((err: unknown) => {
+                console.error(`[HOST] Safety-net eliminate failed for ${participantName}:`, err);
+              });
+          }
+        }
+        return;
+      }
+
+      // ── SESSION_RESTORE: participant returned and reconnected ───────────────
+      // Re-add the participant to the local participants list so the host count
+      // goes back up. Fetches the participant row from the DB to ensure the
+      // displayed data (name, score, alive status) is current. If the participant
+      // is already in the list (e.g. the DB subscription INSERT beat us here),
+      // the duplicate check inside setParticipants() prevents double-counting.
+      if (msg.type === SESSION_EVENTS.SESSION_RESTORE) {
+        const { participantId, participantName } = msg.payload as {
+          participantId: string;
+          participantName: string;
+        };
+        const sess = sessionRef.current;
+        if (sess) {
+          supabase
+            .from("participants")
+            .select(
+              "id, name, score, avatar_url, is_anonymous, joined_at, is_alive, eliminated_at_round, eliminated_at_question_id, skips_used, chose_continue",
+            )
+            .eq("id", participantId)
+            .maybeSingle()
+            .then(({ data: p }) => {
+              if (!p) return;
+              setParticipants((prev) => {
+                // Idempotency guard — skip if the participant is already present.
+                if (prev.find((x) => x.id === p.id)) return prev;
+                return [
+                  ...prev,
+                  {
+                    id: p.id,
+                    name: p.name,
+                    score: p.score ?? 0,
+                    avatar: p.avatar_url,
+                    isAnonymous: p.is_anonymous,
+                    joinedAt: new Date(p.joined_at),
+                    isAlive: p.is_alive ?? true,
+                    eliminatedAtRound: p.eliminated_at_round ?? null,
+                    eliminatedAtQuestionId: p.eliminated_at_question_id ?? null,
+                    skipsUsed: p.skips_used ?? 0,
+                    choseContinue: p.chose_continue ?? null,
+                  },
+                ];
+              });
+              console.log(`[HOST] Participant restored: ${participantName} (${participantId})`);
+            });
+        }
+        return;
+      }
+
+      // ── HEARTBEAT: participant is still connected ───────────────────────────
+      // Presence-only signal — no action needed on the host side in the current
+      // implementation. Log at debug level for diagnostics.
+      // NOTE: To implement heartbeat-based timeout elimination, track the last
+      // heartbeat timestamp per participant here and start a 90 s clearTimeout
+      // that eliminates the participant if no further HEARTBEAT arrives:
+      //   heartbeatMap.set(participantId, Date.now());
+      //   clearTimeout(heartbeatTimeouts.get(participantId));
+      //   heartbeatTimeouts.set(participantId, setTimeout(() => eliminateParticipant(participantId), 90_000));
+      if (msg.type === SESSION_EVENTS.HEARTBEAT) {
         return;
       }
     },
@@ -789,30 +1016,38 @@ const HostSession: React.FC = () => {
           timerIntervalRef.current = undefined;
           timerActiveRef.current = false;
           setTimerActive(false);
-          
+
+          if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+          debouncedRefreshResponses();
+
           // Handle speed question when timer ends
           if (isSpeedQuestion && !isProcessingSpeedQuestion && !showResults) {
             console.log("[HOST] Speed question timer ended, processing...");
             processSpeedQuestionEnd();
+          } else if (isEliminationRef.current && !isSpeedQuestion && !isProcessingSpeedQuestion && !showResults) {
+            // BUG FIX: For timed elimination questions, run the full elimination
+            // pipeline (same as host clicking "Show Results" for untimed questions).
+            // Previously only setShowResults(true) was called here, which meant:
+            //   • Wrong-answer participants were never eliminated in the DB.
+            //   • No-answer / tab-close participants were never eliminated in the DB.
+            //   • The overlay was built only from pendingEliminatedRef (explicit
+            //     leavers who clicked "Leave") and DB history, missing everyone else.
+            // processUntimedQuestionEliminations() handles all three categories —
+            // wrong answers, no answers (including tab-close leavers whose is_alive
+            // is still true in DB), and explicit leavers via leftDuringQuestionRef —
+            // then fetches fresh game state and sets the overlay atomically.
+            console.log("[HOST] Timed elimination question timer ended, processing eliminations...");
+            processUntimedQuestionEliminations();
           } else {
             setShowResults(true);
             toast({ title: "Time's Up!", description: "Showing results..." });
           }
-          
-          if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
-          debouncedRefreshResponses();
-
-          if (isEliminationRef.current && !isSpeedQuestion) {
-            window.setTimeout(() => {
-              const latest = gameStateRef.current;
-              const count = latest.eliminated.length - roundStartEliminatedCountRef.current;
-              setDisplayedGameState(latest);
-              if (count > 0) {
-                setRoundEliminationCount(count);
-                setOverlayRoundNumber(latest.currentRound);
-              }
-            }, 1200);
-          }
+          // NOTE: The separate 1200 ms overlay block that previously existed here
+          // for isEliminationRef.current && !isSpeedQuestion has been removed.
+          // processUntimedQuestionEliminations() already builds and sets the
+          // RoundEliminationsOverlay after fetching fresh game state from the DB.
+          // The old block only caught explicit leavers (pendingEliminatedRef) and
+          // missed wrong-answer / no-answer / tab-close participants entirely.
         }
       }, 500);
     }
@@ -823,7 +1058,7 @@ const HostSession: React.FC = () => {
         timerIntervalRef.current = undefined;
       }
     };
-  }, [currentQuestionIndex, timerActive, toast, debouncedRefreshResponses, isSpeedQuestion, isProcessingSpeedQuestion, showResults, processSpeedQuestionEnd, isFinalRoundDecision]);
+  }, [currentQuestionIndex, timerActive, toast, debouncedRefreshResponses, isSpeedQuestion, isProcessingSpeedQuestion, showResults, processSpeedQuestionEnd, processUntimedQuestionEliminations, isFinalRoundDecision]);
 
   useEffect(
     () => () => {
@@ -845,6 +1080,11 @@ const HostSession: React.FC = () => {
     setDisplayedGameState(gameStateRef.current);
     setRoundEliminationCount(null);
     setSpeedQuestionResults(null);
+    // Clear per-round refs so previous-question leavers never bleed into the
+    // next question's overlay count or name list.
+    pendingEliminatedRef.current = [];
+    leftDuringQuestionRef.current = [];
+    setCurrentRoundEliminatedNames([]);
   }, [currentQuestionIndex]);
 
   // ── Reload responses when hideParticipantNames or showResults changes ─────
@@ -2205,10 +2445,7 @@ const HostSession: React.FC = () => {
           <RoundEliminationsOverlay
             count={roundEliminationCount}
             roundNumber={overlayRoundNumber}
-            eliminatedNames={participants
-              .filter(p => !p.isAlive && p.eliminatedAtRound === overlayRoundNumber)
-              .map(p => p.name)
-            }
+            eliminatedNames={currentRoundEliminatedNames}
             onClose={() => setRoundEliminationCount(null)}
           />
         )}

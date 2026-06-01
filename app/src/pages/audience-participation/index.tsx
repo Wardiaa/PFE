@@ -15,6 +15,18 @@
 // BUG FIX: Final round withdrawals now show the correct eliminatedAtRound value
 //   (the final question's number, not the previous round's number)
 // UI UPDATE: Added leave confirmation modal to prevent accidental session exits
+// SESSION CONNECTION & RESTORATION:
+//   • GOODBYE broadcast sent on tab close (beforeunload) so the host can immediately
+//     decrement the participant count without waiting for a connection timeout.
+//   • In elimination mode, tab close clears session storage (tab close = eliminated).
+//   • HEARTBEAT broadcast every 30 s while connected; host uses absence to detect
+//     silent disconnects (especially on mobile where beforeunload may not fire).
+//   • SESSION_RESTORE broadcast sent once the WebSocket reconnects after a successful
+//     "Welcome back" restore, so the host can re-add the participant to its count.
+//   • localStorage key `ap_participant_session` stores participant identity for
+//     standard-mode sessions (max 4 hours). Elimination sessions are never stored.
+//   • "Welcome back" restore modal shown on page load when a valid stored session
+//     is found. Calls SessionService.restoreSession() — no new DB row is created.
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -74,6 +86,27 @@ interface ParticipantSession {
 }
 
 const ANSWER_REVEAL_DURATION_MS = 2000;
+
+// ── SESSION RESTORATION CONSTANTS ─────────────────────────────────────────────
+// Key used to persist participant identity across page refreshes / tab closures.
+// Only standard-mode participants are stored; elimination = tab close eliminated.
+const PARTICIPANT_SESSION_KEY = "ap_participant_session";
+// Stored sessions older than 4 hours are discarded — the live session is almost
+// certainly over and the data is stale.
+const SESSION_MAX_AGE_MS = 4 * 60 * 60 * 1000;
+
+// Shape stored in localStorage under PARTICIPANT_SESSION_KEY.
+interface StoredParticipantSession {
+  sessionId: string;
+  participantId: string;
+  participantToken: string;
+  participantName: string;
+  sessionCode: string;
+  /** Unix epoch milliseconds when the entry was written / last refreshed. */
+  savedAt: number;
+  /** Game mode at join time. Used to decide whether restore is available. */
+  gameMode?: "standard" | "elimination";
+}
 
 function computeRemainingFromDbRow(
   row: {
@@ -192,6 +225,25 @@ const AudienceParticipation: React.FC = () => {
   const [showLeaveConfirmModal, setShowLeaveConfirmModal] = useState<boolean>(false);
   const [isLeavingSession, setIsLeavingSession] = useState<boolean>(false);
 
+  // ── SESSION RESTORE STATE ────────────────────────────────────────────
+  // showRestoreModal: true when a valid stored session is found on mount and
+  // the user is shown the "Welcome back" dialog before the regular join form.
+  const [showRestoreModal, setShowRestoreModal] = useState<boolean>(false);
+  // storedSession: the parsed localStorage entry that triggered the restore card.
+  const [storedSession, setStoredSession] = useState<StoredParticipantSession | null>(null);
+  // isRestoring: true while SessionService.restoreSession() is in-flight.
+  const [isRestoring, setIsRestoring] = useState<boolean>(false);
+  // restoreError: inline error message shown inside the restore card when the
+  // previous session is no longer available (replaces the destructive toast).
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  // showDuplicateTabUI: true when the session is already open in another tab.
+  // We try window.close() first; this UI is the fallback when that fails.
+  const [showDuplicateTabUI, setShowDuplicateTabUI] = useState<boolean>(false);
+  // pendingAutoRestoreRef: set to true when the page was reloaded and a valid
+  // stored session exists. A useEffect watches for storedSession to be set and
+  // then calls handleRestoreSession() automatically without showing the card.
+  const pendingAutoRestoreRef = useRef<boolean>(false);
+
   const participantSessionRef = useRef<ParticipantSession | null>(null);
   const currentQuestionRef = useRef<Question | null>(null);
   const sessionStateRef = useRef<SessionState>("join");
@@ -216,6 +268,12 @@ const AudienceParticipation: React.FC = () => {
 
   // OPTIMIZED: wall-clock anchor reference
   const questionEndsAtRef = useRef<number | null>(null);
+
+  // Signals that the NEXT WebSocket connection (after a restore) should send
+  // SESSION_RESTORE to the host instead of REQUEST_GAME_STATE. Set to true by
+  // handleRestoreSession(), cleared after the broadcast fires (at most once per
+  // restore cycle).
+  const isRestoredSessionRef = useRef<boolean>(false);
 
   useEffect(() => {
     participantSessionRef.current = participantSession;
@@ -277,6 +335,109 @@ const AudienceParticipation: React.FC = () => {
       answerRevealTimeoutRef.current = undefined;
     }
   }, []);
+
+  // ── Save / clear participant session in localStorage ──────────────────────
+  // localStorage (not sessionStorage) is used so identity survives closing the
+  // browser entirely and reopening it, matching the Kahoot-style reconnect flow.
+  // Both standard and elimination sessions are stored. Elimination: tab close
+  // no longer auto-eliminates; only an explicit "Leave Session" eliminates.
+  const saveParticipantSession = useCallback((ps: ParticipantSession) => {
+    try {
+      const data: StoredParticipantSession = {
+        sessionId: ps.session.id,
+        participantId: ps.participantId,
+        participantToken: ps.participantToken,
+        participantName: ps.participantName,
+        sessionCode: ps.session.code,
+        savedAt: Date.now(),
+        gameMode: isEliminationRef.current ? "elimination" : "standard",
+      };
+      localStorage.setItem(PARTICIPANT_SESSION_KEY, JSON.stringify(data));
+    } catch {
+      // localStorage may be unavailable in some private-browsing configurations.
+    }
+  }, []);
+
+  const clearParticipantSession = useCallback(() => {
+    try {
+      localStorage.removeItem(PARTICIPANT_SESSION_KEY);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // ── Cross-tab duplicate detection via BroadcastChannel ───────────────────
+  // When a participant already has this session open in Tab A, any attempt by
+  // Tab B to join or restore the same session is rejected. Tab B tries
+  // window.close() first (works if opened via link/script); if that fails the
+  // showDuplicateTabUI overlay is shown so the user can close manually.
+  //
+  // Protocol:
+  //   Sender:   { type: "AP_SESSION_QUERY" }
+  //   Responder:{ type: "AP_SESSION_RESPONSE", sessionId, participantId,
+  //                                            participantName, sessionCode }
+  //
+  // Active-session tabs answer queries. A 200 ms window is enough for same-
+  // device cross-tab messaging (BroadcastChannel is synchronous-ish).
+
+  // Respond to sibling-tab queries while this tab holds an active session.
+  useEffect(() => {
+    if (!participantSession) return;
+    const channel = new BroadcastChannel("ap_session_tabs");
+    channel.onmessage = (e: MessageEvent) => {
+      if (e.data?.type === "AP_SESSION_QUERY") {
+        channel.postMessage({
+          type: "AP_SESSION_RESPONSE",
+          sessionId: participantSession.session.id,
+          participantId: participantSession.participantId,
+          participantName: participantSession.participantName,
+          sessionCode: participantSession.session.code,
+        });
+      }
+    };
+    return () => channel.close();
+  }, [participantSession]);
+
+  // Returns true if another tab already holds the described session slot.
+  // Matches by participantId+sessionId (for restore) or sessionCode+name (for join).
+  const checkActiveSiblingTab = useCallback(
+    (query: {
+      sessionId?: string;
+      participantId?: string;
+      sessionCode?: string;
+      participantName?: string;
+    }): Promise<boolean> =>
+      new Promise((resolve) => {
+        let resolved = false;
+        const channel = new BroadcastChannel("ap_session_tabs");
+        const timer = setTimeout(() => {
+          if (!resolved) { resolved = true; channel.close(); resolve(false); }
+        }, 200);
+        channel.onmessage = (e: MessageEvent) => {
+          if (resolved) return;
+          const d = e.data;
+          if (d?.type !== "AP_SESSION_RESPONSE") return;
+          const byId =
+            query.participantId &&
+            query.sessionId &&
+            d.participantId === query.participantId &&
+            d.sessionId === query.sessionId;
+          const byName =
+            query.sessionCode &&
+            query.participantName &&
+            d.sessionCode?.toUpperCase() === query.sessionCode.toUpperCase() &&
+            d.participantName?.toLowerCase() === query.participantName.toLowerCase();
+          if (byId || byName) {
+            resolved = true;
+            clearTimeout(timer);
+            channel.close();
+            resolve(true);
+          }
+        };
+        channel.postMessage({ type: "AP_SESSION_QUERY" });
+      }),
+    [],
+  );
 
   // ── Load skips data when participant joins ─────────────────────────
   // OPTIMIZED: accepts an optional `preloadedMaxSkips` parameter that is
@@ -365,6 +526,66 @@ const AudienceParticipation: React.FC = () => {
     participantSession?.session.id,
     participantSession?.participantId,
   ]);
+
+  // ── On mount: check localStorage for a saved participant session ──────────
+  // • Page refresh (reload)  → auto-restore silently, skip the card entirely.
+  // • New navigation (close + reopen) → show the "Welcome back" restore card.
+  // Suppressed when:
+  //   • No stored entry exists.
+  //   • The entry is older than SESSION_MAX_AGE_MS (4 hours).
+  //   • The URL code param is present but doesn't match the stored session code.
+  //     (The user navigated to a different session → don't confuse them.)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PARTICIPANT_SESSION_KEY);
+      if (!raw) return;
+      const stored: StoredParticipantSession = JSON.parse(raw);
+      // Discard entries older than 4 hours.
+      if (Date.now() - stored.savedAt > SESSION_MAX_AGE_MS) {
+        localStorage.removeItem(PARTICIPANT_SESSION_KEY);
+        return;
+      }
+      // If a session code is in the URL and it doesn't match, the user is
+      // joining a different session — skip the restore offer.
+      const urlCode = (searchParams.get("code") || "").toUpperCase();
+      if (urlCode && urlCode !== stored.sessionCode) {
+        return;
+      }
+
+      // Detect whether this is a page reload vs a fresh navigation.
+      // On reload: auto-restore silently (no card shown, no user interaction).
+      // On navigate: show the restore card so the user can confirm.
+      let isReload = false;
+      try {
+        const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+        isReload = nav?.type === "reload";
+      } catch { /* ignore — treat as new navigation */ }
+
+      setStoredSession(stored);
+      if (isReload) {
+        // Auto-restore — the useEffect below will trigger handleRestoreSession
+        // once storedSession state has been set.
+        pendingAutoRestoreRef.current = true;
+      } else {
+        setShowRestoreModal(true);
+      }
+    } catch {
+      try { localStorage.removeItem(PARTICIPANT_SESSION_KEY); } catch { /* ignore */ }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount only
+
+  // ── Auto-restore trigger ───────────────────────────────────────────────────
+  // Fires after the mount effect sets storedSession when it detected a reload.
+  // Using a separate effect ensures we read the correct state value rather than
+  // calling handleRestoreSession before storedSession is in state.
+  useEffect(() => {
+    if (storedSession && pendingAutoRestoreRef.current) {
+      pendingAutoRestoreRef.current = false;
+      handleRestoreSession();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storedSession]);
 
   const getQuestionImage = (question: Question | null): string | null => {
     if (!question) return null;
@@ -711,6 +932,9 @@ const AudienceParticipation: React.FC = () => {
           setIsFinalDecision(false);
           setSessionState("ended");
           sessionStateRef.current = "ended";
+          // Clear stored session when the host ends the session so the user
+          // isn't offered a restore on the next visit.
+          clearParticipantSession();
           break;
         }
 
@@ -918,6 +1142,7 @@ const AudienceParticipation: React.FC = () => {
       startWallClockCountdown,
       stopLocalCountdown,
       clearAnswerRevealTimeout,
+      clearParticipantSession,
       gameState.currentRound,
     ],
   );
@@ -928,6 +1153,71 @@ const AudienceParticipation: React.FC = () => {
     onMessage: handleBroadcast,
     enabled: !!participantSession,
   });
+
+  // ── Signal SESSION_RESTORE to the host after a successful restore reconnect ─
+  // The host uses this to re-add the participant to its online count so the
+  // lobby participant list stays accurate. Fires at most once per restore cycle.
+  // isRestoredSessionRef is set by handleRestoreSession() and cleared here.
+  useEffect(() => {
+    if (!wsConnected || !participantSession || !isRestoredSessionRef.current) return;
+    isRestoredSessionRef.current = false;
+    sendMessage({
+      type: SESSION_EVENTS.SESSION_RESTORE,
+      payload: {
+        participantId: participantSession.participantId,
+        participantName: participantSession.participantName,
+      },
+    });
+  }, [wsConnected, participantSession, sendMessage]);
+
+  // ── Heartbeat: broadcast HEARTBEAT every 30 s while connected ─────────────
+  // Lets the host detect silent disconnects (especially on mobile where browsers
+  // don't always fire beforeunload). In elimination mode the host may eliminate
+  // participants who miss 3 consecutive heartbeats (90 s of silence).
+  useEffect(() => {
+    if (!participantSession || !wsConnected) return;
+    const interval = setInterval(() => {
+      sendMessage({
+        type: SESSION_EVENTS.HEARTBEAT,
+        payload: { participantId: participantSession.participantId },
+      });
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [participantSession, wsConnected, sendMessage]);
+
+  // ── GOODBYE on tab close ───────────────────────────────────────────────────
+  // Sends a GOODBYE broadcast so the host can immediately decrement the participant
+  // count without waiting for a Supabase connection timeout.
+  // Both standard and elimination mode: localStorage entry is KEPT so the
+  // restore card (or auto-restore on reload) can offer a "Welcome back" flow.
+  // Only an explicit "Leave Session" action clears storage and eliminates.
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Broadcast GOODBYE if currently in a session (best-effort, fire-and-forget).
+      // Supabase Broadcast is synchronous-ish for small payloads so this usually
+      // completes before the page is torn down.
+      // isExplicitLeave is false here — the user did NOT click "Leave Session",
+      // they simply closed the tab/browser. In elimination mode this no longer
+      // auto-eliminates them; they can restore when they return.
+      const ps = participantSessionRef.current;
+      if (ps) {
+        sendMessage({
+          type: SESSION_EVENTS.GOODBYE,
+          payload: {
+            participantId: ps.participantId,
+            participantName: ps.participantName,
+            isExplicitLeave: false,
+          },
+        });
+      }
+      // Standard AND elimination mode: keep localStorage so the restore card
+      // (or auto-restore on reload) can offer a "Welcome back" flow.
+      // Explicit leave (Leave Session button) clears storage separately.
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [sendMessage]);
 
   // ── Timer-end effect: determine what to show when a question closes ───────
   useEffect(() => {
@@ -1144,6 +1434,19 @@ const AudienceParticipation: React.FC = () => {
     setIsLoading(true);
     setError(null);
 
+    // Duplicate tab guard: if this exact name is already in this session in
+    // another tab, block the join and redirect the user to that tab instead.
+    const isDuplicate = await checkActiveSiblingTab({
+      sessionCode: joinData.code.toUpperCase(),
+      participantName: joinData.name,
+    });
+    if (isDuplicate) {
+      setIsLoading(false);
+      try { window.close(); } catch { /* ignore */ }
+      setShowDuplicateTabUI(true);
+      return;
+    }
+
     try {
       const { data: sessionExists, error: sessionCheckError } = await supabase
         .from("sessions")
@@ -1321,6 +1624,12 @@ const AudienceParticipation: React.FC = () => {
         sessionStateRef.current = "waiting";
       }
 
+      // Save participant identity to localStorage for ALL sessions (both
+      // standard and elimination) so a "Welcome back" restore is possible.
+      // Elimination: tab close no longer means auto-eliminated; only an
+      // explicit "Leave Session" action eliminates and clears storage.
+      saveParticipantSession(ps);
+
       toast({
         title: "Joined Successfully",
         duration: 2000,
@@ -1338,6 +1647,200 @@ const AudienceParticipation: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // ── Restore a previous participant session ──────────────────────────────────
+  // Called when the user clicks "Continue" in the "Welcome back" modal. Verifies
+  // the stored session is still active, rebuilds ParticipantSession without
+  // creating a new DB participant record, then signals the host via
+  // SESSION_RESTORE broadcast (fired once the WebSocket channel reconnects).
+  const handleRestoreSession = async () => {
+    if (!storedSession) return;
+    setIsRestoring(true);
+
+    // Duplicate tab guard: if another tab already holds this participant slot
+    // (same sessionId + participantId), redirect the user back to that tab.
+    const isDuplicate = await checkActiveSiblingTab({
+      sessionId: storedSession.sessionId,
+      participantId: storedSession.participantId,
+    });
+    if (isDuplicate) {
+      setIsRestoring(false);
+      try { window.close(); } catch { /* ignore — browser may block programmatic close */ }
+      setShowDuplicateTabUI(true);
+      return;
+    }
+
+    try {
+      const restoreResult = await SessionService.restoreSession({
+        sessionId: storedSession.sessionId,
+        participantId: storedSession.participantId,
+        participantToken: storedSession.participantToken,
+      });
+
+      if (!restoreResult) {
+        // Session ended or participant no longer exists — clear storage and
+        // fall back to the regular join form with an inline message.
+        clearParticipantSession();
+        pendingAutoRestoreRef.current = false;
+        setShowRestoreModal(false);
+        setStoredSession(null);
+        setRestoreError("This session has ended or your slot was removed. Please join a new session.");
+        return;
+      }
+
+      // Session ended while the participant was away — show the ended state.
+      if (restoreResult.session.status === "ENDED") {
+        clearParticipantSession();
+        setShowRestoreModal(false);
+        setStoredSession(null);
+        setSessionState("ended");
+        sessionStateRef.current = "ended";
+        return;
+      }
+
+      const ps: ParticipantSession = {
+        session: restoreResult.session,
+        participantId: storedSession.participantId,
+        participantName: storedSession.participantName,
+        participantToken: storedSession.participantToken,
+      };
+
+      participantSessionRef.current = ps;
+      setParticipantSession(ps);
+
+      const restoredGameMode = restoreResult.gameMode ?? "standard";
+      const restoredThemeId  = restoreResult.themeId  ?? "default";
+      setContextMeta({ gameMode: restoredGameMode, themeId: restoredThemeId });
+      isEliminationRef.current = restoredGameMode === "elimination";
+
+      if (restoreResult.finalRoundDecisionTimer) {
+        setFinalDecisionTimer(restoreResult.finalRoundDecisionTimer);
+      }
+
+      const restoredMaxSkips = restoreResult.maxSkipsPerParticipant ?? 1;
+      setMaxSkipsPerParticipant(restoredMaxSkips);
+
+      const joinedCode = storedSession.sessionCode;
+      if (searchParams.get("code") !== joinedCode) {
+        setSearchParams({ code: joinedCode }, { replace: true });
+      }
+
+      // Mark BEFORE any async work so that if the WebSocket connects during
+      // the await calls below, the wsConnected effect fires with
+      // isRestoredSessionRef.current already true and sends SESSION_RESTORE.
+      isRestoredSessionRef.current = true;
+
+      if (
+        restoreResult.session.status === "ACTIVE" &&
+        restoreResult.session.currentQuestionIndex >= 0
+      ) {
+        const currentQ =
+          restoreResult.session.presentation.questions[
+            restoreResult.session.currentQuestionIndex
+          ];
+        if (currentQ?.id) {
+          const { data: liveSession } = await supabase
+            .from("sessions")
+            .select(
+              "is_paused, current_question_started_at, current_question_ends_at, timer_paused_remaining, timer_resumed_at",
+            )
+            .eq("id", storedSession.sessionId)
+            .maybeSingle();
+          const paused = liveSession?.is_paused ?? false;
+          setIsPaused(paused);
+          isPausedRef.current = paused;
+          const timeLimit = currentQ.timeLimit ?? null;
+          let endsAtMs: number | undefined = undefined;
+          if (liveSession?.current_question_ends_at) {
+            endsAtMs = new Date(liveSession.current_question_ends_at).getTime();
+          } else {
+            const remaining = computeRemainingFromDbRow(
+              {
+                is_paused: paused,
+                current_question_started_at: liveSession?.current_question_started_at,
+                timer_paused_remaining: liveSession?.timer_paused_remaining,
+                timer_resumed_at: liveSession?.timer_resumed_at,
+              },
+              timeLimit,
+            );
+            if (remaining !== null && remaining > 0) endsAtMs = Date.now() + remaining * 1000;
+          }
+          let hasAlreadyResponded = false;
+          try {
+            hasAlreadyResponded = await SessionService.checkExistingResponse(
+              storedSession.sessionId,
+              storedSession.participantId,
+              currentQ.id,
+              storedSession.participantToken,
+            );
+          } catch (err) {
+            console.error("[RestoreSession] Failed to check existing response:", err);
+          }
+          setCurrentQuestion(currentQ);
+          currentQuestionRef.current = currentQ;
+          setTimerTotal(timeLimit ?? 0);
+          const isTimedQuestion = timeLimit !== null && timeLimit > 0;
+          const timerAlreadyExpired = isTimedQuestion && (!endsAtMs || endsAtMs <= Date.now());
+          if (endsAtMs && endsAtMs > Date.now()) {
+            const remaining = Math.max(0, Math.ceil((endsAtMs - Date.now()) / 1000));
+            setTimerRemaining(remaining);
+            timerRemainingRef.current = remaining;
+            questionEndsAtRef.current = endsAtMs;
+            if (!paused && remaining > 0) startWallClockCountdown(endsAtMs);
+          } else {
+            const remaining = timerAlreadyExpired ? 0 : (timeLimit ?? 0);
+            setTimerRemaining(remaining);
+            timerRemainingRef.current = remaining;
+          }
+          if (timerAlreadyExpired) {
+            setQuestionActive(false); questionActiveRef.current = false;
+            setQuestionClosed(true);  questionClosedRef.current = true;
+          } else {
+            setQuestionActive(true);  questionActiveRef.current = true;
+            setQuestionClosed(false); questionClosedRef.current = false;
+          }
+          setShowCorrectAnswerFeedback(false);
+          setSubmittedOptionId(null);
+          setShowAnswerReveal(false);
+          if (timerAlreadyExpired && !hasAlreadyResponded) {
+            setSessionState("waiting"); sessionStateRef.current = "waiting";
+          } else {
+            setSessionState(hasAlreadyResponded ? "submitted" : "question");
+            sessionStateRef.current = hasAlreadyResponded ? "submitted" : "question";
+          }
+        } else {
+          setSessionState("waiting"); sessionStateRef.current = "waiting";
+        }
+      } else {
+        setSessionState("waiting"); sessionStateRef.current = "waiting";
+      }
+
+      // Refresh the localStorage entry so the 4-hour window resets from now.
+      saveParticipantSession(ps);
+
+      setShowRestoreModal(false);
+      setStoredSession(null);
+
+    } catch (err: any) {
+      console.error("[RestoreSession] Failed:", err);
+      clearParticipantSession();
+      pendingAutoRestoreRef.current = false;
+      setShowRestoreModal(false);
+      setStoredSession(null);
+      setRestoreError("Unable to restore your session. Please join again.");
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  // ── Dismiss the restore modal without restoring ────────────────────────────
+  // Clears the stored session so it isn't offered again, then leaves the user
+  // on the regular join form.
+  const handleDismissRestore = () => {
+    clearParticipantSession();
+    setShowRestoreModal(false);
+    setStoredSession(null);
   };
 
   // ── Handle final round decision ─────────────────────────────────────────
@@ -1727,6 +2230,10 @@ const AudienceParticipation: React.FC = () => {
     speedAnsweredCorrectlyRef.current = false;
     hasWithdrawnFromFinalRoundRef.current = false;
 
+    // Clear any stored session identity when the user explicitly leaves.
+    // This prevents the restore modal from appearing on the next visit.
+    clearParticipantSession();
+
     setParticipantSession(null);
     setCurrentQuestion(null);
     setError(null);
@@ -1828,6 +2335,23 @@ const AudienceParticipation: React.FC = () => {
 
     const handleConfirmLeave = () => {
       setIsLeavingSession(true);
+      // Explicitly broadcast GOODBYE so the host decrements the participant
+      // count immediately (without waiting for a Supabase connection timeout).
+      // isExplicitLeave=true tells the host to also eliminate this participant
+      // in elimination mode and clear their restore identity.
+      const ps = participantSessionRef.current;
+      if (ps) {
+        sendMessage({
+          type: SESSION_EVENTS.GOODBYE,
+          payload: {
+            participantId: ps.participantId,
+            participantName: ps.participantName,
+            isExplicitLeave: true,
+          },
+        });
+      }
+      // Clear stored identity so no restore card appears on the next visit.
+      clearParticipantSession();
       handleJoinNewSession();
       setIsLeavingSession(false);
       setShowLeaveConfirmModal(false);
@@ -1934,6 +2458,70 @@ const AudienceParticipation: React.FC = () => {
     );
   };
 
+  // ── Restore card — rendered inside SessionJoinForm as a slot ──────────────
+  const restoreCardSlot: React.ReactNode =
+    showRestoreModal && storedSession ? (
+      <div className="rounded-xl border border-border bg-muted/40 overflow-hidden">
+        <div className="h-0.5 w-full bg-primary" />
+        <div className="p-3.5">
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
+              <svg className="w-3.5 h-3.5 text-primary fill-none stroke-current" viewBox="0 0 24 24" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a9 9 0 0114.83-4.83M20 15a9 9 0 01-14.83 4.83" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-foreground leading-tight">Welcome back!</p>
+              <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                Continue as <span className="font-semibold text-foreground">{storedSession.participantName}</span>
+                <span className="mx-1 text-muted-foreground/50">·</span>
+                <span className="font-mono font-semibold">{storedSession.sessionCode}</span>
+              </p>
+            </div>
+          </div>
+          {restoreError && (
+            <div className="mb-2.5 flex items-start gap-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 px-3 py-2">
+              <svg className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+              </svg>
+              <p className="text-[11px] text-red-700 dark:text-red-400 leading-tight">{restoreError}</p>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={handleRestoreSession}
+              disabled={isRestoring}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isRestoring ? (
+                <>
+                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  Rejoining…
+                </>
+              ) : "Rejoin session"}
+            </button>
+            <button
+              onClick={handleDismissRestore}
+              disabled={isRestoring}
+              className="flex-1 py-2 rounded-lg border border-border bg-background hover:bg-muted text-foreground text-xs font-medium transition-colors disabled:opacity-60"
+            >
+              Join as new
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : restoreError ? (
+      <div className="flex items-start gap-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 px-3 py-2.5">
+        <svg className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+        </svg>
+        <p className="text-[11px] text-red-700 dark:text-red-400 leading-tight">{restoreError}</p>
+      </div>
+    ) : null;
+
   const renderContent = (): React.ReactNode => {
     switch (sessionState) {
       case "join":
@@ -1941,6 +2529,7 @@ const AudienceParticipation: React.FC = () => {
           <SessionJoinForm
             onJoin={handleJoinSession}
             prefilledCode={prefilledCode}
+            restoreSlot={restoreCardSlot}
           />
         );
 
@@ -2239,6 +2828,7 @@ const AudienceParticipation: React.FC = () => {
 
   return (
     <div className={`${themeClass} min-h-screen bg-background relative`}>
+
       {isElimination && (
         <>
           {/* Regular elimination overlay (non-speed questions) */}
@@ -2262,6 +2852,28 @@ const AudienceParticipation: React.FC = () => {
             maxAdvance={speedMaxAdvance}
           />
         </>
+      )}
+
+      {/* ── Duplicate-tab screen ─────────────────────────────────────────────
+           Shown when another tab already has this session open and
+           window.close() failed (e.g. the tab was opened directly by the user,
+           not via window.open()). The user must close this tab manually.     */}
+      {showDuplicateTabUI && (
+        <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm px-6">
+          <div className="max-w-sm w-full text-center">
+            <div className="mx-auto mb-5 w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+              <svg className="w-7 h-7 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <rect x="2" y="3" width="20" height="14" rx="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 21h8M12 17v4"/>
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold text-foreground mb-2">Already open in another tab</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Your session is already active in another browser tab. Switch to that tab to continue — you can only have one active session at a time.
+            </p>
+            <p className="text-xs text-muted-foreground opacity-60">You can safely close this tab.</p>
+          </div>
+        </div>
       )}
 
       {renderTimerBar()}
