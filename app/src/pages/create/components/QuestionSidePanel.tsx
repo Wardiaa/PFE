@@ -930,29 +930,6 @@ export function QuestionSidePanel({
             />
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Actions</label>
-            <div className="grid grid-cols-2 gap-2">
-              {onDuplicateQuestion && (
-                <button
-                  onClick={onDuplicateQuestion}
-                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all text-xs font-semibold text-slate-600"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-indigo-500" />
-                  Duplicate
-                </button>
-              )}
-              {onDeleteQuestion && (
-                <button
-                  onClick={onDeleteQuestion}
-                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 transition-all text-xs font-semibold text-rose-500"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Delete
-                </button>
-              )}
-            </div>
-          </div>
         </div>
       );
     }
@@ -1000,29 +977,6 @@ export function QuestionSidePanel({
             />
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Actions</label>
-            <div className="grid grid-cols-2 gap-2">
-              {onDuplicateQuestion && (
-                <button
-                  onClick={onDuplicateQuestion}
-                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all text-xs font-semibold text-slate-600"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-indigo-500" />
-                  Duplicate
-                </button>
-              )}
-              {onDeleteQuestion && (
-                <button
-                  onClick={onDeleteQuestion}
-                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 transition-all text-xs font-semibold text-rose-500"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Delete
-                </button>
-              )}
-            </div>
-          </div>
         </div>
       );
     }
@@ -1131,30 +1085,6 @@ export function QuestionSidePanel({
               onImageSelect={(imageUrl) => onUpdateQuestion({ imageUrl })}
               onImageRemove={() => onUpdateQuestion({ imageUrl: null })}
             />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Actions</label>
-            <div className="grid grid-cols-2 gap-2">
-              {onDuplicateQuestion && (
-                <button
-                  onClick={onDuplicateQuestion}
-                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all text-xs font-semibold text-slate-600"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-indigo-500" />
-                  Duplicate
-                </button>
-              )}
-              {onDeleteQuestion && (
-                <button
-                  onClick={onDeleteQuestion}
-                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 transition-all text-xs font-semibold text-rose-500"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Delete
-                </button>
-              )}
-            </div>
           </div>
         </div>
       );
@@ -1376,13 +1306,6 @@ export function QuestionSidePanel({
           <ImageUploadWidget currentImageUrl={currentQuestion.imageUrl || undefined} onImageSelect={(imageUrl) => onUpdateQuestion({ imageUrl })} onImageRemove={() => onUpdateQuestion({ imageUrl: null })} />
         </div>
 
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Actions</label>
-          <div className="grid grid-cols-2 gap-2">
-            {onDuplicateQuestion && <button onClick={onDuplicateQuestion} className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all text-xs font-semibold text-slate-600"><RefreshCw className="w-3.5 h-3.5 text-indigo-500" /> Duplicate</button>}
-            {onDeleteQuestion && <button onClick={onDeleteQuestion} className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 transition-all text-xs font-semibold text-rose-500"><Trash2 className="w-3.5 h-3.5" /> Delete</button>}
-          </div>
-        </div>
       </div>
     );
   };

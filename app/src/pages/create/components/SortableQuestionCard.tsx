@@ -1,26 +1,23 @@
-// SortableQuestionCard.tsx - DISPLAY ONLY
+// SortableQuestionCard.tsx - Combined: Mentimeter card style + smooth grid transitions
 import { cn } from "../../../lib/utils";
 import { type Question } from "../types";
 import {
   GripVertical,
   Trash2,
   Check,
-  Lock,
   ListChecks,
   MessageSquare,
   Cloud,
-  BarChart2,
   HelpCircle,
   Timer,
   Star,
   Copy,
   MoreVertical,
-  CheckCircle2,
   ChevronDown,
   SlidersHorizontal,
   ListOrdered,
   Grid3X3,
-  Vote, 
+  Vote,
 } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -40,168 +37,19 @@ interface SortableQuestionCardProps {
   viewMode?: "grid" | "list";
 }
 
-const TYPE_META: Record<
-  string,
-  { icon: React.ElementType; color: string; bg: string; border: string; label: string }
-> = {
-  "multiple-choice": {
-    icon: ListChecks,
-    color: "text-teal-600",
-    bg: "bg-teal-50",
-    border: "border-teal-200",
-    label: "MC",
-  },
-  SINGLE_CHOICE: {
-    icon: ListChecks,
-    color: "text-teal-600",
-    bg: "bg-teal-50",
-    border: "border-teal-200",
-    label: "MC",
-  },
-  MULTIPLE_CHOICE: {
-    icon: ListChecks,
-    color: "text-teal-600",
-    bg: "bg-teal-50",
-    border: "border-teal-200",
-    label: "MC",
-  },
-  TRUE_FALSE: {
-    icon: ListChecks,
-    color: "text-teal-600",
-    bg: "bg-teal-50",
-    border: "border-teal-200",
-    label: "T/F",
-  },
-  POLL: {
-    icon: ListChecks,
-    color: "text-teal-600",
-    bg: "bg-teal-50",
-    border: "border-teal-200",
-    label: "Poll",
-  },
-  "open-text": {
-    icon: MessageSquare,
-    color: "text-cyan-600",
-    bg: "bg-cyan-50",
-    border: "border-cyan-200",
-    label: "Text",
-  },
-  OPEN_TEXT: {
-    icon: MessageSquare,
-    color: "text-cyan-600",
-    bg: "bg-cyan-50",
-    border: "border-cyan-200",
-    label: "Text",
-  },
-  "word-cloud": {
-    icon: Cloud,
-    color: "text-orange-500",
-    bg: "bg-orange-50",
-    border: "border-orange-200",
-    label: "Cloud",
-  },
-  WORD_CLOUD: {
-    icon: Cloud,
-    color: "text-orange-500",
-    bg: "bg-orange-50",
-    border: "border-orange-200",
-    label: "Cloud",
-  },
-  "rating-scale": {
-    icon: BarChart2,
-    color: "text-emerald-600",
-    bg: "bg-emerald-50",
-    border: "border-emerald-200",
-    label: "Rating",
-  },
-  RATING: {
-    icon: BarChart2,
-    color: "text-emerald-600",
-    bg: "bg-emerald-50",
-    border: "border-emerald-200",
-    label: "Rating",
-  },
-   scales: {
-    icon: SlidersHorizontal,
-    color: "text-teal-600",
-    bg: "bg-teal-50",
-    border: "border-teal-200",
-    label: "Scale",
-  },
-  SCALING: {
-    icon: SlidersHorizontal,
-    color: "text-teal-600",
-    bg: "bg-teal-50",
-    border: "border-teal-200",
-    label: "Scale",
-  },
-
-  
-  ranking: {
-    icon: ListOrdered,
-    color: "text-violet-600",
-    bg: "bg-violet-50",
-    border: "border-violet-200",
-    label: "Rank",
-  },
-  RANKING: {
-    icon: ListOrdered,
-    color: "text-violet-600",
-    bg: "bg-violet-50",
-    border: "border-violet-200",
-    label: "Rank",
-  },
-  "grid-2x2": {
-    icon: Grid3X3,
-    color: "text-emerald-600",
-    bg: "bg-emerald-50",
-    border: "border-emerald-200",
-    label: "Grid",
-  },
-  "GRID_2X2": {
-    icon: Grid3X3,
-    color: "text-emerald-600",
-    bg: "bg-emerald-50",
-    border: "border-emerald-200",
-    label: "Grid",
-  },
-  "vote": {
-    icon: Vote,
-    color: "text-rose-600",
-    bg: "bg-rose-50",
-    border: "border-rose-200",
-    label: "Vote",
-  },
-  "VOTE": {
-    icon: Vote,
-    color: "text-rose-600",
-    bg: "bg-rose-50",
-    border: "border-rose-200",
-    label: "Vote",
-  },
+const TYPE_META: Record<string, { icon: React.ElementType; label: string }> = {
+  "multiple-choice": { icon: ListChecks, label: "Multiple Choice" },
+  SINGLE_CHOICE: { icon: ListChecks, label: "Multiple Choice" },
+  MULTIPLE_CHOICE: { icon: ListChecks, label: "Multiple Choice" },
+  "open-text": { icon: MessageSquare, label: "Open Text" },
+  "word-cloud": { icon: Cloud, label: "Word Cloud" },
+  "rating-scale": { icon: Star, label: "Rating" },
+  RATING: { icon: Star, label: "Rating" },
+  scales: { icon: SlidersHorizontal, label: "Scales" },
+  ranking: { icon: ListOrdered, label: "Ranking" },
+  "grid-2x2": { icon: Grid3X3, label: "Grid 2x2" },
+  vote: { icon: Vote, label: "Vote" },
 };
-
-const DEFAULT_META = {
-  icon: HelpCircle,
-  color: "text-slate-500",
-  bg: "bg-slate-50",
-  border: "border-slate-200",
-  label: "?",
-};
-
-function getTypeMeta(type: string) {
-  return TYPE_META[type] ?? DEFAULT_META;
-}
-
-function isChoiceType(type: string) {
-  return [
-    "multiple-choice",
-    "SINGLE_CHOICE",
-    "MULTIPLE_CHOICE",
-    "TRUE_FALSE",
-    "POLL",
-  ].includes(type);
-}
 
 export function SortableQuestionCard({
   id,
@@ -230,7 +78,7 @@ export function SortableQuestionCard({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.4 : 1,
+    opacity: isDragging ? 0.5 : 1,
   };
 
   useEffect(() => {
@@ -253,9 +101,9 @@ export function SortableQuestionCard({
     setShowMenu(false);
   };
 
-  const meta = getTypeMeta(question.type);
+  const meta = TYPE_META[question.type] ?? { icon: HelpCircle, label: "Question" };
   const TypeIcon = meta.icon;
-  const hasOptions = isChoiceType(question.type) && question.options && question.options.length > 0;
+  const isChoice = ["multiple-choice", "SINGLE_CHOICE", "MULTIPLE_CHOICE"].includes(question.type);
   const isGridView = viewMode === "grid";
 
   return (
@@ -264,125 +112,101 @@ export function SortableQuestionCard({
       style={style}
       onClick={() => onQuestionClick(index)}
       className={cn(
-        "group relative rounded-xl cursor-pointer transition-all duration-150 select-none",
-        isDragging && "shadow-2xl scale-[1.01] rotate-[0.5deg]",
+        "group relative bg-white rounded-2xl transition-all duration-200 cursor-pointer",
+        isDragging && "shadow-2xl z-50 scale-[1.02]",
         isCurrent
-          ? "bg-white shadow-lg shadow-indigo-100/50 ring-2 ring-indigo-200"
-          : isSelected
-          ? "bg-indigo-50/50 border border-indigo-200 hover:shadow-md"
-          : "bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm"
+          ? "ring-[2.5px] ring-indigo-500 shadow-xl shadow-indigo-100/40"
+          : "border border-slate-100 hover:border-slate-300 shadow-sm hover:shadow-md",
+        isSelected && !isCurrent && "border-indigo-300 bg-indigo-50/10"
       )}
     >
-      {/* Active accent bar */}
-      {isCurrent && (
-        <div className="absolute left-0 top-3 bottom-3 w-1 bg-gradient-to-b from-indigo-500 to-indigo-600 rounded-r-full" />
-      )}
+      {/* Left side controls */}
+      <div className="absolute left-4 top-4 flex flex-col items-center gap-3">
+        <div
+          {...attributes}
+          {...listeners}
+          className={cn(
+            "p-1 rounded-md text-slate-300 hover:text-indigo-500 hover:bg-slate-50 transition-colors cursor-grab active:cursor-grabbing",
+            isCurrent && "text-indigo-300"
+          )}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical size={14} />
+        </div>
 
-      <div className="p-3 sm:p-4 pl-4 sm:pl-5">
-        {/* ── Top row: left shrinks, right is always locked inside card ── */}
-        <div className="flex items-center gap-1 min-w-0">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect(index);
+          }}
+          className={cn(
+            "w-4 h-4 rounded-md border flex items-center justify-center transition-all",
+            isSelected
+              ? "bg-indigo-600 border-indigo-600 text-white"
+              : "border-slate-200 bg-white hover:border-indigo-400"
+          )}
+        >
+          {isSelected && <Check size={10} strokeWidth={4} />}
+        </button>
+      </div>
 
-          {/* LEFT GROUP — can be clipped by min-w-0 */}
-          <div className="flex items-center gap-1 min-w-0 overflow-hidden">
-            {/* Drag handle */}
-            <div
-              className={cn(
-                "flex-shrink-0 cursor-grab active:cursor-grabbing text-slate-300 hover:text-indigo-400 transition-colors",
-                isDragging && "cursor-grabbing text-indigo-500"
-              )}
-              onClick={(e) => e.stopPropagation()}
-              {...attributes}
-              {...listeners}
-            >
-              <GripVertical className="w-3.5 h-3.5" />
-            </div>
-
-            {/* Checkbox */}
-            <div
-              className="flex-shrink-0 cursor-pointer"
-              onClick={(e) => { e.stopPropagation(); onToggleSelect(index); }}
-            >
-              <div className={cn(
-                "w-3.5 h-3.5 rounded-md border flex items-center justify-center transition-all",
-                isSelected
-                  ? "bg-indigo-600 border-indigo-600"
-                  : "border-slate-300 hover:border-indigo-400 hover:bg-indigo-50"
-              )}>
-                {isSelected && <Check className="w-2 h-2 text-white" />}
-              </div>
-            </div>
-
-            {/* Index */}
-            <span className="flex-shrink-0 text-[9px] font-mono font-bold text-slate-400 bg-slate-100 px-1 py-0.5 rounded">
-              #{index + 1}
-            </span>
-
-            {/* Type badge */}
-            <div className={cn(
-              "flex-shrink-0 inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-semibold border",
-              meta.bg, meta.color, meta.border
+      {/* Main content */}
+      <div className="pl-12 pr-4 py-4">
+        {/* Top Bar */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "flex items-center justify-center w-5 h-5 rounded-md text-[10px] font-bold tracking-tight",
+              isCurrent ? "bg-slate-100 text-slate-500" : "bg-slate-100 text-slate-500"
             )}>
-              <TypeIcon className="w-2.5 h-2.5" />
-              <span className={cn(isGridView ? "hidden" : "inline")}>{meta.label}</span>
+              {index + 1}
+            </span>
+            <div className="h-3 w-px bg-slate-100" />
+            <div className="flex items-center gap-1.5 text-slate-400">
+              <TypeIcon size={12} />
+              <span className={cn("text-[10px] font-bold uppercase tracking-wider", isGridView ? "hidden" : "block")}>
+                {meta.label}
+              </span>
             </div>
           </div>
 
-          {/* SPACER */}
-          <div className="flex-1" />
-
-          {/* RIGHT GROUP — never shrinks, always inside card */}
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {/* Points badge */}
-            {question.points > 0 && (
-              <div className="flex items-center gap-0.5 px-1 py-0.5 rounded bg-amber-50 text-amber-600 text-[9px] font-medium">
-                <Star className="w-2.5 h-2.5 fill-amber-400 flex-shrink-0" />
-                <span className={cn(isGridView ? "hidden" : "inline")}>{question.points}</span>
-              </div>
-            )}
-
-            {/* Timer badge */}
+          <div className="flex items-center gap-1">
             {question.timeLimit && (
-              <div className="flex items-center gap-0.5 px-1 py-0.5 rounded bg-slate-100 text-slate-500 text-[9px] font-medium">
-                <Timer className="w-2.5 h-2.5 flex-shrink-0" />
-                <span className={cn(isGridView ? "hidden" : "inline")}>{question.timeLimit}s</span>
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 text-[9px] font-bold border border-slate-100">
+                <Timer size={10} />
+                <span>{question.timeLimit}s</span>
+              </div>
+            )}
+            {question.points > 0 && (
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 text-[9px] font-bold border border-amber-100/50">
+                <Star size={10} fill="currentColor" />
+                <span>{question.points}</span>
               </div>
             )}
 
-            {/* Expand / collapse toggle */}
-            <button
-              onClick={(e) => { e.stopPropagation(); setIsExpanded((v) => !v); }}
-              className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-            >
-              <ChevronDown className={cn(
-                "w-3.5 h-3.5 transition-transform duration-200",
-                isExpanded && "rotate-180"
-              )} />
-            </button>
-
-            {/* Context menu — 3 dots */}
-            <div className="relative" ref={menuRef} onClick={(e) => e.stopPropagation()}>
+            <div className="relative ml-1" ref={menuRef}>
               <button
-                onClick={() => setShowMenu((v) => !v)}
-                className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMenu(!showMenu);
+                }}
+                className="p-1.5 rounded-lg hover:bg-slate-50 text-slate-400 transition-colors"
               >
-                <MoreVertical className="w-3.5 h-3.5" />
+                <MoreVertical size={14} />
               </button>
-
               {showMenu && (
-                <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-30">
+                <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-slate-100 shadow-xl rounded-xl py-1.5 z-50 overflow-hidden">
                   <button
                     onClick={handleDuplicate}
-                    className="w-full px-3 py-1.5 text-left text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-2"
+                    className="w-full px-3 py-2 text-left text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-2 transition-colors"
                   >
-                    <Copy className="w-3 h-3" />
-                    Duplicate
+                    <Copy size={14} /> Duplicate
                   </button>
                   <button
-                    onClick={() => { onDelete(question.id); setShowMenu(false); }}
-                    className="w-full px-3 py-1.5 text-left text-xs text-rose-600 hover:bg-rose-50 flex items-center gap-2"
+                    onClick={() => onDelete(question.id)}
+                    className="w-full px-3 py-2 text-left text-xs font-bold text-red-500 hover:bg-slate-50 flex items-center gap-2 transition-colors"
                   >
-                    <Trash2 className="w-3 h-3" />
-                    Delete
+                    <Trash2 size={14} /> Delete
                   </button>
                 </div>
               )}
@@ -390,55 +214,77 @@ export function SortableQuestionCard({
           </div>
         </div>
 
-        {/* ── Title — always visible ── */}
-        <p className="mt-2 text-sm font-semibold text-slate-800 leading-snug truncate">
-          {question.title || (
-            <span className="text-slate-400 font-normal italic">Untitled question</span>
+        {/* Title */}
+        <h4
+          className={cn(
+            "text-sm font-bold leading-tight mb-1 transition-colors",
+            isCurrent ? "text-slate-900" : "text-slate-700"
           )}
-        </p>
+        >
+          {question.title || (
+            <span className="text-slate-300 italic font-medium">
+              Untitled Question
+            </span>
+          )}
+        </h4>
 
-        {/* ── Expanded: description + options ── */}
-        {isExpanded && (
-          <>
-            {/* Description */}
+        {/* COLLAPSIBLE SECTION - with grid transition */}
+        <div className={cn(
+          "grid transition-all duration-300 ease-in-out",
+          isExpanded ? "grid-rows-[1fr] opacity-100 mt-4" : "grid-rows-[0fr] opacity-0"
+        )}>
+          <div className="overflow-hidden space-y-3">
             {question.description && (
-              <p className="mt-1.5 text-xs text-slate-500 leading-relaxed">
+              <p className="text-xs text-slate-400 font-medium leading-relaxed">
                 {question.description}
               </p>
             )}
 
-            {/* Options (choice types only) */}
-            {hasOptions && (
-              <div className="mt-3 space-y-2">
-                {question.options!.slice(0, isGridView ? 3 : 4).map((opt) => (
-                  <div
-                    key={opt.id}
-                    className={cn(
-                      "flex items-center gap-2.5 px-3 py-2 rounded-lg border text-xs font-medium",
-                      opt.isCorrect
-                        ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                        : "bg-slate-50 border-slate-200 text-slate-600"
-                    )}
-                  >
-                    {opt.isCorrect ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                    ) : (
-                      <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-300 flex-shrink-0" />
-                    )}
-                    <span className="truncate">
-                      {opt.text || <em className="text-slate-400 font-normal">Empty option</em>}
+            {isChoice && question.options && (
+              <div className="space-y-1.5">
+                {question.options.slice(0, 4).map((opt) => (
+                  <div key={opt.id} className="flex items-center gap-3 py-1 px-1">
+                    <div
+                      className={cn(
+                        "w-1.5 h-1.5 rounded-full shrink-0",
+                        opt.isCorrect ? "bg-indigo-500" : "bg-slate-200"
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        "text-[11px] font-bold truncate",
+                        opt.isCorrect ? "text-indigo-900" : "text-slate-500"
+                      )}
+                    >
+                      {opt.text || "Empty option"}
                     </span>
                   </div>
                 ))}
-                {question.options!.length > (isGridView ? 3 : 4) && (
-                  <p className="text-xs text-slate-400 pl-1">
-                    +{question.options!.length - (isGridView ? 3 : 4)} more options
+                {question.options.length > 4 && (
+                  <p className="text-[10px] text-slate-300 font-bold pl-4">
+                    + {question.options.length - 4} more options
                   </p>
                 )}
               </div>
             )}
-          </>
-        )}
+          </div>
+        </div>
+
+        {/* Expand/Collapse Toggle Button */}
+        <div className="mt-2 flex justify-center">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsExpanded(!isExpanded);
+            }}
+            className="p-1 rounded-full text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
+          >
+            <ChevronDown 
+              size={14} 
+              className={cn("transition-transform duration-200", isExpanded && "rotate-180")} 
+            />
+          </button>
+        </div>
       </div>
     </div>
   );
