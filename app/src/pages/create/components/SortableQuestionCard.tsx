@@ -150,11 +150,12 @@ export function SortableQuestionCard({
         </button>
       </div>
 
-      {/* Main content */}
-      <div className="pl-12 pr-4 py-4">
+      {/* Main content — min-w-0 is critical: without it, flex children don't shrink below
+          their content width, causing text overflow in grid mode. */}
+      <div className="pl-12 pr-4 py-4 min-w-0">
         {/* Top Bar */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between mb-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 overflow-hidden mr-1">
             <span className={cn(
               "flex items-center justify-center w-5 h-5 rounded-md text-[10px] font-bold tracking-tight",
               isCurrent ? "bg-slate-100 text-slate-500" : "bg-slate-100 text-slate-500"
@@ -162,15 +163,15 @@ export function SortableQuestionCard({
               {index + 1}
             </span>
             <div className="h-3 w-px bg-slate-100" />
-            <div className="flex items-center gap-1.5 text-slate-400">
-              <TypeIcon size={12} />
-              <span className={cn("text-[10px] font-bold uppercase tracking-wider", isGridView ? "hidden" : "block")}>
+            <div className="flex items-center gap-1.5 text-slate-400 min-w-0">
+              <TypeIcon size={12} className="shrink-0" />
+              <span className={cn("text-[10px] font-bold uppercase tracking-wider truncate", isGridView ? "hidden" : "block")}>
                 {meta.label}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             {question.timeLimit && (
               <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 text-[9px] font-bold border border-slate-100">
                 <Timer size={10} />
@@ -217,7 +218,7 @@ export function SortableQuestionCard({
         {/* Title */}
         <h4
           className={cn(
-            "text-sm font-bold leading-tight mb-1 transition-colors",
+            "text-sm font-bold leading-tight mb-1 transition-colors break-words",
             isCurrent ? "text-slate-900" : "text-slate-700"
           )}
         >
@@ -243,7 +244,8 @@ export function SortableQuestionCard({
             {isChoice && question.options && (
               <div className="space-y-1.5">
                 {question.options.slice(0, 4).map((opt) => (
-                  <div key={opt.id} className="flex items-center gap-3 py-1 px-1">
+                  // min-w-0 on the row + truncate on the text prevents overflow in grid mode
+                  <div key={opt.id} className="flex items-center gap-3 py-1 px-1 min-w-0">
                     <div
                       className={cn(
                         "w-1.5 h-1.5 rounded-full shrink-0",

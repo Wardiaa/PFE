@@ -59,10 +59,10 @@ export function Header({
   };
 
   return (
-    <header className="sticky top-0 z-[50] w-full bg-white h-[64px] border-b border-slate-200 px-5 flex items-center justify-between">
+    <header className="sticky top-0 z-[50] w-full bg-white h-[64px] border-b border-slate-200 px-3 sm:px-5 flex items-center justify-between overflow-hidden">
       
       {/* LEFT: Project Context & Nav */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 min-w-0">
         <button 
           onClick={() => navigate(-1)}
           className="flex items-center justify-center w-9 h-9 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors"
@@ -72,7 +72,8 @@ export function Header({
 
         <div className="w-[1px] h-6 bg-slate-200 hidden sm:block" />
 
-        <div className="flex flex-col min-w-0">
+        {/* Hide title on very small screens so the tab nav and action buttons have room */}
+        <div className="hidden sm:flex flex-col min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="text-sm font-bold text-slate-900 truncate max-w-[150px] lg:max-w-[280px]">
               {contextTitle.toUpperCase()}
@@ -86,8 +87,10 @@ export function Header({
         </div>
       </div>
 
-      {/* CENTER: Tab Control (Mentimeter Style Segmented) */}
-      <nav className="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center bg-slate-100 p-1 rounded-xl">
+      {/* CENTER: Tab Control (Mentimeter Style Segmented)
+          Small screens (< md): icon-only tabs, no text — keeps it compact.
+          md+: icons + labels, absolutely centered as before. */}
+      <nav className="flex items-center bg-slate-100 p-1 rounded-xl md:absolute md:left-1/2 md:-translate-x-1/2">
         {tabs.map((tab) => {
           const isActive = tab.activeSteps.includes(step);
           const Icon = tab.icon;
@@ -97,19 +100,20 @@ export function Header({
               key={tab.id}
               onClick={() => setStep(tab.targetStep)}
               className={cn(
-                "relative flex items-center gap-2 px-4 py-1.5 rounded-lg transition-all text-[11px] font-black tracking-[0.05em]",
+                "relative flex items-center gap-2 px-2.5 md:px-4 py-1.5 rounded-lg transition-all text-[11px] font-black tracking-[0.05em]",
                 isActive ? "text-indigo-600 bg-white ring-1 ring-black/5" : "text-slate-400 hover:text-slate-600"
               )}
             >
-              <Icon className="w-3.5 h-3.5" />
-              {tab.label}
+              <Icon className="w-3.5 h-3.5 shrink-0" />
+              {/* Label hidden on small screens — icon alone navigates */}
+              <span className="hidden md:inline">{tab.label}</span>
             </button>
           );
         })}
       </nav>
 
       {/* RIGHT: Actions & Contextual Buttons */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 shrink-0">
         
         {/* Undo/Redo: Visible steps 2-5 */}
         {step >= 2 && step <= 5 && onUndo && (
@@ -138,12 +142,13 @@ export function Header({
             onClick={onSaveDraft}
             disabled={saveStatus === 'saving'}
             className={cn(
-              "h-9 px-5 rounded-lg text-[11px] font-black tracking-[0.05em] text-white transition-all shadow-none",
+              "h-9 px-3 sm:px-5 rounded-lg text-[11px] font-black tracking-[0.05em] text-white transition-all shadow-none",
               saveStatus === 'saved' ? "bg-emerald-500 hover:bg-emerald-600" : "bg-slate-700 hover:bg-slate-800"
             )}
           >
-            <Save className="w-3.5 h-3.5 mr-2 shrink-0" />
-            <span>{getSaveButtonText()}</span>
+            <Save className="w-3.5 h-3.5 sm:mr-2 shrink-0" />
+            {/* Hide label on very small screens — icon alone is enough */}
+            <span className="hidden sm:inline">{getSaveButtonText()}</span>
           </Button>
         )}
 
@@ -164,7 +169,7 @@ export function Header({
         {step < 5 && (
           <button 
             onClick={() => setStep(step + 1)} 
-            className="h-10 px-6 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-black uppercase tracking-wider flex items-center gap-2 transition-all active:scale-[0.98]"
+            className="h-10 px-4 sm:px-6 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-black uppercase tracking-wider flex items-center gap-2 transition-all active:scale-[0.98]"
           >
             NEXT
             <ChevronRight className="w-4 h-4 stroke-[3px]" />

@@ -200,10 +200,13 @@ export function Step3({
 
   // ─── MOBILE LAYOUT ──────────────────────────────────────────────────────
   const renderMobile = () => (
-    <div className="flex flex-col h-full md:hidden">
+    // w-screen + overflow-x-hidden prevents any child from causing horizontal scroll.
+    // The flex column with a fixed-height bottom bar means the list area flexes to fill
+    // exactly the remaining space — no gap, no double-scroll.
+    <div className="flex flex-col h-full w-full overflow-hidden md:hidden">
       {/* Mobile Top Bar */}
-      <div className="border-b border-slate-200/80 bg-white/90 backdrop-blur-sm z-20 shrink-0">
-        <div className="px-3 py-2.5 flex items-center gap-2">
+      <div className="border-b border-slate-200/80 bg-white/90 backdrop-blur-sm z-20 shrink-0 w-full">
+        <div className="px-3 py-2.5 flex items-center gap-2 min-w-0">
           {/* Search toggle */}
           <button
             onClick={() => setMobileSearchOpen((v) => !v)}
@@ -282,8 +285,9 @@ export function Step3({
         )}
       </div>
 
-      {/* Mobile Question List */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 bg-[#F8FAFC]">
+      {/* Mobile Question List — flex-1 fills exactly the space between top bar and bottom bar.
+          overflow-x-hidden stops any card child from causing horizontal scroll. */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 bg-[#F8FAFC] min-h-0">
         {context.questions.length === 0 ? (
           <div className="flex items-center justify-center h-full py-16">
             <div className="text-center max-w-xs mx-auto px-4">
@@ -335,7 +339,9 @@ export function Step3({
                 <div
                   className={cn(
                     "space-y-2",
-                    viewMode === "grid" && "grid grid-cols-2 gap-2 space-y-0"
+                    // On mobile, single column in grid mode avoids card text overflow.
+                    // At sm (≥640px) tablets can handle 2 columns safely.
+                    viewMode === "grid" && "grid grid-cols-1 sm:grid-cols-2 gap-2 space-y-0"
                   )}
                 >
                   {filteredQuestions.map((question) => {
@@ -396,8 +402,9 @@ export function Step3({
         )}
       </div>
 
-      {/* Mobile Bottom Action Bar */}
-      <div className="shrink-0 bg-white border-t border-slate-200 px-3 py-2 flex items-center gap-2">
+      {/* Mobile Bottom Action Bar — shrink-0 locks its height so flex-1 list above gets
+          exactly the remaining space. pb-safe handles iPhone home indicator. */}
+      <div className="shrink-0 bg-white border-t border-slate-200 px-3 pt-2 pb-[max(8px,env(safe-area-inset-bottom,8px))] flex items-center gap-2 w-full">
         <button
           onClick={() => setMobileSheet("add")}
           className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-md transition-all"
@@ -540,7 +547,7 @@ export function Step3({
 
   // ─── DESKTOP LAYOUT ─────────────────────────────────────────────────────
   const renderDesktop = () => (
-    <div className="hidden md:flex h-full flex-col">
+    <div className="hidden md:flex h-full flex-col overflow-hidden">
       {/* Top Bar */}
       <div className="border-b border-slate-200/80 bg-white/80 backdrop-blur-sm z-20 shrink-0">
         <div className="px-6 py-3 flex items-center justify-between">
@@ -679,16 +686,19 @@ export function Step3({
           </div>
         </div>
 
-        {/* Center Workspace */}
+        {/* Center Workspace — flex-1 fills space between left panel and the right side panel.
+            The QuestionSidePanel is absolutely positioned over the right edge, so we push
+            the workspace content left with a matching right margin so cards are never hidden
+            behind the panel. min-w-0 prevents flex children from overflowing horizontally. */}
         <div
           className={cn(
-            "flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out h-full",
+            "flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out h-full min-w-0",
             isSidePanelOpen ? "mr-[452px]" : "mr-[92px]"
           )}
         >
           <div
             ref={scrollContainerRef}
-            className="flex-1 overflow-y-auto px-4 lg:px-6 py-5"
+            className="flex-1 overflow-y-auto overflow-x-hidden px-4 lg:px-6 py-5 min-h-0"
           >
             {context.questions.length === 0 ? (
               <div className="flex items-center justify-center h-full">
@@ -856,7 +866,12 @@ export function Step3({
   );
 
   return (
-    <div className="h-[calc(100vh-64px)] bg-gradient-to-br from-slate-50 via-white to-slate-50/50 overflow-hidden flex flex-col">
+    // Use 100dvh (dynamic viewport height) so mobile browser chrome is excluded.
+    // overflow-hidden on the wrapper prevents any horizontal bleed from children.
+    <div
+      className="bg-gradient-to-br from-slate-50 via-white to-slate-50/50 overflow-hidden flex flex-col"
+      style={{ height: "calc(100dvh - 64px)" }}
+    >
       {renderMobile()}
       {renderDesktop()}
     </div>
