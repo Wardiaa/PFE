@@ -174,7 +174,7 @@ export function SpeedQuestionAdvancingOverlay({
                     e.stopPropagation();
                     setShowNames(!showNames);
                   }}
-                  className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2 text-sm font-medium"
+                  className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2 text-sm font-medium cursor-pointer"
                 >
                   {showNames ? "Retour au score" : "Voir les noms"}
                 </button>

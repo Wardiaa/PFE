@@ -27,6 +27,7 @@
 //     standard-mode sessions (max 4 hours). Elimination sessions are never stored.
 //   • "Welcome back" restore modal shown on page load when a valid stored session
 //     is found. Calls SessionService.restoreSession() — no new DB row is created.
+// On page reload (auto-restore), show a "Restoring session…" loading screen
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -243,6 +244,11 @@ const AudienceParticipation: React.FC = () => {
   // stored session exists. A useEffect watches for storedSession to be set and
   // then calls handleRestoreSession() automatically without showing the card.
   const pendingAutoRestoreRef = useRef<boolean>(false);
+  // isAutoRestoring: true from the moment a page-reload auto-restore is
+  // detected until handleRestoreSession() finishes (success or error).
+  // While true, renderContent shows a "Restoring session…" loading screen
+  // instead of the join form so the user never sees the form flash briefly.
+  const [isAutoRestoring, setIsAutoRestoring] = useState<boolean>(false);
 
   const participantSessionRef = useRef<ParticipantSession | null>(null);
   const currentQuestionRef = useRef<Question | null>(null);
@@ -566,6 +572,8 @@ const AudienceParticipation: React.FC = () => {
         // Auto-restore — the useEffect below will trigger handleRestoreSession
         // once storedSession state has been set.
         pendingAutoRestoreRef.current = true;
+        // Show the restoring screen immediately so the join form never flashes.
+        setIsAutoRestoring(true);
       } else {
         setShowRestoreModal(true);
       }
@@ -1666,6 +1674,7 @@ const AudienceParticipation: React.FC = () => {
     });
     if (isDuplicate) {
       setIsRestoring(false);
+      setIsAutoRestoring(false);
       try { window.close(); } catch { /* ignore — browser may block programmatic close */ }
       setShowDuplicateTabUI(true);
       return;
@@ -1831,6 +1840,7 @@ const AudienceParticipation: React.FC = () => {
       setRestoreError("Unable to restore your session. Please join again.");
     } finally {
       setIsRestoring(false);
+      setIsAutoRestoring(false);
     }
   };
 
@@ -2525,6 +2535,50 @@ const AudienceParticipation: React.FC = () => {
   const renderContent = (): React.ReactNode => {
     switch (sessionState) {
       case "join":
+        // UX FIX: On page reload, show a "Restoring session…" screen while the
+        // auto-restore is in flight. Without this, the join form flashes briefly
+        // before the session is restored, giving the impression the user has left.
+        if (isAutoRestoring) {
+          return (
+            <div className="flex flex-col items-center justify-center gap-5 text-center px-6 py-10">
+              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                <svg
+                  className="w-6 h-6 text-primary animate-spin"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <p className="font-semibold text-foreground text-base">
+                  Restoring session…
+                </p>
+                {storedSession && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Welcome back,{" "}
+                    <span className="font-medium text-foreground">
+                      {storedSession.participantName}
+                    </span>
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        }
+
         return (
           <SessionJoinForm
             onJoin={handleJoinSession}
