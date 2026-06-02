@@ -242,7 +242,7 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
               loading={isSkipping}
               iconName="SkipForward"
               iconPosition="left"
-              className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white"
+              className="w-full sm:flex-1 bg-indigo-600 hover:bg-indigo-700 text-white"
             >
               Skip Question
             </Button>
@@ -256,7 +256,10 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
             loading={isSubmitting}
             iconName="Send"
             iconPosition="right"
-            className={showSkipButton ? "flex-1" : "w-full bg-indigo-600 hover:bg-indigo-700 text-white"}
+            className={showSkipButton 
+              ? "w-full sm:flex-1 bg-indigo-600 hover:bg-indigo-700 text-white" 
+              : "w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+            }
           >
             Submit Answer
           </Button>

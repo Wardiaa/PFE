@@ -38,17 +38,32 @@ interface SortableQuestionCardProps {
 }
 
 const TYPE_META: Record<string, { icon: React.ElementType; label: string }> = {
+  // Multiple Choice variants
   "multiple-choice": { icon: ListChecks, label: "Multiple Choice" },
-  SINGLE_CHOICE: { icon: ListChecks, label: "Multiple Choice" },
-  MULTIPLE_CHOICE: { icon: ListChecks, label: "Multiple Choice" },
+  "SINGLE_CHOICE": { icon: ListChecks, label: "Multiple Choice" },
+  "MULTIPLE_CHOICE": { icon: ListChecks, label: "Multiple Choice" },
+  // Open Text
   "open-text": { icon: MessageSquare, label: "Open Text" },
+  "OPEN_TEXT": { icon: MessageSquare, label: "Open Text" },
+  // Word Cloud
   "word-cloud": { icon: Cloud, label: "Word Cloud" },
-  "rating-scale": { icon: Star, label: "Rating" },
-  RATING: { icon: Star, label: "Rating" },
-  scales: { icon: SlidersHorizontal, label: "Scales" },
-  ranking: { icon: ListOrdered, label: "Ranking" },
-  "grid-2x2": { icon: Grid3X3, label: "Grid 2x2" },
-  vote: { icon: Vote, label: "Vote" },
+  "WORD_CLOUD": { icon: Cloud, label: "Word Cloud" },
+  // Rating Scale
+  "rating-scale": { icon: Star, label: "Rating Scale" },
+  "RATING": { icon: Star, label: "Rating Scale" },
+  "RATING_SCALE": { icon: Star, label: "Rating Scale" },
+  // Scales (multiple statements)
+  "scaling": { icon: SlidersHorizontal, label: "Scales" },
+  "SCALING": { icon: SlidersHorizontal, label: "Scales" },
+  // Ranking
+  "ranking": { icon: ListOrdered, label: "Ranking" },
+  "RANKING": { icon: ListOrdered, label: "Ranking" },
+  // Grid 2x2
+  "grid-2x2": { icon: Grid3X3, label: "Grid 2×2" },
+  "GRID_2X2": { icon: Grid3X3, label: "Grid 2×2" },
+  // Vote
+  "vote": { icon: Vote, label: "Vote" },
+  "VOTE": { icon: Vote, label: "Vote" },
 };
 
 export function SortableQuestionCard({
