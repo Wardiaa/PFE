@@ -115,7 +115,7 @@ export function SortableQuestionCard({
         "group relative bg-white rounded-2xl transition-all duration-200 cursor-pointer",
         isDragging && "shadow-2xl z-50 scale-[1.02]",
         isCurrent
-          ? "ring-[2.5px] ring-indigo-500 shadow-xl shadow-indigo-100/40"
+          ? "ring-[2.5px] ring-indigo-500"
           : "border border-slate-100 hover:border-slate-300 shadow-sm hover:shadow-md",
         isSelected && !isCurrent && "border-indigo-300 bg-indigo-50/10"
       )}

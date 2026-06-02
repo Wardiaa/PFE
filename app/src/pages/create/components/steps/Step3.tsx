@@ -550,9 +550,30 @@ export function Step3({
     <div className="hidden md:flex h-full flex-col overflow-hidden">
       {/* Top Bar */}
       <div className="border-b border-slate-200/80 bg-white/80 backdrop-blur-sm z-20 shrink-0">
-        <div className="px-6 py-3 flex items-center justify-between">
-          <div className="flex-1 max-w-md mx-4">
-            <div className="relative">
+        <div className="py-3 flex items-center">
+          {/* Collapse button — left side, width mirrors the left panel so it stays aligned */}
+          <div
+            className={cn(
+              "shrink-0 flex items-center px-4 transition-all duration-300",
+              isPanelCollapsed ? "w-auto" : "w-72 lg:w-80"
+            )}
+          >
+            <button
+              onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
+              className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600"
+            >
+              <ChevronLeft
+                className={cn(
+                  "w-4 h-4 transition-transform",
+                  isPanelCollapsed && "rotate-180"
+                )}
+              />
+            </button>
+          </div>
+
+          {/* Search bar — sits right above the question cards area */}
+          <div className="flex-1 min-w-0 px-4">
+            <div className="relative max-w-md">
               <input
                 type="text"
                 placeholder="Search questions..."
@@ -584,7 +605,8 @@ export function Step3({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* View mode toggle — right side */}
+          <div className="shrink-0 flex items-center gap-2 px-4">
             <div className="flex bg-slate-100 rounded-xl p-0.5">
               <button
                 onClick={() => setViewMode("list")}
@@ -609,17 +631,6 @@ export function Step3({
                 <Grid3x3 className="w-3.5 h-3.5" />
               </button>
             </div>
-            <button
-              onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
-              className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600"
-            >
-              <ChevronLeft
-                className={cn(
-                  "w-4 h-4 transition-transform",
-                  isPanelCollapsed && "rotate-180"
-                )}
-              />
-            </button>
           </div>
         </div>
       </div>
