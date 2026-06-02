@@ -156,7 +156,7 @@ const VoteQuestionDisplay: React.FC<VoteQuestionDisplayProps> = ({
                     ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" 
                     : "bg-primary/10 text-primary"
                 }`}>
-                  {isTie(winnerInfo) ? "Égalité" : "Top Result"}
+                  {isTie(winnerInfo) ? "It's a tie!" : "Top Result"}
                 </span>
               </div>
               
@@ -172,10 +172,10 @@ const VoteQuestionDisplay: React.FC<VoteQuestionDisplayProps> = ({
                     ))}
                   </h4>
                   <p className="mt-5 text-2xl text-muted-foreground font-medium">
-                    Égalité parfaite avec <span className="text-primary font-bold text-4xl">{winnerInfo.votes}</span> voix chacun ({winnerInfo.percentage}%)
+                    Perfect tie with <span className="text-primary font-bold text-4xl">{winnerInfo.votes}</span> votes each ({winnerInfo.percentage}%)
                   </p>
                   <p className="mt-3 text-sm text-muted-foreground">
-                    Aucun gagnant unique — les deux options sont ex æquo.
+                    No unique winner — both options are tied.
                   </p>
                 </>
               ) : (
@@ -233,9 +233,6 @@ const VoteQuestionDisplay: React.FC<VoteQuestionDisplayProps> = ({
                         {option.text}
                         {isWinner && !isTie(winnerInfo) && (
                           <span className="ml-3 text-[10px] bg-primary text-white px-2 py-0.5 rounded inline-block uppercase tracking-widest font-black">Winner</span>
-                        )}
-                        {isInTie && (
-                          <span className="ml-3 text-[10px] bg-amber-500 text-white px-2 py-0.5 rounded inline-block uppercase tracking-widest font-black">Ex æquo</span>
                         )}
                       </span>
                     </div>
