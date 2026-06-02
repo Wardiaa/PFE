@@ -343,12 +343,7 @@ function VoteFields({
 
   return (
     <div className="space-y-4">
-      {/* Info banner */}
-      <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3">
-        <p className="text-xs text-emerald-700 font-medium">
-          Vote question — no correct answer. The host reveals the winner after voting closes.
-        </p>
-      </div>
+      
 
       {/* Options */}
       <div>
