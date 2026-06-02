@@ -26,6 +26,14 @@ interface WinnerType {
   percentage: number;
 }
 
+// New interface to handle tie cases
+interface TieInfo {
+  isTie: boolean;
+  tiedOptions: VoteOption[];
+  votes: number;
+  percentage: number;
+}
+
 interface VoteQuestionDisplayProps {
   question: {
     text: string;
@@ -57,17 +65,42 @@ const VoteQuestionDisplay: React.FC<VoteQuestionDisplayProps> = ({
     return options.reduce((acc, opt) => acc + (typeof responses[opt.id] === 'number' ? (responses[opt.id] as number) : 0), 0);
   }, [options, responses]);
 
-  const winner: WinnerType | null = useMemo(() => {
+  // Calculate winner with tie detection
+  const winnerInfo: WinnerType | TieInfo | null = useMemo(() => {
     if (!showResults || totalVotes === 0 || !options.length) return null;
+    
     let maxVotes = -1;
-    let winnerOption: VoteOption | null = null;
+    let candidates: VoteOption[] = [];
+    
     options.forEach((option) => {
       const votes = typeof responses[option.id] === 'number' ? (responses[option.id] as number) : 0;
-      if (votes > maxVotes) { maxVotes = votes; winnerOption = option; }
+      if (votes > maxVotes) {
+        maxVotes = votes;
+        candidates = [option];
+      } else if (votes === maxVotes && maxVotes !== -1) {
+        candidates.push(option);
+      }
     });
-    return winnerOption && maxVotes > 0 
-      ? { option: winnerOption, votes: maxVotes, percentage: Math.round((maxVotes / totalVotes) * 100) } 
-      : null;
+    
+    if (maxVotes <= 0) return null;
+    
+    const percentage = Math.round((maxVotes / totalVotes) * 100);
+    
+    // Check for tie (more than one candidate with max votes)
+    if (candidates.length > 1) {
+      return {
+        isTie: true,
+        tiedOptions: candidates,
+        votes: maxVotes,
+        percentage,
+      } as TieInfo;
+    }
+    
+    return {
+      option: candidates[0],
+      votes: maxVotes,
+      percentage,
+    } as WinnerType;
   }, [options, responses, showResults, totalVotes]);
 
   const sortedOptions = useMemo(() => {
@@ -77,6 +110,11 @@ const VoteQuestionDisplay: React.FC<VoteQuestionDisplayProps> = ({
       return vB - vA;
     });
   }, [options, responses]);
+
+  // Helper to check if winnerInfo is a TieInfo
+  const isTie = (info: WinnerType | TieInfo | null): info is TieInfo => {
+    return info !== null && 'isTie' in info && info.isTie === true;
+  };
 
   if (!showResults) {
     return (
@@ -102,9 +140,9 @@ const VoteQuestionDisplay: React.FC<VoteQuestionDisplayProps> = ({
 
   return (
     <div className="max-w-5xl mx-auto px-4 pb-20">
-      {/* Winner card - at the top like Scaling/Ranking */}
+      {/* Winner card / Tie card - at the top like Scaling/Ranking */}
       <AnimatePresence>
-        {revealWinner && winner && (
+        {revealWinner && winnerInfo && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -113,16 +151,44 @@ const VoteQuestionDisplay: React.FC<VoteQuestionDisplayProps> = ({
           >
             <div className="relative z-10">
               <div className="flex items-center gap-2 mb-5">
-                <span className="bg-primary/10 text-primary text-base font-black px-5 py-2 rounded-full uppercase tracking-widest">
-                  Top Result
+                <span className={`text-base font-black px-5 py-2 rounded-full uppercase tracking-widest ${
+                  isTie(winnerInfo) 
+                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" 
+                    : "bg-primary/10 text-primary"
+                }`}>
+                  {isTie(winnerInfo) ? "Égalité" : "Top Result"}
                 </span>
               </div>
-              <h4 className="text-6xl font-bold tracking-tight text-foreground leading-tight">
-                "{winner.option.text}" takes the lead.
-              </h4>
-              <p className="mt-5 text-2xl text-muted-foreground font-medium">
-                Votes: <span className="text-primary font-bold text-4xl">{winner.votes}</span> ({winner.percentage}%)
-              </p>
+              
+              {isTie(winnerInfo) ? (
+                // Tie display - show both options
+                <>
+                  <h4 className="text-5xl sm:text-6xl font-bold tracking-tight text-foreground leading-tight">
+                    {winnerInfo.tiedOptions.map((opt, idx) => (
+                      <React.Fragment key={opt.id}>
+                        {idx > 0 && <span className="text-primary"> / </span>}
+                        <span>"{opt.text}"</span>
+                      </React.Fragment>
+                    ))}
+                  </h4>
+                  <p className="mt-5 text-2xl text-muted-foreground font-medium">
+                    Égalité parfaite avec <span className="text-primary font-bold text-4xl">{winnerInfo.votes}</span> voix chacun ({winnerInfo.percentage}%)
+                  </p>
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    Aucun gagnant unique — les deux options sont ex æquo.
+                  </p>
+                </>
+              ) : (
+                // Single winner display
+                <>
+                  <h4 className="text-6xl font-bold tracking-tight text-foreground leading-tight">
+                    "{winnerInfo.option.text}" takes the lead.
+                  </h4>
+                  <p className="mt-5 text-2xl text-muted-foreground font-medium">
+                    Votes: <span className="text-primary font-bold text-4xl">{winnerInfo.votes}</span> ({winnerInfo.percentage}%)
+                  </p>
+                </>
+              )}
             </div>
           </motion.div>
         )}
@@ -135,30 +201,42 @@ const VoteQuestionDisplay: React.FC<VoteQuestionDisplayProps> = ({
           {sortedOptions.map((option, idx) => {
             const votes = typeof responses[option.id] === 'number' ? (responses[option.id] as number) : 0;
             const percentage = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
-            const isWinner = revealWinner && winner?.option.id === option.id;
+            
+            // Check if this option is part of a tie (when revealed)
+            const isInTie = revealWinner && winnerInfo && isTie(winnerInfo) 
+              ? winnerInfo.tiedOptions.some(opt => opt.id === option.id)
+              : false;
+            const isWinner = revealWinner && winnerInfo && !isTie(winnerInfo) && winnerInfo.option.id === option.id;
 
             return (
               <motion.div 
                 key={option.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ 
-                  opacity: revealWinner && !isWinner ? 0.5 : 1,
-                  scale: revealWinner && isWinner ? 1.01 : 1,
+                  opacity: revealWinner && !isWinner && !isInTie ? 0.5 : 1,
+                  scale: (revealWinner && (isWinner || isInTie)) ? 1.01 : 1,
                 }}
                 transition={{ duration: 0.3 }}
                 className={`relative overflow-hidden border-2 rounded-[1.5rem] transition-all duration-300 ${
-                  isWinner ? 'border-primary bg-primary/[0.03]' : 'border-border bg-card'
+                  isWinner || isInTie ? 'border-primary bg-primary/[0.03]' : 'border-border bg-card'
                 }`}
               >
                 <div className="relative z-10 p-5">
                   <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-4">
-                      <span className={`text-xs font-black w-8 h-8 rounded-xl flex items-center justify-center ${isWinner ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'}`}>
+                      <span className={`text-xs font-black w-8 h-8 rounded-xl flex items-center justify-center ${
+                        isWinner || isInTie ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
+                      }`}>
                         {String.fromCharCode(65 + idx)}
                       </span>
-                      <span className={`text-lg font-bold ${isWinner ? 'text-primary' : 'text-foreground'}`}>
+                      <span className={`text-lg font-bold ${isWinner || isInTie ? 'text-primary' : 'text-foreground'}`}>
                         {option.text}
-                        {isWinner && <span className="ml-3 text-[10px] bg-primary text-white px-2 py-0.5 rounded inline-block uppercase tracking-widest font-black">Winner</span>}
+                        {isWinner && !isTie(winnerInfo) && (
+                          <span className="ml-3 text-[10px] bg-primary text-white px-2 py-0.5 rounded inline-block uppercase tracking-widest font-black">Winner</span>
+                        )}
+                        {isInTie && (
+                          <span className="ml-3 text-[10px] bg-amber-500 text-white px-2 py-0.5 rounded inline-block uppercase tracking-widest font-black">Ex æquo</span>
+                        )}
                       </span>
                     </div>
                     <div className="text-right">
@@ -172,7 +250,7 @@ const VoteQuestionDisplay: React.FC<VoteQuestionDisplayProps> = ({
                       initial={{ width: 0 }}
                       animate={{ width: `${percentage}%` }}
                       transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-                      className={`h-full rounded-full ${isWinner ? 'bg-primary' : 'bg-primary/60'}`}
+                      className={`h-full rounded-full ${isWinner || isInTie ? 'bg-primary' : 'bg-primary/60'}`}
                     />
                   </div>
                 </div>
@@ -181,7 +259,7 @@ const VoteQuestionDisplay: React.FC<VoteQuestionDisplayProps> = ({
           })}
         </div>
 
-        {/* Sidebar: Live Analytics (Right) - No button here anymore */}
+        {/* Sidebar: Live Analytics (Right) */}
         <div className="space-y-6">
           <div className="bg-card border border-border rounded-[2rem] p-8 space-y-8">
             <div className="space-y-6">
@@ -196,12 +274,12 @@ const VoteQuestionDisplay: React.FC<VoteQuestionDisplayProps> = ({
                   <span className="text-xl font-black tabular-nums text-foreground">{options.length}</span>
                 </div>
                 
-                {winner !== null && sortedOptions.length > 1 && (
+                {winnerInfo && !isTie(winnerInfo) && sortedOptions.length > 1 && (
                   <div className="pt-4 border-t border-border">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-muted-foreground text-sm">Leading margin</span>
                       <span className="text-xl font-black text-primary tabular-nums">
-                        +{winner.votes - (typeof responses[sortedOptions[1]?.id] === 'number' ? (responses[sortedOptions[1].id] as number) : 0)}
+                        +{winnerInfo.votes - (typeof responses[sortedOptions[1]?.id] === 'number' ? (responses[sortedOptions[1].id] as number) : 0)}
                       </span>
                     </div>
                   </div>

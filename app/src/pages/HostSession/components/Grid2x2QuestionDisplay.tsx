@@ -263,11 +263,12 @@ const Grid2x2QuestionDisplay: React.FC<Grid2x2QuestionDisplayProps> = ({
                     </span>
                   </div>
 
-                  {/* Placed item dots with size based on frequency */}
+                  {/* Placed item dots with size based on frequency - NO NUMBER INSIDE */}
                   {items.map((item, idx) => {
                     const centroids = aggregatedPlacements.centroids[item.id];
                     if (!centroids || centroids.count === 0) return null;
                     const color = ITEM_COLORS[idx % ITEM_COLORS.length];
+                    // Size based on count relative to total responses
                     const size = Math.max(24, Math.min(48, 24 + Math.floor(centroids.count / totalResponses * 24)));
                     
                     return (
@@ -299,7 +300,6 @@ const Grid2x2QuestionDisplay: React.FC<Grid2x2QuestionDisplayProps> = ({
                           }}
                           title={`${item.text}: ${centroids.count} placement${centroids.count !== 1 ? "s" : ""}`}
                         >
-                          {centroids.count}
                         </div>
                       </div>
                     );
