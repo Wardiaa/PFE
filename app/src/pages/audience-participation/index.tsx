@@ -10,6 +10,8 @@
 //   • "Vous passez" screen no longer auto-dismisses — it persists until the next
 //     question resets the speed state, satisfying the "don't disappear until next
 //     question" requirement.
+//   • FIX: Participants who answer correctly but are too slow (rank > maxAdvance) 
+//     now get eliminated immediately when SPEED_QUESTION_RESULTS arrives.
 // GRID 2x2 & VOTE: Added support for grid-2x2 and vote question types
 // UI UPDATE: Collapsible session info header (3-dots menu)
 // BUG FIX: Final round withdrawals now show the correct eliminatedAtRound value
@@ -1086,25 +1088,71 @@ const AudienceParticipation: React.FC = () => {
             const myId = participantSessionRef.current.participantId;
             const isAdvancing = results.advancingParticipantIds.includes(myId);
 
-            // Rank among all submitters (1-indexed). Non-advancing participants
-            // who answered correctly will have a rank > maxAdvance.
-            const rankIndex = results.advancingParticipantIds.findIndex(
-              (id) => id === myId,
-            );
-            const rank = rankIndex !== -1 ? rankIndex + 1 : results.maxAdvance + 1;
+            // Find the rank among all submitters (1-indexed)
+            // For non-advancing participants, we need to know their position
+            // For advancing participants, we also store their rank for UI display
+            // We need the total number of participants who submitted to calculate rank
+            // For now, we'll use a simpler approach: if not advancing, rank = maxAdvance + 1
+            // But we actually need to know the exact rank to show "Vous étiez #X"
+            
+            // To get the exact rank, we need to know the ordering of all submitters.
+            // Since the host's RPC returns ordered results, the advancingParticipantIds
+            // are in order (fastest first). The rank for an advancing participant is their
+            // index+1. For non-advancing participants, we need to know how many submitted
+            // total to determine their rank.
+            
+            // The host broadcast doesn't include the full order, only the advancing IDs.
+            // Therefore, we can only show exact rank for advancing participants.
+            // For non-advancing participants, we show "Vous étiez hors du top {maxAdvance}"
+            
+            let rankValue: number | null = null;
+            
+            if (isAdvancing) {
+              // Find position in advancing list (1-indexed)
+              const advancingIndex = results.advancingParticipantIds.findIndex(id => id === myId);
+              rankValue = advancingIndex !== -1 ? advancingIndex + 1 : null;
+              console.log("[SPEED] Advancing! Rank:", rankValue);
+            } else {
+              // Not advancing — this participant is eliminated
+              // We don't have their exact rank, but we know it's > maxAdvance
+              rankValue = null;
+              console.log("[SPEED] Not advancing — eliminated");
+            }
 
-            console.log("[SPEED] Am I advancing?", isAdvancing, "Rank:", rank, "Answered correctly:", speedAnsweredCorrectlyRef.current);
-
-            setSpeedRank(rank);
+            setSpeedRank(rankValue);
             setSpeedMaxAdvance(results.maxAdvance);
 
+            // FIX: For non-advancing participants, immediately show elimination overlay
+            // This ensures participants who answered correctly but were too slow
+            // get eliminated right away, not just those who answered wrong.
             if (!isAdvancing) {
-              // Only propagate rank to the EliminationOverlay when the participant
-              // answered CORRECTLY but was too slow. Wrong-answer eliminations
-              // should show the default overlay without rank information.
-              setSpeedEliminationRank(
-                speedAnsweredCorrectlyRef.current ? rank : null,
-              );
+              console.log("[SPEED] Participant eliminated — showing elimination overlay");
+              
+              // Only show rank info if they answered correctly
+              // If they answered wrong, rank should be null (default overlay)
+              const shouldShowRank = speedAnsweredCorrectlyRef.current;
+              
+              setSpeedEliminationRank(shouldShowRank ? rankValue : null);
+              
+              // Immediately transition to elimination overlay
+              // Don't wait for any other signals
+              setIsSpeedWaiting(false);
+              setSessionState("submitted");
+              sessionStateRef.current = "submitted";
+              setShowSpeedEliminationOverlay(true);
+              
+              // Also mark as eliminated in local state so leaderboard updates
+              if (!isEliminatedRef.current) {
+                setIsEliminated(true);
+                isEliminatedRef.current = true;
+                // Use the current question number for eliminatedAtRound
+                const currentRoundNum = currentQuestionRef.current?.number ?? 0;
+                setEliminatedAtRound(currentRoundNum);
+              }
+            } else {
+              // Advancing participant — stay in speed_waiting with "VOUS PASSEZ !" screen
+              // The screen will persist until the next QUESTION_CHANGE resets everything
+              console.log("[SPEED] Advancing — staying on speed_waiting screen");
             }
           }
           break;
