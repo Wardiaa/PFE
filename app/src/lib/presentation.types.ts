@@ -101,7 +101,7 @@ export interface Presentation {
   /** surfaced from contexts.game_mode. */
   gameMode?: GameMode;
 
-  /** optional theme id (e.g. "cent-pour-cent-logique"). */
+  /** optional theme id (e.g. "hunt-arena"). */
   themeId?: string;
 }
 

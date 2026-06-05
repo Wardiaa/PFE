@@ -1,11 +1,11 @@
-// themes/cent-pour-cent-logique.theme.ts
-// Visual tokens for the 100% Logique session theme.
+// themes/hunt-arena.theme.ts
+// Visual tokens for the Hunt Arena session theme.
 // Echoes the TF1 stage: deep navy → indigo → magenta, electric cyan accents,
 // neon glow, dramatic typography.
 
-export const centPourCentLogiqueTheme = {
-  id: "cent-pour-cent-logique",
-  name: "100% Logique",
+export const huntArenaTheme = {
+  id: "hunt-arena",
+  name: "Hunt Arena",
   description: "Ambiance plateau TV — bleu nuit, néons cyan, lumière dramatique.",
 
   // Token palette — also exposed as CSS variables in the .css file.
@@ -56,4 +56,4 @@ export const centPourCentLogiqueTheme = {
   rootClass: "cpl-theme",
 };
 
-export type CentPourCentLogiqueTheme = typeof centPourCentLogiqueTheme;
+export type huntArenaTheme = typeof huntArenaTheme;

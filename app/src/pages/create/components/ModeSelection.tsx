@@ -119,7 +119,7 @@ export function ModeSelection({ selectedMode, onSelectMode, onContinue }: ModeSe
           <ModeCard
             mode="elimination"
             title="Elimination Mode"
-            description="Inspired by 100% Logique. Wrong answers eliminate players. Last one standing wins."
+            description="You are the hunter. Every question is a prey. Answer wrong, and you become the hunted. Last hunter alive wins."
             features={["Wrong answer = eliminated", "Speed questions", "Skip button", "Final round showdown"]}
             icon={
               <div className="relative">

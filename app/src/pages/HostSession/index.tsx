@@ -52,7 +52,7 @@ import { FinalRoundWaitingOverlay } from "./components/FinalRoundWaitingOverlay"
 import { GameOverOverlay } from "../audience-participation/components/GameOverOverlay";
 import WinnerReveal from "./components/WinnerReveal";
 import { SessionService } from "../../service/session.service.ts";
-import "../../styles/cent-pour-cent-logique.css";
+import "../../styles/hunt-arena.css";
 import type {
   Session,
   Question,

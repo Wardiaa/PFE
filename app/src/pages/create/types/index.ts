@@ -111,7 +111,7 @@ export type HistoryAction =
 // ============================================================================
 // New type: visual theme identifier for sessions
 // ============================================================================
-export type SessionThemeId = "default" | "cent-pour-cent-logique" | string;
+export type SessionThemeId = "default" | "hunt-arena" | string;
 
 // ============================================================================
 // Helpers to safely read gameMode and themeId from a Supabase context row

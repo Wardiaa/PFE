@@ -60,16 +60,16 @@ import type {
   Participant,
 } from "../../lib/presentation.types";
 import AppIcon from "../../components/AppIcon";
-import { MoreHorizontal, ChevronUp, ChevronDown } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 
 import { EliminationOverlay } from "./components/EliminationOverlay";
 import { SpectatorMode } from "./components/SpectatorMode";
 import { LiveLeaderboard } from "./components/LiveLeaderboard";
 import { WinnerCelebration } from "./components/WinnerCelebration";
 import { GameOverOverlay } from "./components/GameOverOverlay";
-import { CentPourCentBackground } from "./components/CentPourCentBackground";
+import { HuntArenaBackground } from "./components/huntArenaBackground.tsx";
 import { SessionService } from "../../service/session.service.ts";
-import "../../styles/cent-pour-cent-logique.css";
+import "../../styles/hunt-arena.css";
 
 type SessionState =
   | "join"
@@ -335,7 +335,7 @@ const AudienceParticipation: React.FC = () => {
   }, [isElimination]);
 
   const themeId: string = contextMeta.themeId || "default";
-  const themeClass = (isElimination || themeId === "cent-pour-cent-logique") ? "cpl-theme" : "";
+  const themeClass = (isElimination || themeId === "hunt-arena") ? "cpl-theme" : "";
 
   const clearAnswerRevealTimeout = useCallback(() => {
     if (answerRevealTimeoutRef.current !== undefined) {
@@ -2811,7 +2811,7 @@ const AudienceParticipation: React.FC = () => {
         if (isElimination) {
           if (!showCorrectAnswerFeedback) return null;
           return (
-            <CentPourCentBackground subtitle="Bonne réponse ! Préparez-vous pour la prochaine question…" />
+            <HuntArenaBackground subtitle="Bonne réponse ! Préparez-vous pour la prochaine question…" />
           );
         }
         return (
@@ -2821,7 +2821,7 @@ const AudienceParticipation: React.FC = () => {
       case "waiting":
         if (isElimination) {
           return (
-            <CentPourCentBackground subtitle="Préparez-vous… le premier joueur éliminé sera le premier sorti." />
+            <HuntArenaBackground subtitle="Sharpen your instincts. The first wrong answer sends you out of the arena" />
           );
         }
         return (

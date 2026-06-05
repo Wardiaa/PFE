@@ -1,16 +1,16 @@
-// templates/cent-pour-cent-logique.ts
-// 100% Logique — elimination-style game-show template (Round 1).
-// Inspired by the TF1 show "100% Logique" hosted by Cyril Féraud.
+// templates/hunt-arena.ts
+// Hunt Arena — elimination-style game-show template (Round 1).
+// Inspired by the TF1 show "Hunt Arena" hosted by Cyril Féraud.
 // All questions are original, in French, in the spirit of the show.
 
 import { Crown } from "lucide-react";
 import { QUESTION_TYPES } from "../question-types";
 
-export const centPourCentLogiqueTemplate = {
-  id: "cent-pour-cent-logique",
-  name: "100% Logique",
+export const huntArenaTemplate = {
+  id: "hunt-arena",
+  name: "Hunt Arena",
   description:
-    "Manche 1 du jeu télévisé : une mauvaise réponse et vous êtes éliminé. Le dernier survivant l'emporte.",
+    "The hunt begins. Make one mistake, and you're eliminated. Only the last hunter leaves the arena victorious",
   icon: Crown,
   color: "bg-gradient-to-br from-[#0a1742] via-[#1b2a8a] to-[#7a1ab4]",
   category: "Game Show",
@@ -19,8 +19,7 @@ export const centPourCentLogiqueTemplate = {
 
   // Tells the rest of the app to use the elimination flow + the show theme.
   gameMode: "elimination" as const,
-  themeId: "cent-pour-cent-logique",
-
+  themeId: "hunt-arena",
   coverImage:
     "",
 
@@ -192,11 +191,11 @@ export const centPourCentLogiqueTemplate = {
     showEliminationToasts: true,
     spectatorModeEnabled: true,
     winnerConfetti: true,
-    theme: "cent-pour-cent-logique",
+    theme: "hunt-arena",
   },
 
   estimatedSetupTime: "1 minute",
   avgCompletionTime: "8 minutes",
   targetAudience:
-    "Soirées entre amis, classes, fans de jeux télé .",
+    "Friends' game nights, classrooms, fans of game shows.",
 };

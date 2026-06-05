@@ -1,4 +1,4 @@
-// useQuizBuilder.ts — COMPLETE FILE WITH RANKING + SCALING + GRID 2x2 + VOTE + 100% Logique INTEGRATION
+// useQuizBuilder.ts — COMPLETE FILE WITH RANKING + SCALING + GRID 2x2 + VOTE + Hunt Arena INTEGRATION
 // MODE SELECTION UPDATE: Added showModeSelection state, updated handleTemplateSelect
 // SKIP UPDATE: Added maxSkipsPerParticipant to ContextData and reducer
 // SPEED QUESTION UPDATE: Added isSpeedQuestion, speedMaxAdvance, finalRoundDecisionTimer
@@ -618,7 +618,7 @@ export function useQuizBuilder() {
 
   const handleGameModeChange = (mode: "standard" | "elimination") => {
     dispatch({ type: "SET_GAME_MODE", payload: mode });
-    const derivedThemeId = mode === "elimination" ? "cent-pour-cent-logique" : "default";
+    const derivedThemeId = mode === "elimination" ? "hunt-arena" : "default";
     dispatch({ type: "SET_THEME_ID", payload: derivedThemeId });
     dispatch({ type: "SET_THEME", payload: derivedThemeId });
     markUnsaved();

@@ -1,5 +1,5 @@
 // lib/templates.ts
-import { centPourCentLogiqueTemplate } from "./templates/cent-pour-cent-logique";
+import { huntArenaTemplate } from "./templates/hunt-arena";
 import {
   Trophy,
   BarChart3,
@@ -61,7 +61,7 @@ export const SORT_OPTIONS = [
 ];
 
 export const templates: Template[] = [
-  centPourCentLogiqueTemplate,
+  huntArenaTemplate,
 
   // ─── EDUCATION ───────────────────────────────────────────────────────────
 
