@@ -133,7 +133,7 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({ onJoin, prefilledCode
             Live session        
           </p>
           <h2 className="text-4xl lg:text-5xl xl:text-6xl font-black text-white leading-[0.95] tracking-tighter mb-8">
-            Ready<br />to play?
+            All<br />Set?
           </h2>
 
           {/* Simplified tags — just dots + text, no pill borders */}

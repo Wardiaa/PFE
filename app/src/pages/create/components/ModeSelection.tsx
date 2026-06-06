@@ -97,10 +97,10 @@ export function ModeSelection({ selectedMode, onSelectMode, onContinue }: ModeSe
             Choose your experience
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mb-2">
-            How do you want to play?
+            How would you like to proceed?
           </h1>
           <p className="text-slate-500">
-            Select a game mode for your session. You can change this later.
+            Choose a context type for your session. You can change this later.
           </p>
         </div>
 
