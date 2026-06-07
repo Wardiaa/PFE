@@ -2274,64 +2274,11 @@ const AudienceParticipation: React.FC = () => {
   };
 
   const handleJoinNewSession = () => {
-    stopLocalCountdown();
-    clearAnswerRevealTimeout();
-    participantSessionRef.current = null;
-    currentQuestionRef.current = null;
-    sessionStateRef.current = "join";
-    questionClosedRef.current = false;
-    isPausedRef.current = false;
-    questionActiveRef.current = true;
-    timerRemainingRef.current = 0;
-    eliminationOverlayShownRef.current = false;
-    questionEndsAtRef.current = null;
-    speedAnsweredCorrectlyRef.current = false;
-    hasWithdrawnFromFinalRoundRef.current = false;
-
-    // Clear any stored session identity when the user explicitly leaves.
-    // This prevents the restore modal from appearing on the next visit.
-    clearParticipantSession();
-
-    setParticipantSession(null);
-    setCurrentQuestion(null);
-    setError(null);
-    setSessionState("join");
-    setTimerRemaining(0);
-    setTimerTotal(0);
-    setQuestionActive(true);
-    setQuestionClosed(false);
-    setIsPaused(false);
-
-    setGameState({
-      alive: [],
-      eliminated: [],
-      winner: null,
-      totalPlayers: 0,
-      currentRound: 0,
-      history: [],
-    });
-    setEliminationEvents([]);
-    setIsEliminated(false);
-    setEliminatedAtRound(0);
-    setShowEliminationOverlay(false);
-    setShowSpeedEliminationOverlay(false);
-    setSpeedEliminationRank(null);
-    setShowCorrectAnswerFeedback(false);
-    setSubmittedOptionId(null);
-    setShowAnswerReveal(false);
-    setRevealedWinner(null);
-    setIsGameOver(false);
-    setSkipsRemaining(0);
-    setMaxSkipsPerParticipant(1);
-    setIsSkipping(false);
-    setIsSpeedWaiting(false);
-    setSpeedRank(null);
-    setHasSubmittedThisRound(false);
-    setSpeedAnsweredCorrectly(false);
-    setIsFinalDecision(false);
-    setHasMadeDecision(false);
-    setShowResults(false);
-    setIsHeaderOpen(false); // Reset header state
+  // Clear stored session from localStorage
+  clearParticipantSession();
+  
+  // Force a full page reload to clean URL without any parameters
+  window.location.href = '/audience-participation';
   };
 
   const handleRetry = () => {
