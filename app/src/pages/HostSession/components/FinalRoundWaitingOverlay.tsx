@@ -1,6 +1,10 @@
 // FinalRoundWaitingOverlay.tsx
 // Host-side overlay shown while alive participants decide whether to continue
 // to the final round. Prevents the host screen from appearing frozen.
+//
+// The automatic countdown timer has been removed.  Instead the host sees a
+// "Start Final Round" button and decides manually when enough participants
+// have responded.  This removes all timer-sync issues across the network.
 
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, Users } from "lucide-react";
@@ -11,16 +15,23 @@ interface Props {
   totalDeciding: number;
   /** Number who have already submitted a decision (optional live count). */
   decidedCount?: number;
-  /** Seconds remaining on the decision timer. */
-  secondsRemaining?: number;
+  /**
+   * Called when the host clicks "Start Final Round".
+   * The parent should close this overlay, fetch continuing participants,
+   * and broadcast FINAL_ROUND_START.
+   */
+  onStart: () => void;
 }
 
 export function FinalRoundWaitingOverlay({
   visible,
   totalDeciding,
   decidedCount,
-  secondsRemaining,
+  onStart,
 }: Props) {
+  const allDecided =
+    typeof decidedCount === "number" && decidedCount >= totalDeciding;
+
   return (
     <AnimatePresence>
       {visible && (
@@ -56,7 +67,7 @@ export function FinalRoundWaitingOverlay({
               </p>
 
               {/* Progress row */}
-              <div className="flex items-center justify-center gap-2 mb-4">
+              <div className="flex items-center justify-center gap-2 mb-6">
                 <Users className="w-4 h-4 text-primary" />
                 <span className="text-sm font-medium text-foreground">
                   {typeof decidedCount === "number"
@@ -65,14 +76,18 @@ export function FinalRoundWaitingOverlay({
                 </span>
               </div>
 
-              {/* Timer pill */}
-              {typeof secondsRemaining === "number" && secondsRemaining > 0 && (
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-3 py-1 text-xs font-mono text-muted-foreground">
-                  Avance automatiquement dans{" "}
-                  <span className="font-bold text-foreground tabular-nums">
-                    {secondsRemaining}s
-                  </span>
-                </div>
+              {/* Manual trigger — host decides when to move on */}
+              <button
+                onClick={onStart}
+                className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-black text-sm uppercase tracking-widest transition-transform active:scale-[0.98] cursor-pointer"
+              >
+                {allDecided ? "Start Final Round" : "Start Final Round anyway"}
+              </button>
+
+              {!allDecided && (
+                <p className="mt-3 text-[10px] font-mono uppercase tracking-widest text-muted-foreground/55">
+                  Participants who haven't decided will be withdrawn
+                </p>
               )}
             </div>
           </motion.div>

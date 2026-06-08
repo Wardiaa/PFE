@@ -5,13 +5,13 @@
 // the incoming question has isSpeedQuestion === true and the question has not
 // yet started).
 //
-// Auto-dismisses after `duration` seconds (default 10). The parent resets
-// visibility by flipping `visible` to false on the QUESTION_START event (or
-// after the countdown ends via onDismiss).
+// The countdown timer has been replaced with a manual "Show Question" button
+// on the HOST side.  The host clicks it when ready; the click dismisses the
+// host overlay AND broadcasts a SPEED_INTRO_DISMISS event so all participant
+// overlays close at the same moment.  This eliminates all timer-sync issues.
 //
 // No amber colour is used anywhere in this component.
 
-import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zap } from "lucide-react";
 
@@ -20,14 +20,14 @@ interface SpeedQuestionIntroProps {
   /** How many of the fastest participants advance to the next question. */
   maxAdvance: number;
   /**
-   * Auto-dismiss countdown in seconds.
-   * Defaults to 10.
+   * When true the host-only "Show Question" button is rendered.
+   * Participants receive false (default) and see a "Waiting for host…" hint.
    */
-  duration?: number;
+  isHost?: boolean;
   /**
-   * Called once when the countdown reaches 0 (auto-dismiss).
-   * The parent should flip `visible` to false here, which will also
-   * trigger the exit animation.
+   * Called when the host clicks "Show Question".
+   * The parent should flip `visible` to false here AND broadcast
+   * SPEED_INTRO_DISMISS to all participant screens.
    */
   onDismiss?: () => void;
 }
@@ -35,45 +35,9 @@ interface SpeedQuestionIntroProps {
 export function SpeedQuestionIntro({
   visible,
   maxAdvance,
-  duration = 10,
+  isHost = false,
   onDismiss,
 }: SpeedQuestionIntroProps) {
-  const [timeLeft, setTimeLeft] = useState(duration);
-  const dismissedRef = useRef(false);
-
-  // Reset state whenever the overlay becomes visible again.
-  useEffect(() => {
-    if (visible) {
-      dismissedRef.current = false;
-      setTimeLeft(duration);
-    }
-  }, [visible, duration]);
-
-  // Countdown — fires onDismiss once when it reaches 0.
-  useEffect(() => {
-    if (!visible || dismissedRef.current) return;
-
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        const next = prev - 1;
-        if (next <= 0) {
-          clearInterval(interval);
-          if (!dismissedRef.current) {
-            dismissedRef.current = true;
-            onDismiss?.();
-          }
-          return 0;
-        }
-        return next;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [visible, onDismiss, duration]);
-
-  // Progress bar percentage (100 → 0 as time elapses).
-  const progress = duration > 0 ? Math.max(0, (timeLeft / duration)) * 100 : 0;
-
   return (
     <AnimatePresence>
       {visible && (
@@ -93,22 +57,15 @@ export function SpeedQuestionIntro({
             transition={{ type: "spring", damping: 26, stiffness: 340 }}
             className="relative w-full max-w-[520px] overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"
           >
-            {/* Draining progress bar */}
-            <div className="w-full h-1.5 bg-primary/10">
-              <motion.div
-                className="h-full bg-primary origin-left"
-                initial={{ scaleX: 1 }}
-                animate={{ scaleX: progress / 100 }}
-                transition={{ duration: 0.9, ease: "linear" }}
-                style={{ transformOrigin: "left" }}
-              />
-            </div>
+            {/* Top primary accent line (replaces the draining progress bar) */}
+            <div className="h-[4px] w-full bg-primary" />
 
             <div className="px-8 pt-10 pb-12">
-              {/* Header row: "Speed Question" label + timer pill */}
+              {/* Header row: "Speed Question" label */}
               <div className="flex items-center justify-between mb-10">
-                <div className="px-3 py-1 mt-0 bg-muted border border-border rounded text-sm font-mono font-bold text-foreground tabular-nums">
-                  {timeLeft}s
+                <div className="flex items-center gap-2 px-3 py-1 bg-muted border border-border rounded text-sm font-mono font-bold text-foreground">
+                  <Zap className="w-3.5 h-3.5" />
+                  Speed Question
                 </div>
               </div>
 
@@ -147,11 +104,24 @@ export function SpeedQuestionIntro({
                 </motion.div>
               </div>
 
-              {/* Footer hint */}
+              {/* Footer — host sees the "Show Question" trigger button;
+                  participants see a waiting hint. */}
               <div className="text-center">
-                <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/55">
-                  Get ready — the question appears shortly
-                </p>
+                {isHost ? (
+                  <motion.button
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.36 }}
+                    onClick={onDismiss}
+                    className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-black text-sm uppercase tracking-widest transition-transform active:scale-[0.98] cursor-pointer"
+                  >
+                    Show Question
+                  </motion.button>
+                ) : (
+                  <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/55">
+                    Waiting for host — the question appears shortly
+                  </p>
+                )}
               </div>
             </div>
           </motion.div>

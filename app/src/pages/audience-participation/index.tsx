@@ -2,6 +2,18 @@
 // Version avec UI de l'ancienne version ET timer wall-clock optimisé
 // SKIP BUTTON UPDATE: Added skip functionality for elimination mode
 // SPEED QUESTION UPDATE: Added speed question waiting state and final round decision
+// SPEED INTRO FIXES:
+//   • SpeedQuestionIntro no longer re-shows if the speed question was already
+//     "processed" (SPEED_QUESTION_RESULTS received). speedIntroCompletedIdsRef
+//     tracks processed question IDs; loadQuestion gates setShowSpeedIntro(true)
+//     against this set so navigating back to a finished speed question never
+//     re-shows the intro overlay.
+//   • SpeedQuestionIntro countdown is now wall-clock-anchored: the host embeds
+//     The speed intro is now dismissed manually (host clicks "Show Question");
+//     the SPEED_INTRO_DISMISS broadcast closes the overlay on all participants.
+//     Switching tabs
+//     can no longer freeze the countdown — the display snaps back to the
+//     correct remaining time whenever the tab regains focus.
 //   SpeedQuestionWaiting now shows correctly even when participant is eliminated
 //       (isEliminatedSpectator no longer fires during speed_waiting state)
 // SPEED QUESTION BUG FIXES:
@@ -52,6 +64,7 @@ import SessionEndedState from "./components/SessionEndedState";
 import ErrorState from "./components/ErrorState";
 import { FinalRoundDecision } from "./components/FinalRoundDecision";
 import { SpeedQuestionWaiting } from "./components/SpeedQuestionWaiting";
+import { SpeedQuestionIntro } from "./components/SpeedQuestionIntro";
 import type {
   Question,
   Session,
@@ -208,6 +221,9 @@ const AudienceParticipation: React.FC = () => {
   const [isSpeedWaiting, setIsSpeedWaiting] = useState<boolean>(false);
   const [speedRank, setSpeedRank] = useState<number | null>(null);
   const [speedMaxAdvance, setSpeedMaxAdvance] = useState<number>(3);
+  // SpeedQuestionIntro overlay — dismissed by SPEED_INTRO_DISMISS broadcast
+  // (host clicks "Show Question") rather than a local countdown timer.
+  const [showSpeedIntro, setShowSpeedIntro] = useState<boolean>(false);
   const [hasSubmittedThisRound, setHasSubmittedThisRound] = useState<boolean>(false);
   const [showSpeedEliminationOverlay, setShowSpeedEliminationOverlay] = useState<boolean>(false);
   const [speedEliminationRank, setSpeedEliminationRank] = useState<number | null>(null);
@@ -219,7 +235,7 @@ const AudienceParticipation: React.FC = () => {
 
   // ── FINAL ROUND STATE ───────────────────────────────────────────────
   const [isFinalDecision, setIsFinalDecision] = useState<boolean>(false);
-  const [finalDecisionTimer, setFinalDecisionTimer] = useState<number>(20);
+  // (finalDecisionTimer removed — FinalRoundDecision no longer has a timer.)
   const [hasMadeDecision, setHasMadeDecision] = useState<boolean>(false);
 
   // ── UI STATE: Collapsible session info header ───────────────────────
@@ -266,6 +282,23 @@ const AudienceParticipation: React.FC = () => {
   const eliminationOverlayShownRef = useRef<boolean>(false);
   // Ref mirror of speedAnsweredCorrectly — safe to read inside broadcast callbacks.
   const speedAnsweredCorrectlyRef = useRef<boolean>(false);
+
+  // Ref mirrors of isFinalDecision and hasMadeDecision — safe to read inside
+  // broadcast callbacks (handleBroadcast useCallback deps don’t include those
+  // state values, so the state would be stale without these refs).
+  const isFinalDecisionRef = useRef<boolean>(false);
+  const hasMadeDecisionRef = useRef<boolean>(false);
+
+  // sendMessage ref — keeps a stable, always-current reference to sendMessage
+  // so it can be called safely from inside handleBroadcast without adding
+  // sendMessage to its deps (which would re-create the callback on every render).
+  const sendMessageRef = useRef<(msg: any) => void>(() => {});
+
+  // Tracks speed question IDs whose intro has already been shown and whose
+  // results have already been processed (SPEED_QUESTION_RESULTS received, or
+  // the question timer ended naturally).  loadQuestion gates setShowSpeedIntro
+  // against this set so navigating back never re-shows the intro overlay.
+  const speedIntroCompletedIdsRef = useRef<Set<string>>(new Set());
 
   // BUG FIX (Bug 3): tracks whether THIS participant explicitly chose "No" in
   // the final-round decision. Used in the FINAL_ROUND_START guard so that only
@@ -814,6 +847,13 @@ const AudienceParticipation: React.FC = () => {
 
         if (newQuestion.isSpeedQuestion && newQuestion.speedMaxAdvance) {
           setSpeedMaxAdvance(newQuestion.speedMaxAdvance);
+          // Show the speed intro overlay so participants see the "STEADY." countdown
+          // before the question timer starts (mirrors the host overlay).
+          // Guard: do NOT re-show the intro if results for this question were
+          // already received (host navigated back to a processed speed question).
+          if (!speedIntroCompletedIdsRef.current.has(newQuestion.id)) {
+            setShowSpeedIntro(true);
+          }
         }
 
         applyQuestion(
@@ -871,9 +911,18 @@ const AudienceParticipation: React.FC = () => {
             setShowAnswerReveal(false);
             setShowEliminationOverlay(false);
             setShowSpeedEliminationOverlay(false);
-            eliminationOverlayShownRef.current = false;
+            // Only reset the overlay-shown guard for participants who have NOT
+            // yet been eliminated. Once a participant has seen the elimination overlay,
+            // the guard must stay raised so that navigating back to the same speed
+            // question and re-broadcasting SPEED_QUESTION_RESULTS does not show the
+            // overlay a second time.
+            if (!isEliminatedRef.current) {
+              eliminationOverlayShownRef.current = false;
+            }
             setIsFinalDecision(false);
+            isFinalDecisionRef.current = false;
             setHasMadeDecision(false);
+            hasMadeDecisionRef.current = false;
             loadQuestion(questionId, questionIndex, timeLimit ?? null, endsAt);
           }
           break;
@@ -1061,16 +1110,23 @@ const AudienceParticipation: React.FC = () => {
           // Only alive participants get the decision screen.
           if (isEliminatedRef.current) break;
 
-          const decisionPayload = payload as { decisionTimer: number };
-          console.log("[FINAL] Decision screen received, timer:", decisionPayload.decisionTimer);
-          setFinalDecisionTimer(decisionPayload.decisionTimer);
+          console.log("[FINAL] Decision screen received — awaiting host manual start");
           setIsFinalDecision(true);
+          isFinalDecisionRef.current = true;
           setHasMadeDecision(false);
+          hasMadeDecisionRef.current = false;
           setSessionState("final_decision");
           sessionStateRef.current = "final_decision";
 
           stopLocalCountdown();
           clearAnswerRevealTimeout();
+          break;
+        }
+
+        case "SPEED_INTRO_DISMISS": {
+          // Host clicked "Show Question" — close the intro overlay on all
+          // participant screens immediately, regardless of local state.
+          setShowSpeedIntro(false);
           break;
         }
 
@@ -1083,6 +1139,12 @@ const AudienceParticipation: React.FC = () => {
 
           console.log("[SPEED] Results received:", results);
           console.log("[SPEED] My participant ID:", participantSessionRef.current?.participantId);
+
+          // Mark the current question as "processed" so that if the host
+          // navigates back to it the SpeedQuestionIntro will NOT be re-shown.
+          if (currentQuestionRef.current?.id) {
+            speedIntroCompletedIdsRef.current.add(currentQuestionRef.current.id);
+          }
 
           if (participantSessionRef.current) {
             const myId = participantSessionRef.current.participantId;
@@ -1122,10 +1184,16 @@ const AudienceParticipation: React.FC = () => {
             setSpeedRank(rankValue);
             setSpeedMaxAdvance(results.maxAdvance);
 
-            // FIX: For non-advancing participants, immediately show elimination overlay
+            // For non-advancing participants, immediately show elimination overlay
             // This ensures participants who answered correctly but were too slow
             // get eliminated right away, not just those who answered wrong.
             if (!isAdvancing) {
+              // BUG FIX: If eliminationOverlayShownRef is already true the participant
+              // already saw this overlay (e.g. host navigated back to the speed question
+              // and re-triggered Show Results, causing SPEED_QUESTION_RESULTS to be
+              // broadcast again). Guard here so we never show the overlay twice.
+              if (eliminationOverlayShownRef.current) break;
+
               console.log("[SPEED] Participant eliminated — showing elimination overlay");
               
               // Only show rank info if they answered correctly
@@ -1140,6 +1208,10 @@ const AudienceParticipation: React.FC = () => {
               setSessionState("submitted");
               sessionStateRef.current = "submitted";
               setShowSpeedEliminationOverlay(true);
+              // Mark as shown — persists across question navigation for eliminated
+              // participants because QUESTION_CHANGE only resets this ref when
+              // isEliminatedRef.current is false (see guard above).
+              eliminationOverlayShownRef.current = true;
               
               // Also mark as eliminated in local state so leaderboard updates
               if (!isEliminatedRef.current) {
@@ -1170,6 +1242,12 @@ const AudienceParticipation: React.FC = () => {
           // hasWithdrawnFromFinalRoundRef. Withdrawn participants are now
           // properly marked isEliminated=true and receive the final question
           // here so SpectatorMode can render it in read-only mode.
+          //
+          // NO-DECISION FIX: If the participant was on the final-round decision
+          // screen and the host clicked "Start Final Round anyway" before they
+          // responded, treat them exactly like a "NON" withdrawal — eliminate
+          // them immediately and show the EliminationOverlay.  They must NOT
+          // proceed to the final question.
 
           const finalPayload = payload as {
             questionId: string;
@@ -1178,8 +1256,115 @@ const AudienceParticipation: React.FC = () => {
             endsAt: number;
           };
           console.log("[FINAL] Final round starting");
+
+          // Detect participant who never decided (still on the decision screen).
+          // isFinalDecisionRef is true only for alive participants who received
+          // FINAL_ROUND_DECISION but have not clicked either button yet.
+          if (isFinalDecisionRef.current && !hasMadeDecisionRef.current) {
+            console.log("[FINAL] Participant did not decide before host started — auto-eliminating like a withdrawal");
+
+            // Clear decision state immediately — must also exit "final_decision"
+            // sessionState or the FinalRoundDecision component will keep rendering
+            // (the switch statement renders it whenever sessionState === "final_decision",
+            // independent of the isFinalDecision state flag).
+            isFinalDecisionRef.current = false;
+            hasMadeDecisionRef.current = true;
+            setIsFinalDecision(false);
+            setHasMadeDecision(true);
+            setSessionState("waiting");
+            sessionStateRef.current = "waiting";
+
+            if (participantSessionRef.current) {
+              const myId = participantSessionRef.current.participantId;
+              const myName = participantSessionRef.current.participantName;
+              const qId = currentQuestionRef.current?.id ?? "";
+              // Use the final question’s 1-indexed number as the round stamp,
+              // matching exactly what handleFinalRoundWithdraw uses.
+              const finalRoundNumber =
+                currentQuestionRef.current?.number ??
+                (participantSessionRef.current.session.presentation.questions.length);
+              const sessId = participantSessionRef.current.session.id;
+
+              // Optimistic local game-state update — move self from alive to eliminated
+              setGameState((prev) => {
+                const stillAlive = prev.alive.filter((p) => p.id !== myId);
+                const me = prev.alive.find((p) => p.id === myId);
+                const newEliminated = me
+                  ? [
+                      ...prev.eliminated,
+                      {
+                        ...me,
+                        isAlive: false,
+                        eliminatedAtRound: finalRoundNumber,
+                        eliminatedAtQuestionId: qId,
+                      },
+                    ]
+                  : prev.eliminated;
+                return {
+                  ...prev,
+                  alive: stillAlive,
+                  eliminated: newEliminated,
+                  history: [
+                    ...prev.history,
+                    {
+                      participantId: myId,
+                      participantName: myName,
+                      questionId: qId,
+                      roundNumber: finalRoundNumber,
+                      eliminatedAt: new Date(),
+                    },
+                  ],
+                };
+              });
+
+              // Mark as eliminated in local state so the overlay renders correctly
+              setIsEliminated(true);
+              isEliminatedRef.current = true;
+              setEliminatedAtRound(finalRoundNumber);
+
+              // Show the same EliminationOverlay as a wrong-answer participant
+              setShowEliminationOverlay(true);
+              eliminationOverlayShownRef.current = true;
+
+              // DB write — record the implicit withdrawal (async, fire-and-forget)
+              SessionService.recordFinalRoundDecision(
+                myId,
+                false,
+                sessId,
+                qId,
+                finalRoundNumber,
+                myName,
+              );
+
+              // Broadcast elimination so the host count stays accurate
+              sendMessageRef.current({
+                type: SESSION_EVENTS.PLAYER_ELIMINATED,
+                payload: {
+                  participantId: myId,
+                  participantName: myName,
+                  questionId: qId,
+                  roundNumber: finalRoundNumber,
+                  eliminatedAt: new Date().toISOString(),
+                },
+              });
+
+              // Inform the host’s decided-count so FinalRoundWaitingOverlay
+              // counters remain correct on the host screen
+              sendMessageRef.current({
+                type: SESSION_EVENTS.FINAL_ROUND_DECISION_RESPONSE,
+                payload: { participantId: myId, choseContinue: false },
+              });
+            }
+
+            // Do NOT call loadQuestion — eliminated participant stays on the overlay
+            break;
+          }
+
+          // Normal path: participant already decided (or is a prior-round spectator)
           setIsFinalDecision(false);
+          isFinalDecisionRef.current = false;
           setHasMadeDecision(false);
+          hasMadeDecisionRef.current = false;
           loadQuestion(
             finalPayload.questionId,
             (participantSession?.session.presentation.questions.length ?? 1) - 1,
@@ -1209,6 +1394,11 @@ const AudienceParticipation: React.FC = () => {
     onMessage: handleBroadcast,
     enabled: !!participantSession,
   });
+
+  // Keep sendMessageRef current so handleBroadcast can broadcast without
+  // having sendMessage in its own dependency array (which would re-create the
+  // callback on every render and break event-handler identity stability).
+  useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
 
   // ── Signal SESSION_RESTORE to the host after a successful restore reconnect ─
   // The host uses this to re-add the participant to its online count so the
@@ -1456,7 +1646,11 @@ const AudienceParticipation: React.FC = () => {
             setShowAnswerReveal(false);
             setShowEliminationOverlay(false);
             setShowSpeedEliminationOverlay(false);
-            eliminationOverlayShownRef.current = false;
+            // Same guard as in QUESTION_CHANGE — only reset for non-eliminated
+            // participants so the re-show protection persists in the DB-polling fallback.
+            if (!isEliminatedRef.current) {
+              eliminationOverlayShownRef.current = false;
+            }
             const endsAtMs = updatedSession.current_question_ends_at
               ? new Date(updatedSession.current_question_ends_at).getTime()
               : undefined;
@@ -1548,9 +1742,7 @@ const AudienceParticipation: React.FC = () => {
       const joinedThemeId = result.themeId ?? "default";
       setContextMeta({ gameMode: joinedGameMode, themeId: joinedThemeId });
       isEliminationRef.current = joinedGameMode === "elimination";
-      if (result.finalRoundDecisionTimer) {
-        setFinalDecisionTimer(result.finalRoundDecisionTimer);
-      }
+
       // Set maxSkipsPerParticipant immediately so the loadSkipsData call
       // below can use it without an extra DB round-trip.
       const joinedMaxSkips = result.maxSkipsPerParticipant ?? 1;
@@ -1771,9 +1963,6 @@ const AudienceParticipation: React.FC = () => {
       setContextMeta({ gameMode: restoredGameMode, themeId: restoredThemeId });
       isEliminationRef.current = restoredGameMode === "elimination";
 
-      if (restoreResult.finalRoundDecisionTimer) {
-        setFinalDecisionTimer(restoreResult.finalRoundDecisionTimer);
-      }
 
       const restoredMaxSkips = restoreResult.maxSkipsPerParticipant ?? 1;
       setMaxSkipsPerParticipant(restoredMaxSkips);
@@ -1905,6 +2094,7 @@ const AudienceParticipation: React.FC = () => {
   const handleFinalRoundContinue = async () => {
     if (hasMadeDecision) return;
     setHasMadeDecision(true);
+    hasMadeDecisionRef.current = true;
     
     if (participantSessionRef.current) {
       await SessionService.recordFinalRoundDecision(
@@ -1923,6 +2113,7 @@ const AudienceParticipation: React.FC = () => {
     setSessionState("waiting");
     sessionStateRef.current = "waiting";
     setIsFinalDecision(false);
+    isFinalDecisionRef.current = false;
   };
 
   const handleFinalRoundWithdraw = async () => {
@@ -1930,10 +2121,12 @@ const AudienceParticipation: React.FC = () => {
     
     // Immediately exit final decision state
     setIsFinalDecision(false);
+    isFinalDecisionRef.current = false;
     setSessionState("waiting");
     sessionStateRef.current = "waiting";
     
     setHasMadeDecision(true);
+    hasMadeDecisionRef.current = true;
 
     if (participantSessionRef.current) {
       const myId = participantSessionRef.current.participantId;
@@ -2748,7 +2941,6 @@ const AudienceParticipation: React.FC = () => {
         return (
           <FinalRoundDecision
             visible={true}
-            decisionTimer={finalDecisionTimer}
             onContinue={handleFinalRoundContinue}
             onWithdraw={handleFinalRoundWithdraw}
           />
@@ -2960,6 +3152,22 @@ const AudienceParticipation: React.FC = () => {
             )}
         </div>
       </main>
+      {/* Speed question intro overlay — shown when a speed question loads.
+          Dismissed by the SPEED_INTRO_DISMISS broadcast (host clicks "Show Question").
+          The intro will re-appear on re-navigation as long as
+          SPEED_QUESTION_RESULTS has not yet been received for this question. */}
+      <SpeedQuestionIntro
+        visible={showSpeedIntro}
+        maxAdvance={speedMaxAdvance}
+        onDismiss={() => {
+          // NOTE: do NOT mark the question as completed here.  The intro
+          // dismissing (timer ending or host closing) does NOT mean results
+          // have been processed.  If the host re-navigates to this question
+          // before SPEED_QUESTION_RESULTS arrives we want the intro to show
+          // again.  Only SPEED_QUESTION_RESULTS marks the question completed.
+          setShowSpeedIntro(false);
+        }}
+      />
     </div>
   );
 };

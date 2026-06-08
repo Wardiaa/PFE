@@ -2,6 +2,20 @@
 // Version avec UI de l'ancienne version ET timer wall-clock optimisé
 // OPTIMIZED: Added debounced response refreshes to reduce database queries with 100+ participants
 // SPEED QUESTION UPDATE: Added speed question processing and final round handling
+// SPEED INTRO FIXES:
+//   • SpeedQuestionIntro no longer re-shows after "Show Results" (or timer end).
+//     handleStart/handleNext/handlePrevious gate setShowSpeedIntro(true) against
+//     processedSpeedQuestionIdsRef — if the question was already processed the
+//     overlay is simply skipped.
+//   • The countdown timer in SpeedQuestionIntro has been replaced with a manual
+//     "Show Question" button.  The host clicks it when ready; the click closes
+//     the host overlay AND broadcasts SPEED_INTRO_DISMISS so all participant
+//     overlays close simultaneously — no timer sync issues.
+// FINAL ROUND FIXES:
+//   • FinalRoundDecision (participant) no longer has an auto-withdraw timer.
+//     Participants decide at their own pace.
+//   • FinalRoundWaitingOverlay (host) no longer has an auto-advance timer.
+//     The host clicks "Start Final Round" manually when ready.
 //  Final round decision now triggers BEFORE the last question is shown.
 //      handleNext now checks if the *next* question would be the last one (not the current).
 // Untimed elimination questions now properly show the round elimination overlay
@@ -48,6 +62,7 @@ import EndSessionModal from "./components/EndSessionModal";
 import { EliminationHistory } from "./components/EliminationHistory";
 import { RoundEliminationsOverlay } from "./components/RoundEliminationsOverlay";
 import { SpeedQuestionAdvancingOverlay } from "./components/SpeedQuestionAdvancingOverlay";
+import { SpeedQuestionIntro } from "../audience-participation/components/SpeedQuestionIntro";
 import { FinalRoundWaitingOverlay } from "./components/FinalRoundWaitingOverlay";
 import { GameOverOverlay } from "../audience-participation/components/GameOverOverlay";
 import WinnerReveal from "./components/WinnerReveal";
@@ -269,15 +284,16 @@ const HostSession: React.FC = () => {
   // ── Speed Question state ───────────────────────────────────────────────────
   const [isProcessingSpeedQuestion, setIsProcessingSpeedQuestion] = useState<boolean>(false);
   const [speedQuestionResults, setSpeedQuestionResults] = useState<{ advancingParticipantIds: string[]; eliminatedCount: number } | null>(null);
-  
+  // SpeedQuestionIntro overlay — shown when the host navigates to a speed question.
+  // The overlay is now dismissed manually (host clicks "Show Question") rather
+  // than auto-dismissing after a countdown.
+  const [showSpeedIntro, setShowSpeedIntro] = useState<boolean>(false);
+
   // ── Final Round state ─────────────────────────────────────────────────────
   const [isFinalRoundDecision, setIsFinalRoundDecision] = useState<boolean>(false);
-  const [finalRoundDecisionTimer, setFinalRoundDecisionTimer] = useState<number>(20);
   const [continuingParticipants, setContinuingParticipants] = useState<Participant[]>([]);
   const [finalRoundStarted, setFinalRoundStarted] = useState<boolean>(false);
   const [pendingFinalRoundStart, setPendingFinalRoundStart] = useState<boolean>(false);
-  // Countdown displayed in the FinalRoundWaitingOverlay
-  const [finalRoundDecisionSecondsLeft, setFinalRoundDecisionSecondsLeft] = useState<number>(0);
   const [finalRoundDecidedCount, setFinalRoundDecidedCount] = useState<number>(0);
   // Snapshot of alive.length when the decision phase begins so totalDeciding
   // remains stable even as withdrawals move players to the eliminated list.
@@ -285,6 +301,14 @@ const HostSession: React.FC = () => {
   
   // ── Debounced refresh timeout ref ─────────────────────────────────────────
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cache processed speed question results so that when the host navigates
+  // back and clicks "Show Results" again, processSpeedQuestionEnd() can restore the
+  // result display WITHOUT re-running the DB pipeline or re-broadcasting
+  // SPEED_QUESTION_RESULTS (which would show the elimination overlay a second time
+  // on already-eliminated participants' screens).
+  // Map: question ID → result object (so we can restore speedQuestionResults state).
+  const processedSpeedQuestionIdsRef = useRef<Map<string, { advancingParticipantIds: string[]; eliminatedCount: number }>>(new Map());
 
   // ── currentRoundRef — readable inside ws callbacks without stale closures ─
   const currentRoundRef = useRef<number>(0);
@@ -416,6 +440,21 @@ const HostSession: React.FC = () => {
 
   const processSpeedQuestionEnd = useCallback(async () => {
     if (!session || !currentQuestion || isProcessingSpeedQuestion || showResults) return;
+
+    // If this speed question was already processed (e.g. host navigated
+    // back with handlePrevious which resets showResults to false, then clicked
+    // "Show Results" again), restore the results display without re-running the
+    // DB pipeline or re-broadcasting SPEED_QUESTION_RESULTS. Re-broadcasting
+    // causes already-eliminated participants to see the overlay a second time.
+    // Also restores speedQuestionResults so the advancing count card still shows
+    // (the per-question-index useEffect clears it on navigation, so we re-apply it).
+    if (processedSpeedQuestionIdsRef.current.has(currentQuestion.id)) {
+      console.log("[HOST] Speed question already processed — restoring results display only.");
+      const cached = processedSpeedQuestionIdsRef.current.get(currentQuestion.id)!;
+      setSpeedQuestionResults(cached);
+      setShowResults(true);
+      return;
+    }
     
     console.log("[HOST] Processing speed question end...");
     setIsProcessingSpeedQuestion(true);
@@ -452,6 +491,10 @@ const HostSession: React.FC = () => {
         type: SESSION_EVENTS.GAME_STATE_UPDATE,
         payload: newState as unknown as Record<string, unknown>,
       });
+
+      // Mark this question ID as processed and cache the result so re-navigation
+      // can restore the advancing count card without re-broadcasting.
+      processedSpeedQuestionIdsRef.current.set(currentQuestion.id, result);
       
       // Show results
       setShowResults(true);
@@ -634,18 +677,8 @@ const HostSession: React.FC = () => {
     }
   }, []);
 
-  // ── Final round decision countdown (for FinalRoundWaitingOverlay) ─────────
-  useEffect(() => {
-    if (!isFinalRoundDecision) {
-      setFinalRoundDecisionSecondsLeft(0);
-      return;
-    }
-    setFinalRoundDecisionSecondsLeft(finalRoundDecisionTimer);
-    const interval = window.setInterval(() => {
-      setFinalRoundDecisionSecondsLeft((s) => Math.max(0, s - 1));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isFinalRoundDecision, finalRoundDecisionTimer]);
+  // (Final round decision countdown removed — transition is now manual via
+  //  the "Start Final Round" button in FinalRoundWaitingOverlay.)
 
   // ── Keep refs in sync ─────────────────────────────────────────────────────
   useEffect(() => { sessionRef.current = session; }, [session]);
@@ -891,6 +924,8 @@ const HostSession: React.FC = () => {
   // ── Start final round decision ────────────────────────────────────────────
   //  This is now triggered BEFORE navigating to the last question (from handleNext),
   // so participants see the decision screen before the final question appears.
+  // The timer has been removed — the host manually starts the final round via
+  // handleManualFinalRoundStart (the "Start Final Round" button in the overlay).
   const startFinalRoundDecision = useCallback(async () => {
     if (!session) return;
     
@@ -898,34 +933,14 @@ const HostSession: React.FC = () => {
     setIsFinalRoundDecision(true);
     setFinalRoundDecidedCount(0);
     setFinalRoundDecidingTotal(gameState.alive.length);
-    const decisionTime = finalRoundDecisionTimer;
     
-    // Show decision screen to ALL ALIVE participants
+    // Show decision screen to ALL ALIVE participants (no timer payload needed).
     sendMessage({
       type: SESSION_EVENTS.FINAL_ROUND_DECISION,
-      payload: { decisionTimer: decisionTime },
+      payload: {},
     });
-    
-    // After the decision timer, advance to the final question
-    setTimeout(async () => {
-      console.log("[HOST] Decision timer expired, moving to final question");
-      setIsFinalRoundDecision(false);
-      
-      const continuing = await SessionService.getContinuingParticipants(session.id);
-      console.log("[HOST] Continuing participants after decision:", continuing.length);
-      setContinuingParticipants(continuing);
-      
-      if (continuing.length === 0) {
-        // No one wants to continue - game over
-        sendMessage({ type: SESSION_EVENTS.GAME_OVER, payload: {} });
-        setIsGameOver(true);
-        isGameOverRef.current = true;
-      } else {
-        setPendingFinalRoundStart(true);
-        await advanceToFinalQuestion();
-      }
-    }, decisionTime * 1000);
-  }, [session, finalRoundDecisionTimer, sendMessage, gameState.alive.length]);
+  }, [session, sendMessage, gameState.alive.length]);
+
 
   // ── Advance to final question ─────────────────────────────────────────────
   const advanceToFinalQuestion = useCallback(async () => {
@@ -970,6 +985,84 @@ const HostSession: React.FC = () => {
     setShowResults(false);
     toast({ title: "Final Round", description: "The final question has started!" });
   }, [session, finalRoundStarted, pendingFinalRoundStart, sendMessage, toast, getQuestionTimeLimit, applyQuestionTimer]);
+
+  // ── Manual final round start (host button in FinalRoundWaitingOverlay) ────
+  // Replaces the old setTimeout auto-advance.  Called when the host clicks
+  // "Start Final Round".  Fetches who decided to continue, then either ends
+  // the game (if nobody continues) or advances to the final question.
+  // Participants who did NOT respond (did not choose "OUI" or "NON")
+  // are eliminated immediately when the host clicks the button. Their
+  // elimination is recorded in the DB but NO elimination overlay is shown
+  // on the host screen — we advance directly to the final question.
+  const handleManualFinalRoundStart = useCallback(async () => {
+    if (!session) return;
+
+    console.log("[HOST] Manual final round start triggered");
+    
+    // STEP 1: Get all alive participants
+    const aliveParticipants = gameState.alive;
+    const roundNumber = session.presentation.questions.length; // Final question number
+    
+    // STEP 2: Identify who decided to continue (from DB)
+    const continuing = await SessionService.getContinuingParticipants(session.id);
+    const continuingIds = new Set(continuing.map(p => p.id));
+    
+    // STEP 3: Participants who are alive but did NOT decide to continue = withdraw/eliminate
+    const nonRespondingParticipants = aliveParticipants.filter(p => !continuingIds.has(p.id));
+    
+    // STEP 4: Eliminate non-responding participants (NO overlay, just DB + broadcast)
+    for (const p of nonRespondingParticipants) {
+      console.log(`[HOST] Eliminating non-responding participant: ${p.name} (round ${roundNumber})`);
+      
+      await SessionService.eliminateParticipant({
+        sessionId: session.id,
+        participantId: p.id,
+        questionId: "", // No specific question for final round withdrawal
+        roundNumber,
+      });
+      
+      // Broadcast elimination so participants see the update
+      sendMessage({
+        type: SESSION_EVENTS.PLAYER_ELIMINATED,
+        payload: {
+          participantId: p.id,
+          participantName: p.name,
+          questionId: "",
+          roundNumber,
+          eliminatedAt: new Date().toISOString(),
+        },
+      });
+    }
+    
+    // STEP 5: Refresh game state after eliminations
+    if (nonRespondingParticipants.length > 0) {
+      const newState = await SessionService.getGameState(session.id);
+      setGameState(newState);
+      sendMessage({
+        type: SESSION_EVENTS.GAME_STATE_UPDATE,
+        payload: newState as unknown as Record<string, unknown>,
+      });
+    }
+    
+    // STEP 6: Close the decision overlay
+    setIsFinalRoundDecision(false);
+    
+    // STEP 7: Get updated list of continuing participants (after eliminations)
+    const updatedContinuing = await SessionService.getContinuingParticipants(session.id);
+    console.log("[HOST] Continuing participants after processing non-responders:", updatedContinuing.length);
+    setContinuingParticipants(updatedContinuing);
+
+    // STEP 8: Either end game or advance to final question
+    if (updatedContinuing.length === 0) {
+      // No one chose to continue — game over.
+      sendMessage({ type: SESSION_EVENTS.GAME_OVER, payload: {} });
+      setIsGameOver(true);
+      isGameOverRef.current = true;
+    } else {
+      setPendingFinalRoundStart(true);
+      await advanceToFinalQuestion();
+    }
+  }, [session, gameState.alive, sendMessage, advanceToFinalQuestion]);
 
   // ── All players eliminated ─────────────────────────────────────────────────
   useEffect(() => {
@@ -1141,10 +1234,7 @@ const HostSession: React.FC = () => {
             (contextData as any)?.theme || "default";
           setContextMeta({ gameMode: ctxGameMode, themeId: ctxThemeId });
           
-          // Load final round timer from context
-          if ((contextData as any)?.final_round_decision_timer) {
-            setFinalRoundDecisionTimer((contextData as any).final_round_decision_timer);
-          }
+          // (final_round_decision_timer no longer used — transition is manual.)
 
           const questionsArray = contextData?.questions || [];
           const questions: Question[] = questionsArray
@@ -1511,6 +1601,13 @@ const HostSession: React.FC = () => {
       setIsPaused(false);
       isPausedRef.current = false;
 
+      // Show speed intro overlay when the first question is a speed question.
+      // Guard: do not re-show if this question was already processed (cached).
+      // The overlay is dismissed manually — no timer anchor needed in the payload.
+      if (firstQuestion?.isSpeedQuestion && !processedSpeedQuestionIdsRef.current.has(firstQuestion.id)) {
+        setShowSpeedIntro(true);
+      }
+
       sendMessage({
         type: "SESSION_START",
         payload: {
@@ -1551,6 +1648,12 @@ const HostSession: React.FC = () => {
     applyQuestionSettings(prevQuestion);
     setIsPaused(false);
     isPausedRef.current = false;
+
+    // Show speed intro overlay when navigating back to a speed question.
+    // Guard: do not re-show if this question was already processed (cached).
+    if (prevQuestion?.isSpeedQuestion && !processedSpeedQuestionIdsRef.current.has(prevQuestion.id)) {
+      setShowSpeedIntro(true);
+    }
 
     sendMessage({
       type: "QUESTION_CHANGE",
@@ -1599,6 +1702,12 @@ const HostSession: React.FC = () => {
       applyQuestionSettings(nextQuestion);
       setIsPaused(false);
       isPausedRef.current = false;
+
+      // Show speed intro overlay when navigating to a speed question.
+      // Guard: do not re-show if this question was already processed (cached).
+      if (nextQuestion?.isSpeedQuestion && !processedSpeedQuestionIdsRef.current.has(nextQuestion.id)) {
+        setShowSpeedIntro(true);
+      }
 
       sendMessage({
         type: "QUESTION_CHANGE",
@@ -2466,12 +2575,27 @@ const HostSession: React.FC = () => {
           />
         )}
 
-        {/* Final round decision overlay — prevents host screen from appearing frozen */}
+        {/* Final round decision overlay — prevents host screen from appearing frozen.
+            onStart is the manual trigger: the host clicks "Start Final Round"
+            when they decide enough participants have responded. */}
         <FinalRoundWaitingOverlay
           visible={isFinalRoundDecision}
           totalDeciding={finalRoundDecidingTotal || gameState.alive.length}
           decidedCount={finalRoundDecidedCount}
-          secondsRemaining={finalRoundDecisionSecondsLeft}
+          onStart={handleManualFinalRoundStart}
+        />
+
+        {/* Speed question intro overlay — shown when the host navigates to a speed
+            question.  The host dismisses it manually by clicking "Show Question",
+            which also broadcasts SPEED_INTRO_DISMISS to all participant screens. */}
+        <SpeedQuestionIntro
+          visible={showSpeedIntro}
+          maxAdvance={speedMaxAdvance}
+          isHost
+          onDismiss={() => {
+            setShowSpeedIntro(false);
+            sendMessage({ type: "SPEED_INTRO_DISMISS", payload: {} });
+          }}
         />
       </div>
 
