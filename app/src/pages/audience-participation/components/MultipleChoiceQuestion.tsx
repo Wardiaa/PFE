@@ -233,20 +233,6 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
 
         {/* Button row with Skip + Submit - unified styling */}
         <div className="flex flex-col sm:flex-row gap-3">
-          {showSkipButton && (
-            <Button
-              variant="default"
-              size="lg"
-              onClick={handleSkip}
-              disabled={hasSubmitted || isSubmitting || isSkipping}
-              loading={isSkipping}
-              iconName="SkipForward"
-              iconPosition="left"
-              className="w-full sm:flex-1 bg-indigo-600 hover:bg-indigo-700 text-white"
-            >
-              Skip Question
-            </Button>
-          )}
           <Button
             variant="default"
             size="lg"
@@ -263,6 +249,20 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
           >
             Submit Answer
           </Button>
+          {showSkipButton && (
+            <Button
+              variant="default"
+              size="lg"
+              onClick={handleSkip}
+              disabled={hasSubmitted || isSubmitting || isSkipping}
+              loading={isSkipping}
+              iconName="SkipForward"
+              iconPosition="left"
+              className="w-full sm:flex-1 bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              Skip Question
+            </Button>
+          )}
         </div>
       </div>
     </div>
