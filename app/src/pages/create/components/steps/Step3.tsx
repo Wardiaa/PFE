@@ -6,7 +6,8 @@ import {
   DndContext,
   closestCenter,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -168,8 +169,16 @@ export function Step3({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const currentQuestion = context.questions[currentQuestionIndex] || null;
 
+  // FIX: switched from PointerSensor to MouseSensor + TouchSensor.
+  // PointerSensor can be captured by the browser's built-in scroll handling
+  // inside overflow-y-auto containers, causing the drag to never start.
+  // MouseSensor handles desktop mice directly.
+  // TouchSensor uses a short press delay (200 ms) so a quick tap still
+  // selects the card while a held touch initiates the drag — this also
+  // prevents the drag from fighting the scroll on mobile.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 

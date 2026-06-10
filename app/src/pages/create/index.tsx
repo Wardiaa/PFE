@@ -124,7 +124,7 @@ export default function EnhancedCreate() {
     onAddQuestion: addQuestion,
     onUpdateQuestion: updateQuestion,
     onDeleteQuestion: deleteQuestion,
-    onReorderQuestions: () => {},
+    onReorderQuestions: handleBulkUpdate, // FIX: was () => {} (no-op); handleBulkUpdate dispatches SET_QUESTIONS with reordered array + adds to undo/redo history
     onToggleQuestionSelection: toggleQuestionSelection,
     onBulkUpdate: handleBulkUpdate,
     onSelectAllQuestions: handleSelectAllQuestions,

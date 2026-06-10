@@ -271,11 +271,15 @@ export function SortableQuestionCard({
     >
       {/* Left side controls */}
       <div className="absolute left-4 top-4 flex flex-col items-center gap-3">
+        {/* FIX: drag handle — touch-none prevents the browser from hijacking the
+            pointer/touch sequence for scrolling, which is the most common reason
+            dnd-kit drag doesn't start on mobile or in scrollable containers.
+            data-no-dnd="false" ensures the handle is NOT excluded from drag. */}
         <div
           {...attributes}
           {...listeners}
           className={cn(
-            "p-1 rounded-md text-slate-300 hover:text-indigo-500 hover:bg-slate-50 transition-colors cursor-grab active:cursor-grabbing",
+            "p-1 rounded-md text-slate-300 hover:text-indigo-500 hover:bg-slate-50 transition-colors cursor-grab active:cursor-grabbing touch-none",
             isCurrent && "text-indigo-300"
           )}
           onClick={(e) => e.stopPropagation()}
