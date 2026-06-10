@@ -1760,8 +1760,8 @@ const HostSession: React.FC = () => {
       const winner = await SessionService.determineWinner(session.id);
       if (!winner) {
         toast({
-          title: "Aucun gagnant trouvé",
-          description: "Tous les joueurs ont été éliminés.",
+          title: "No winner found",
+          description: "All players have been eliminated.",
           variant: "destructive",
         });
         return;
@@ -1779,7 +1779,7 @@ const HostSession: React.FC = () => {
     } catch (err: any) {
       console.error("handleShowWinner error:", err);
       toast({
-        title: "Erreur",
+        title: "Error",
         description: err.message || "Failed to determine winner",
         variant: "destructive",
       });
@@ -2123,7 +2123,7 @@ const HostSession: React.FC = () => {
           <div className="max-w-6xl w-full mx-auto flex-1 flex flex-col">
             {isElimination && (
               <div className="mb-4 sm:mb-6 rounded-xl border border-yellow-400/40 bg-yellow-400/10 px-4 py-3 flex items-center justify-center gap-2 text-sm sm:text-base font-semibold backdrop-blur-sm">
-                <span>Mode élimination activé</span>
+                <span>Elimination mode enabled</span>
               </div>
             )}
 
@@ -2503,12 +2503,12 @@ const HostSession: React.FC = () => {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <AppIcon name="History" size={18} className="text-primary" />
-                    <h2 className="text-base font-semibold">Historique des éliminations</h2>
+                    <h2 className="text-base font-semibold">Elimination History</h2>
                   </div>
                   <button
                     onClick={() => setShowEliminationPanel(false)}
                     className="w-8 h-8 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center"
-                    aria-label="Fermer"
+                    aria-label="Close"
                   >
                     <AppIcon name="X" size={15} />
                   </button>
@@ -2517,7 +2517,7 @@ const HostSession: React.FC = () => {
                 <div className="grid grid-cols-2 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-border/50 overflow-hidden mb-8 shadow-sm">
                   <div className="py-5 flex flex-col items-center justify-center border-r border-border/50">
                     <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-1.5">
-                      En lice
+                      Remaining
                     </span>
                     <span className="text-3xl font-black tracking-tighter text-foreground tabular-nums">
                       {survivorsCount}
@@ -2525,7 +2525,7 @@ const HostSession: React.FC = () => {
                   </div>
                   <div className="py-5 flex flex-col items-center justify-center">
                     <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-1.5">
-                      Éliminés
+                      Eliminated
                     </span>
                     <span className="text-3xl font-black tracking-tighter text-red-600 dark:text-red-500 tabular-nums">
                       {eliminatedCount}

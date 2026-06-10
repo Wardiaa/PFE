@@ -2,11 +2,11 @@
 // Shown to participants after submitting a speed question.
 //
 // Flow:
-//   Phase 1 — "En attente des autres..." (no rank yet, waiting for results)
+//   Phase 1 — "Waiting for others..." (no rank yet, waiting for results)
 //   Phase 2 — Results received:
 //     • Eliminated  → immediately calls onEliminated so the EliminationOverlay
-//                     takes over. No intermediate "ÉLIMINÉ" screen here.
-//     • Advancing   → shows "VOUS PASSEZ !" and stays visible until the parent
+//                     takes over. No intermediate "ELIMINATED" screen here.
+//     • Advancing   → shows "YOU ADVANCE !" and stays visible until the parent
 //                     resets speed state on the next QUESTION_CHANGE.
 
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,7 +20,7 @@ interface SpeedQuestionWaitingProps {
   waitingForOthers: boolean;
   // Called immediately when results arrive and participant did NOT advance.
   onEliminated?: () => void;
-  // Kept for API compatibility; never called automatically — the "vous passez"
+  // Kept for API compatibility; never called automatically — the "you advance"
   // screen persists until the parent resets state on the next question.
   onAdvanced?: () => void;
 }
@@ -37,7 +37,7 @@ export function SpeedQuestionWaiting({
 
   // When rank arrives:
   //   • Eliminated → call onEliminated immediately (EliminationOverlay takes over)
-  //   • Advancing  → do nothing; stay visible showing "VOUS PASSEZ !"
+  //   • Advancing  → do nothing; stay visible showing "YOU ADVANCE !"
   useEffect(() => {
     if (hasRank && visible && !hasAdvanced) {
       onEliminated?.();
@@ -70,10 +70,10 @@ export function SpeedQuestionWaiting({
                 </div>
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">
-                En attente de la fin du timer...
+                Waiting for the timer to end...
               </h2>
               <p className="text-white/60">
-                Les résultats seront annoncés quand le temps sera écoulé.
+                Results will be announced when time runs out.
               </p>
             </>
           )}
@@ -87,15 +87,15 @@ export function SpeedQuestionWaiting({
                 </div>
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">
-                En attente des autres...
+                Waiting for others...
               </h2>
               <p className="text-white/60">
-                Les {maxAdvance} joueurs les plus rapides passeront à la question suivante.
+                The {maxAdvance} fastest players will advance to the next question.
               </p>
             </>
           )}
 
-          {/* ── Advancing: "VOUS PASSEZ !" — stays until next question ─ */}
+          {/* ── Advancing: "YOU ADVANCE !" — stays until next question ─ */}
           {hasRank && hasAdvanced && (
             <>
               <div className="mb-6">
@@ -104,10 +104,10 @@ export function SpeedQuestionWaiting({
                 </div>
               </div>
               <h2 className="text-3xl font-extrabold text-white mb-3">
-                VOUS PASSEZ !
+                YOU ADVANCE!
               </h2>
               <p className="text-white/60">
-                Vous étiez #{rank}. Les {maxAdvance} plus rapides avancent.
+                You were #{rank}. The {maxAdvance} fastest advance.
               </p>
             </>
           )}

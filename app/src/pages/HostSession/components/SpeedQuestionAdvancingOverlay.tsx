@@ -55,7 +55,7 @@ export function SpeedQuestionAdvancingOverlay({
             {/* Close button */}
             <button
               onClick={onClose}
-              aria-label="Fermer"
+              aria-label="Close"
               className="absolute top-4 right-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors"
             >
               <X className="h-4 w-4" />
@@ -108,10 +108,10 @@ export function SpeedQuestionAdvancingOverlay({
                         className="pb-4 sm:pb-6"
                       >
                         <div className="text-2xl sm:text-3xl font-black uppercase leading-none text-foreground">
-                          {count === 1 ? "Joueur" : "Joueurs"}
+                          {count === 1 ? "Player" : "Players"}
                         </div>
                         <div className="mt-1 text-2xl sm:text-3xl font-black uppercase leading-none text-primary">
-                          {count === 1 ? "Avance" : "Avancent"}
+                          {count === 1 ? "Advances" : "Advance"}
                         </div>
                       </motion.div>
                     </motion.div>
@@ -127,7 +127,7 @@ export function SpeedQuestionAdvancingOverlay({
                       <div className="flex items-center gap-2 mb-4 text-primary">
                         <Users size={18} />
                         <span className="text-sm font-bold uppercase tracking-wider">
-                          Joueurs qui avancent
+                          Advancing Players
                         </span>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
@@ -145,7 +145,7 @@ export function SpeedQuestionAdvancingOverlay({
                           ))
                         ) : (
                           <div className="col-span-full text-muted-foreground text-sm italic">
-                            Aucun nom disponible
+                            No names available
                           </div>
                         )}
                       </div>
@@ -176,10 +176,10 @@ export function SpeedQuestionAdvancingOverlay({
                   }}
                   className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2 text-sm font-medium cursor-pointer"
                 >
-                  {showNames ? "Retour au score" : "Voir les noms"}
+                  {showNames ? "Back to score" : "View names"}
                 </button>
                 <span className="text-muted-foreground text-[11px] font-mono uppercase tracking-[0.22em]">
-                  echap · clic pour fermer
+                  esc · click to close
                 </span>
               </motion.div>
             </div>

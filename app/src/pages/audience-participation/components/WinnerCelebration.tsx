@@ -70,7 +70,7 @@ export function WinnerCelebration({ winner, isWinnerMe }: Props) {
         </div>
 
         <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--cpl-text-muted)]">
-          {isWinnerMe ? " VOUS AVEZ GAGNÉ ! " : " LE GAGNANT EST "}
+          {isWinnerMe ? " YOU ARE THE WINNER ! " : " THE WINNER IS "}
         </p>
 
         <h1
@@ -90,21 +90,21 @@ export function WinnerCelebration({ winner, isWinnerMe }: Props) {
           {isWinnerMe ? (
             <>
               <PartyPopper className="h-4 w-4" />
-              Bravo, vous êtes le grand gagnant !
+              Congratulations, you are the grand winner!
               <PartyPopper className="h-4 w-4" />
             </>
           ) : (
             <>
               <Crown className="h-4 w-4" />
-              Félicitations au grand gagnant !
+              Congratulations to the grand winner!
             </>
           )}
         </div>
 
         <p className="mt-8 text-xs text-[color:var(--cpl-text-dim)]">
           {isWinnerMe
-            ? "Vous avez survécu jusqu'à la fin et mérité votre victoire !"
-            : "Merci à tous les participants pour cette belle partie !"}
+            ? "You survived to the end and earned your victory!"
+            : "Thank you to all participants for a great game!"}
         </p>
       </div>
     </div>

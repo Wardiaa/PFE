@@ -192,8 +192,8 @@ export function EliminationHistory({
             <Hourglass size={12} className="shrink-0 text-muted-foreground/60" />
             <span>
               {hiddenCount > 0
-                ? `${hiddenCount} élimination${hiddenCount > 1 ? "s" : ""} en attente de la fin de la question`
-                : "En attente de la fin de la question…"}
+                ? `${hiddenCount} elimination${hiddenCount > 1 ? "s" : ""} pending question end`
+                : "Waiting for question to end…"}
             </span>
           </div>
         )}
@@ -205,7 +205,7 @@ export function EliminationHistory({
           <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             <span>Status</span>
             <span className="text-foreground">
-              {revealHistory ? "Live Feed Active" : "En attente…"}
+              {revealHistory ? "Live Feed Active" : "Waiting..."}
             </span>
           </div>
         </div>

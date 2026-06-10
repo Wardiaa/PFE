@@ -1,7 +1,7 @@
 // SpectatorMode.tsx
 // Shown to participants who have been eliminated. They can still watch the
 // current question, see eliminations as they happen, and watch the live
-// leaderboard — but cannot submit answers. Includes a "Quitter" button.
+// leaderboard — but cannot submit answers. Includes a "Quit" button.
 //
 // Answer reveal behaviour:
 //   - `hideEliminationBanner`: hides the red "you have been eliminated"
@@ -33,7 +33,7 @@ interface Props {
   eliminatedAtRound: number;
   onLeave: () => void;
   /**
-   * When true, the red "Vous avez été éliminé à la question X" banner is not
+   * When true, the red "You have been eliminated at question X" banner is not
    * rendered. Use this while the round timer is still running so the
    * participant doesn't learn their fate before the round closes.
    * Defaults to false (banner shown — original behaviour).
@@ -93,10 +93,10 @@ export function SpectatorMode({
               </div>
               <div>
                 <p className="cpl-display text-base sm:text-lg">
-                  Vous avez été éliminé à la question {eliminatedAtRound}
+                  You have been eliminated at question {eliminatedAtRound}
                 </p>
                 <p className="text-sm text-[color:var(--cpl-text-muted)]">
-                  Vous pouvez continuer à regarder la partie.
+                  You can continue watching the game.
                 </p>
               </div>
             </div>
@@ -105,7 +105,7 @@ export function SpectatorMode({
               className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-white/80 hover:bg-white/5 transition"
             >
               <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Quitter</span>
+              <span className="hidden sm:inline">Leave</span>
             </button>
           </div>
         )}
@@ -114,7 +114,7 @@ export function SpectatorMode({
         {currentQuestion ? (
           <div className="cpl-card p-6 sm:p-8 mb-6">
             <div className="text-xs uppercase tracking-widest text-[color:var(--cpl-text-dim)] mb-2">
-              Question en cours · Q {displayRoundNumber}
+              Current question · Q {displayRoundNumber}
             </div>
             <h2 className="cpl-display text-xl sm:text-2xl text-white mb-4">
               {currentQuestion.text}
@@ -192,15 +192,15 @@ export function SpectatorMode({
             </ul>
             <p className="mt-4 text-xs text-[color:var(--cpl-text-dim)]">
               {showAnswerReveal
-                ? "Réponse correcte révélée…"
+                ? "Correct answer revealed…"
                 : hideEliminationBanner
-                ? "Réponse enregistrée — en attente de la fin du timer…"
-                : "Mode spectateur — vous ne pouvez pas répondre."}
+                ? "Response recorded — waiting for timer to end…"
+                : "Spectator mode — you cannot answer."}
             </p>
           </div>
         ) : (
           <div className="cpl-card p-6 mb-6 text-center text-[color:var(--cpl-text-muted)]">
-            En attente de la prochaine question…
+            Waiting for the next question…
           </div>
         )}
 

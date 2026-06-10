@@ -60,7 +60,7 @@ export function RoundEliminationsOverlay({ count, roundNumber, eliminatedNames =
             {/* Close button */}
             <button
               onClick={onClose}
-              aria-label="Fermer"
+              aria-label="Close"
               className="absolute top-4 right-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white transition-colors"
             >
               <X className="h-4 w-4" />
@@ -108,10 +108,10 @@ export function RoundEliminationsOverlay({ count, roundNumber, eliminatedNames =
                         className="pb-4 sm:pb-6"
                       >
                         <div className="text-2xl sm:text-3xl font-black uppercase leading-none text-white">
-                          {count === 1 ? "Joueur" : "Joueurs"}
+                          {count === 1 ? "Player" : "Players"}
                         </div>
                         <div className="mt-1 text-2xl sm:text-3xl font-black uppercase leading-none bg-red-700 bg-clip-text text-transparent">
-                          Éliminé{count === 1 ? "" : "s"}
+                          Eliminated
                         </div>
                       </motion.div>
                     </motion.div>
@@ -126,7 +126,7 @@ export function RoundEliminationsOverlay({ count, roundNumber, eliminatedNames =
                     >
                       <div className="flex items-center gap-2 mb-4 text-red-500">
                         <Users size={18} />
-                        <span className="text-sm font-bold uppercase tracking-wider">Liste des éliminés</span>
+                        <span className="text-sm font-bold uppercase tracking-wider">Eliminated List</span>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
                         {eliminatedNames.length > 0 ? (
@@ -143,7 +143,7 @@ export function RoundEliminationsOverlay({ count, roundNumber, eliminatedNames =
                           ))
                         ) : (
                           <div className="col-span-full text-white/40 text-sm italic">
-                            Aucun nom disponible
+                            No names available
                           </div>
                         )}
                       </div>
@@ -174,10 +174,10 @@ export function RoundEliminationsOverlay({ count, roundNumber, eliminatedNames =
                 }}
                 className="text-white hover:text-red-500 transition-colors flex items-center gap-2 group cursor-pointer text-sm sm:text-base font-medium"
               >
-                {showNames ? "Retour au score" : "Voir les noms"}
+                {showNames ? "Back to score" : "View names"}
               </button>
                 <span className="text-white/50 text-[11px] sm:text-xs">
-                  echap · clic pour fermer
+                  esc · click to close
                 </span>
               </motion.div>
             </div>

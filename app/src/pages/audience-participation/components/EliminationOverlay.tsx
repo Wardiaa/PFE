@@ -44,10 +44,10 @@ export function EliminationOverlay({
       return (
         <>
           <p className="mt-8 text-xl text-[color:var(--cpl-text-muted)] cpl-display">
-            Question {roundNumber} · Vous êtes éliminé
+            Question {roundNumber} · You are eliminated
           </p>
           <p className="mt-2 text-sm text-[color:var(--cpl-text-dim)]">
-            Vous étiez #{rank}. Seuls les {maxAdvance} plus rapides avancent.
+            You were #{rank}. Only the fastest {maxAdvance} advance.
           </p>
         </>
       );
@@ -57,10 +57,10 @@ export function EliminationOverlay({
     return (
       <>
         <p className="mt-8 text-xl text-[color:var(--cpl-text-muted)] cpl-display">
-          Question {roundNumber} · Vous êtes éliminé
+          Question {roundNumber} · You are eliminated
         </p>
         <p className="mt-2 text-sm text-[color:var(--cpl-text-dim)]">
-          Voulez-vous rester pour voir la suite ou quitter la session ?
+          Do you want to stay and watch or leave the session?
         </p>
       </>
     );
@@ -73,7 +73,7 @@ export function EliminationOverlay({
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md cpl-wrong-shake px-4"
     >
       <div className="text-center max-w-md w-full">
-        <div className="cpl-eliminated-stamp">ÉLIMINÉ</div>
+        <div className="cpl-eliminated-stamp">ELIMINATED</div>
 
         {getEliminationMessage()}
 
@@ -84,7 +84,7 @@ export function EliminationOverlay({
             className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold text-white/90 bg-teal-700 hover:bg-teal-600 transition-colors border border-white/20"
           >
             <Eye className="w-5 h-5" />
-            Rester en spectateur
+            Stay as spectator
           </button>
 
           <button
@@ -93,7 +93,7 @@ export function EliminationOverlay({
             className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold text-white/90 bg-white/5 hover:bg-white/10 transition-colors border border-white/20"
           >
             <LogOut className="w-5 h-5" />
-            Quitter la session
+            Leave session
           </button>
         </div>
       </div>

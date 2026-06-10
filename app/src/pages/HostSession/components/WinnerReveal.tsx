@@ -79,7 +79,7 @@ const WinnerReveal: React.FC<WinnerRevealProps> = ({
               {/* Top Meta Tag */}
               <div className="mb-10 text-center">
                 <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground bg-muted px-3 py-1 rounded border border-border">
-                  Session Terminée
+                  Session Ended
                 </span>
               </div>
 
@@ -90,7 +90,7 @@ const WinnerReveal: React.FC<WinnerRevealProps> = ({
                 transition={{ delay: 0.2 }}
                 className="mb-6 px-4 py-1.5 bg-primary rounded text-primary-foreground text-[11px] font-black uppercase tracking-[0.2em]"
               >
-                LE GAGNANT
+                THE WINNER
               </motion.div>
 
               {/* Giant Winner Name - High Contrast */}
@@ -111,7 +111,7 @@ const WinnerReveal: React.FC<WinnerRevealProps> = ({
                 className="w-full flex items-center justify-between border-t border-b border-border py-8 mb-10"
               >
                 <div className="flex-1 text-center">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-2">Score Final</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-2">Final Score</p>
                   <p className="text-3xl font-black text-foreground tabular-nums leading-none">
                     {revealedWinner.score}
                   </p>
@@ -138,14 +138,14 @@ const WinnerReveal: React.FC<WinnerRevealProps> = ({
                   onClick={handleViewFinalResults}
                   className="w-full py-5 rounded-xl bg-primary text-primary-foreground font-black text-sm uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer"
                 >
-                  Voir les résultats finaux
+                  View final results
                 </button>
               </motion.div>
 
               {/* Bottom detail */}
               <div className="mt-6">
                 <span className="text-[9px] font-mono text-muted-foreground/60 uppercase tracking-[0.1em]">
-                  Félicitations au vainqueur
+                  Congratulations to the winner
                 </span>
               </div>
             </div>

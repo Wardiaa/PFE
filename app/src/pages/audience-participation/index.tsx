@@ -2978,7 +2978,7 @@ const AudienceParticipation: React.FC = () => {
         if (isElimination && !isNonQCMQuestion) {
           if (!showCorrectAnswerFeedback) return null;
           return (
-            <HuntArenaBackground subtitle="Bonne réponse ! Préparez-vous pour la prochaine question…" />
+            <HuntArenaBackground subtitle="Good answer! Get ready for the next question…" />
           );
         }
         return (

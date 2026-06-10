@@ -60,10 +60,10 @@ export function FinalRoundWaitingOverlay({
               </div>
 
               <h2 className="text-xl font-bold text-foreground mb-1">
-                En attente des joueurs…
+                Waiting for players…
               </h2>
               <p className="text-sm text-muted-foreground mb-6">
-                Les participants décident s'ils veulent continuer au round final.
+                Participants are deciding whether to continue to the final round.
               </p>
 
               {/* Progress row */}
@@ -71,8 +71,8 @@ export function FinalRoundWaitingOverlay({
                 <Users className="w-4 h-4 text-primary" />
                 <span className="text-sm font-medium text-foreground">
                   {typeof decidedCount === "number"
-                    ? `${decidedCount} / ${totalDeciding} ont répondu`
-                    : `${totalDeciding} joueur${totalDeciding !== 1 ? "s" : ""} en train de décider`}
+                    ? `${decidedCount} / ${totalDeciding} have responded`
+                    : `${totalDeciding} player${totalDeciding !== 1 ? "s" : ""} deciding`}
                 </span>
               </div>
 

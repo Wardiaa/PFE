@@ -79,7 +79,7 @@ function Pod({
           </div>
           <div className="text-xs text-[color:var(--cpl-text-muted)]">
             {variant === "eliminated"
-              ? `Éliminé · Question ${participant.eliminatedAtRound ?? "?"}`
+              ? `Eliminated · Question ${participant.eliminatedAtRound ?? "?"}`
               : `${participant.score} pts${rank ? ` · #${rank}` : ""}`}
           </div>
         </div>
@@ -124,7 +124,7 @@ export function LiveLeaderboard({
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="cpl-display text-lg text-white">En lice</h3>
+            <h3 className="cpl-display text-lg text-white">Remaining</h3>
             {collapsed ? (
               <ChevronDown className="h-4 w-4 text-[color:var(--cpl-text-muted)]" />
             ) : (
@@ -132,8 +132,7 @@ export function LiveLeaderboard({
             )}
           </div>
           <p className="text-xs text-[color:var(--cpl-text-muted)]">
-            {aliveCount} joueur{aliveCount > 1 ? "s" : ""} survivant
-            {aliveCount > 1 ? "s" : ""} sur {totalCount}
+            {aliveCount} player{aliveCount > 1 ? "s" : ""} surviving out of {totalCount}
           </p>
         </div>
         <div className="text-right flex-shrink-0">
@@ -152,8 +151,8 @@ export function LiveLeaderboard({
           {visibleAlive.length === 0 ? (
             <p className="text-sm text-[color:var(--cpl-text-muted)]">
               {eliminatedCount > 0
-                ? "Tous les joueurs ont été éliminés."
-                : "En attente des participants..."}
+                ? "All players have been eliminated."
+                : "Waiting for participants..."}
             </p>
           ) : (
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -171,15 +170,14 @@ export function LiveLeaderboard({
 
           {gameState.alive.length > visibleAlive.length && (
             <p className="mt-3 text-xs text-[color:var(--cpl-text-dim)]">
-              +{gameState.alive.length - visibleAlive.length} autres joueurs en
-              lice…
+              +{gameState.alive.length - visibleAlive.length} other players remaining…
             </p>
           )}
 
           {recentEliminated.length > 0 && (
             <div className="mt-6">
               <h4 className="mb-2 text-xs uppercase tracking-widest text-[color:var(--cpl-text-dim)]">
-                Éliminés
+                Eliminated
               </h4>
               <div className="grid gap-2 sm:grid-cols-2">
                 {recentEliminated.map((p) => (
@@ -189,7 +187,7 @@ export function LiveLeaderboard({
               {gameState.eliminated.length > recentEliminated.length && (
                 <p className="mt-2 text-xs text-[color:var(--cpl-text-dim)]">
                   +{gameState.eliminated.length - recentEliminated.length}{" "}
-                  autres éliminés
+                  others eliminated
                 </p>
               )}
             </div>

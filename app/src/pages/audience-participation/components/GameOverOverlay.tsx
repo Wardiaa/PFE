@@ -1,21 +1,21 @@
 // GameOverOverlay.tsx
-// Full-screen "Fin de partie — Aucun gagnant" overlay shown on BOTH the host
+// Full-screen "End of game — No winner" overlay shown on BOTH the host
 // view and every participant view when alive.length reaches 0 in elimination
 // mode (everyone was eliminated before the session ended naturally with a
 // winner).
 //
-// Host variant (isHost=true): shows a "Terminer la session" button → onEnd().
-// Participant variant: shows a "Quitter" button → onQuit() (navigates away).
+// Host variant (isHost=true): shows a "End session" button → onEnd().
+// Participant variant: shows a "Quit" button → onQuit() (navigates away).
 
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Props {
   visible: boolean;
-  /** Pass true on the host side to show the "Terminer la session" button. */
+  /** Pass true on the host side to show the "End session" button. */
   isHost?: boolean;
-  /** Called when the host clicks "Terminer la session". */
+  /** Called when the host clicks "End session". */
   onEnd?: () => void;
-  /** Called when a participant clicks "Quitter". Typically navigates to /audience-participation. */
+  /** Called when a participant clicks "Quit". Typically navigates to /audience-participation. */
   onQuit?: () => void;
 }
 
@@ -62,13 +62,13 @@ export function GameOverOverlay({ visible, isHost = false, onEnd, onQuit }: Prop
                   className="font-black uppercase tracking-tighter text-white leading-none"
                   style={{ fontSize: "clamp(3rem, 10vw, 5.5rem)" }}
                 >
-                  Fin de
+                  Game
                 </div>
                 <div
                   className="font-black uppercase tracking-tighter leading-none bg-red-700 bg-clip-text text-transparent"
                   style={{ fontSize: "clamp(3rem, 10vw, 5.5rem)" }}
                 >
-                  Partie
+                  Over
                 </div>
               </motion.div>
 
@@ -79,9 +79,9 @@ export function GameOverOverlay({ visible, isHost = false, onEnd, onQuit }: Prop
                 transition={{ delay: 0.35 }}
                 className="mt-6 text-base sm:text-lg font-medium text-white/60 leading-snug max-w-[400px]"
               >
-                Tous les participants ont été éliminés.
+                All participants have been eliminated.
                 <br />
-                <span className="text-white/40">Aucun gagnant cette fois.</span>
+                <span className="text-white/40">No winner this time.</span>
               </motion.p>
 
               {/* Divider */}
@@ -105,7 +105,7 @@ export function GameOverOverlay({ visible, isHost = false, onEnd, onQuit }: Prop
                     onClick={onEnd}
                     className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/8 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/15 transition-colors"
                   >
-                    Terminer la session
+                    End session
                     <span className="text-white/50">→</span>
                   </button>
                 )}
@@ -115,7 +115,7 @@ export function GameOverOverlay({ visible, isHost = false, onEnd, onQuit }: Prop
                     onClick={onQuit}
                     className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/8 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/15 transition-colors"
                   >
-                    Quitter
+                    Leave
                     <span className="text-white/50">→</span>
                   </button>
                 )}

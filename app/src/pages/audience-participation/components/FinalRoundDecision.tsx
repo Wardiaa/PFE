@@ -74,11 +74,11 @@ export function FinalRoundDecision({
             {/* Main Content */}
             <div className="text-center mb-10">
               <h2 className="text-4xl font-black text-foreground tracking-tighter uppercase mb-4">
-                DERNIÈRE MANCHE
+                FINAL ROUND
               </h2>
               <p className="text-muted-foreground text-lg leading-relaxed">
-                Vous êtes arrivé à la dernière question.<br />
-                Voulez-vous tenter le tout pour le tout&nbsp;?
+                You've reached the final question.<br />
+                Do you want to go all in?
               </p>
             </div>
 
@@ -89,7 +89,7 @@ export function FinalRoundDecision({
                 disabled={hasDecided}
                 className="w-full py-5 rounded-xl bg-primary text-primary-foreground font-black text-sm uppercase tracking-widest transition-transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
-                OUI, JE CONTINUE
+                YES, I CONTINUE
               </button>
 
               <button
@@ -97,7 +97,7 @@ export function FinalRoundDecision({
                 disabled={hasDecided}
                 className="w-full py-5 rounded-xl bg-muted border border-border text-foreground font-black text-sm uppercase tracking-widest transition-transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
-                NON, JE ME RETIRE
+                NO, I WITHDRAW
               </button>
             </div>
 
@@ -105,8 +105,8 @@ export function FinalRoundDecision({
             <div className="mt-8 text-center h-4">
               <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/60">
                 {hasDecided
-                  ? "Décision enregistrée…"
-                  : "Sélectionnez une option"}
+                  ? "Decision recorded…"
+                  : "Select an option"}
               </p>
             </div>
           </div>
