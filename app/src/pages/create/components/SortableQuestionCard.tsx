@@ -41,9 +41,9 @@ interface SortableQuestionCardProps {
 // Updated TYPE_META with all question types
 const TYPE_META: Record<string, { icon: React.ElementType; label: string }> = {
   // Multiple Choice variants
-  "multiple-choice": { icon: ListChecks, label: "Multiple Choice" },
-  "SINGLE_CHOICE": { icon: ListChecks, label: "Multiple Choice" },
-  "MULTIPLE_CHOICE": { icon: ListChecks, label: "Multiple Choice" },
+  "multiple-choice": { icon: ListChecks, label: "MCQ" },
+  "SINGLE_CHOICE": { icon: ListChecks, label: "MCQ" },
+  "MULTIPLE_CHOICE": { icon: ListChecks, label: "MCQ" },
   // Open Text
   "open-text": { icon: MessageSquare, label: "Open Text" },
   "OPEN_TEXT": { icon: MessageSquare, label: "Open Text" },

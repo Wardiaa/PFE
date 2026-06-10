@@ -5,6 +5,7 @@
 // RATING SCALE UPDATE: Removed hearts, smileys, numbers - stars only
 // Speed and Skip toggles now only show for multiple-choice questions
 // Speed and Skip are mutually exclusive - enabling one disables the other
+// MCQ UPDATE: Only one option can be marked as correct (single selection)
 
 import { useState, useEffect, type ChangeEvent, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1256,7 +1257,18 @@ export function QuestionSidePanel({
                       <button
                         onClick={() => {
                           const newOpts = [...(currentQuestion.options || [])];
-                          newOpts[idx] = { ...newOpts[idx], isCorrect: !newOpts[idx].isCorrect };
+                          const wasCorrect = newOpts[idx].isCorrect;
+                          
+                          if (!wasCorrect) {
+                            // Turning THIS option ON as correct → turn all others OFF
+                            newOpts.forEach((option, i) => {
+                              newOpts[i] = { ...option, isCorrect: i === idx };
+                            });
+                          } else {
+                            // Turning THIS option OFF (making no correct answer)
+                            newOpts[idx] = { ...newOpts[idx], isCorrect: false };
+                          }
+                          
                           onUpdateQuestion({ options: newOpts });
                         }}
                         className={cn(

@@ -31,9 +31,9 @@ export function QuestionTypeSelector({ onSelect, selectedType }: QuestionTypeSel
   const questionTypes: QuestionType[] = [
     {
       id: 'multiple-choice',
-      name: 'Multiple Choice',
+      name: 'MCQ',
       icon: ListChecks,
-      description: 'Single or multiple answer selection',
+      description: 'Choose from multiple options',
     },
     {
       id: 'open-text',
