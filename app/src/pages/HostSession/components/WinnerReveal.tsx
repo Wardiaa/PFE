@@ -21,9 +21,47 @@ const WinnerReveal: React.FC<WinnerRevealProps> = ({
   // Core functionality: Confetti trigger remains unchanged
   useEffect(() => {
     if (isElimination && revealedWinner) {
-      const duration = 3 * 1000;
+
+      // --- Initial cannon burst from the center ---
+      confetti({
+        particleCount: 80,
+        spread: 100,
+        origin: { x: 0.5, y: 0.55 },
+        startVelocity: 50,
+        ticks: 100,
+        zIndex: 200,
+        shapes: ['circle', 'square'],
+        colors: ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD'],
+      });
+
+      // --- Two side cannons immediately ---
+      confetti({
+        particleCount: 60,
+        angle: 60,
+        spread: 70,
+        origin: { x: 0, y: 0.6 },
+        startVelocity: 55,
+        ticks: 100,
+        zIndex: 200,
+        shapes: ['circle', 'square'],
+        colors: ['#FFD700', '#FF6B6B', '#4ECDC4', '#FFEAA7'],
+      });
+      confetti({
+        particleCount: 60,
+        angle: 120,
+        spread: 70,
+        origin: { x: 1, y: 0.6 },
+        startVelocity: 55,
+        ticks: 100,
+        zIndex: 200,
+        shapes: ['circle', 'square'],
+        colors: ['#FFD700', '#FF6B6B', '#45B7D1', '#DDA0DD'],
+      });
+
+      // --- Continuous shower for 5 seconds ---
+      const duration = 5 * 1000;
       const animationEnd = Date.now() + duration;
-      const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 200 };
+      const defaults = { startVelocity: 30, spread: 360, ticks: 70, zIndex: 200 };
 
       const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
 
@@ -34,7 +72,7 @@ const WinnerReveal: React.FC<WinnerRevealProps> = ({
           return clearInterval(interval);
         }
 
-        const particleCount = 50 * (timeLeft / duration);
+        const particleCount = 60 * (timeLeft / duration);
         
         confetti({
           ...defaults,
@@ -45,6 +83,15 @@ const WinnerReveal: React.FC<WinnerRevealProps> = ({
           ...defaults,
           particleCount,
           origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
+        });
+
+        // Additional center origin — new
+        confetti({
+          ...defaults,
+          particleCount: particleCount * 0.5,
+          origin: { x: randomInRange(0.4, 0.6), y: Math.random() - 0.2 },
+          shapes: ['circle'],
+          colors: ['#FFD700', '#FFA500', '#FFEAA7'],
         });
       }, 250);
 
