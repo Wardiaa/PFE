@@ -368,7 +368,21 @@ const AudienceParticipation: React.FC = () => {
   }, [isElimination]);
 
   const themeId: string = contextMeta.themeId || "default";
-  const themeClass = (isElimination || themeId === "hunt-arena") ? "cpl-theme" : "";
+  // NON-QCM DISPLAY: when the active question is not multiple-choice (e.g.
+  // open-text, word-cloud, rating, ranking, grid-2x2, scaling, vote) we display
+  // it with the standard non-elimination style — no CPL/hunt-arena theme,
+  // no SpectatorMode, no HuntArenaBackground — even inside an elimination session.
+  const isNonQCMQuestion =
+    currentQuestion !== null &&
+    currentQuestion !== undefined &&
+    currentQuestion.type !== "multiple-choice";
+
+  // Suppress the elimination theme entirely for non-QCM questions so they render
+  // identically to standard mode.
+  const themeClass =
+    !isNonQCMQuestion && (isElimination || themeId === "hunt-arena")
+      ? "cpl-theme"
+      : "";
 
   const clearAnswerRevealTimeout = useCallback(() => {
     if (answerRevealTimeoutRef.current !== undefined) {
@@ -2961,7 +2975,7 @@ const AudienceParticipation: React.FC = () => {
         );
 
       case "submitted":
-        if (isElimination) {
+        if (isElimination && !isNonQCMQuestion) {
           if (!showCorrectAnswerFeedback) return null;
           return (
             <HuntArenaBackground subtitle="Bonne réponse ! Préparez-vous pour la prochaine question…" />
@@ -2972,7 +2986,7 @@ const AudienceParticipation: React.FC = () => {
         );
 
       case "waiting":
-        if (isElimination) {
+        if (isElimination && !isNonQCMQuestion) {
           return (
             <HuntArenaBackground subtitle="Sharpen your instincts. The first wrong answer sends you out of the arena" />
           );
@@ -3023,7 +3037,9 @@ const AudienceParticipation: React.FC = () => {
     );
   }
 
-  if (isElimination) {
+  // For non-QCM questions the entire elimination render branch is skipped;
+  // they always use the standard display path regardless of game mode.
+  if (isElimination && !isNonQCMQuestion) {
     // PRIORITY 1 — Speed question waiting: must bypass ALL elimination checks.
     // This handles both the "en attente" phase and the "vous passez" phase for
     // advancing participants (who stay here until the next question clears state).
@@ -3095,7 +3111,7 @@ const AudienceParticipation: React.FC = () => {
   return (
     <div className={`${themeClass} min-h-screen bg-background relative`}>
 
-      {isElimination && (
+      {isElimination && !isNonQCMQuestion && (
         <>
           {/* Regular elimination overlay (non-speed questions) */}
           <EliminationOverlay
