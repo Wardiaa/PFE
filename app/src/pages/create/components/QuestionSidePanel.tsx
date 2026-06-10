@@ -3,6 +3,8 @@
 // SPEED QUESTION UPDATE: Added isSpeedQuestion toggle and speedMaxAdvance input
 // GRID 2x2 & VOTE UPDATE: Added edit panels for grid-2x2 and vote question types
 // RATING SCALE UPDATE: Removed hearts, smileys, numbers - stars only
+// Speed and Skip toggles now only show for multiple-choice questions
+// Speed and Skip are mutually exclusive - enabling one disables the other
 
 import { useState, useEffect, type ChangeEvent, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -842,6 +844,16 @@ export function QuestionSidePanel({
     }
   };
 
+  // Helper to check if current question is multiple-choice type
+  const isMultipleChoiceType = (): boolean => {
+    if (!currentQuestion) return false;
+    const type = currentQuestion.type;
+    return type === "multiple-choice" || 
+           type === "SINGLE_CHOICE" || 
+           type === "MULTIPLE_CHOICE" ||
+           type === "POLL";
+  };
+
   // ── Edit Panel ─────────────────────────────────────────────────────────────
   const renderEditPanel = () => {
     if (!currentQuestion) {
@@ -1337,6 +1349,30 @@ export function QuestionSidePanel({
     }
 
     const maxAdvance = Math.min(100, Math.max(1, q.speedMaxAdvance ?? 3));
+    const isMultiChoice = isMultipleChoiceType();
+
+    // Get current values for mutual exclusivity
+    const isSpeedOn = q.isSpeedQuestion ?? false;
+    const isSkipOn = q.skipAllowed ?? false;
+
+    // Handlers that enforce mutual exclusivity
+    const handleSkipToggle = (val: boolean) => {
+      if (val) {
+        // Turning skip ON: turn speed OFF
+        onUpdateQuestion({ skipAllowed: true, isSpeedQuestion: false });
+      } else {
+        onUpdateQuestion({ skipAllowed: false });
+      }
+    };
+
+    const handleSpeedToggle = (val: boolean) => {
+      if (val) {
+        // Turning speed ON: turn skip OFF
+        onUpdateQuestion({ isSpeedQuestion: true, skipAllowed: false });
+      } else {
+        onUpdateQuestion({ isSpeedQuestion: false });
+      }
+    };
 
     return (
       <div className="space-y-6">
@@ -1388,17 +1424,30 @@ export function QuestionSidePanel({
             </div>
           </div>
 
-          {isEliminationMode && (
+          {/* ============================================================ */}
+          {/* UPDATED: Skip toggle - disabled when speed is ON */}
+          {/* ============================================================ */}
+          {isEliminationMode && isMultiChoice && (
             <>
               <div className="h-px bg-slate-100 mt-2" />
               <div className="flex items-center justify-between pt-2">
-                <div><span className="text-xs text-slate-600 font-medium">Allow skip on this question</span><p className="text-[10px] text-slate-400 mt-0.5">Participants can skip without elimination</p></div>
-                <MentiToggle checked={q.skipAllowed ?? false} onChange={(val) => onUpdateQuestion({ skipAllowed: val })} />
+                <div>
+                  <span className="text-xs text-slate-600 font-medium">Allow skip on this question</span>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Participants can skip without elimination</p>
+                </div>
+                <MentiToggle 
+                  checked={isSkipOn} 
+                  onChange={handleSkipToggle}
+                  disabled={isSpeedOn}  // Disabled when speed is on
+                />
               </div>
             </>
           )}
 
-          {isEliminationMode && (
+          {/* ============================================================ */}
+          {/* UPDATED: Speed toggle - disabled when skip is ON */}
+          {/* ============================================================ */}
+          {isEliminationMode && isMultiChoice && (
             <>
               <div className="h-px bg-slate-100 mt-2" />
               <div className="flex items-center justify-between pt-2">
@@ -1409,9 +1458,13 @@ export function QuestionSidePanel({
                   </div>
                   <p className="text-[10px] text-slate-400 mt-0.5">Eliminate participants based on response speed.</p>
                 </div>
-                <MentiToggle checked={q.isSpeedQuestion ?? false} onChange={(val) => onUpdateQuestion({ isSpeedQuestion: val })} />
+                <MentiToggle 
+                  checked={isSpeedOn} 
+                  onChange={handleSpeedToggle}
+                  disabled={isSkipOn}  // Disabled when skip is on
+                />
               </div>
-              {q.isSpeedQuestion && (
+              {isSpeedOn && (
                 <div className="mt-2.5 ml-7 p-3 bg-slate-50 rounded-lg border border-slate-100">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-slate-700">Advance limit</span>

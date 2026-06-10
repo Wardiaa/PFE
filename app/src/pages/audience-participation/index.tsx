@@ -1481,6 +1481,20 @@ const AudienceParticipation: React.FC = () => {
       return;
     }
 
+    // NON-QCM GUARD: Elimination only applies to multiple-choice questions.
+    // For open-text, word-cloud, rating, ranking, grid-2x2, scaling, vote, etc.
+    // there is no correct/incorrect answer, so participants must never be
+    // auto-eliminated when the timer ends or the host closes the question.
+    // Without this guard every participant who did not answer a non-QCM question
+    // would self-eliminate here, which empties the alive list and causes
+    // "fin de partie" even though no elimination should have occurred.
+    if (q.type !== "multiple-choice") {
+      // Show the correct-answer feedback screen (same as a submitted participant),
+      // so they transition cleanly out of the question UI.
+      setShowCorrectAnswerFeedback(true);
+      return;
+    }
+
     if (isEliminatedRef.current) {
       const liveRoundNumber =
         currentQuestionRef.current?.number ?? gameState.currentRound ?? 0;
@@ -2326,7 +2340,7 @@ const AudienceParticipation: React.FC = () => {
 
     const eliminationActive = isEliminationRef.current;
 
-    if (eliminationActive && (q.type === "multiple-choice" || q.type === "vote")) {
+    if (eliminationActive && q.type === "multiple-choice") {
       if (isEliminated) {
         toast({
           title: "Vous êtes éliminé",
@@ -3042,12 +3056,23 @@ const AudienceParticipation: React.FC = () => {
 
     // Eliminated players drop into spectator mode — but NOT when speed_waiting
     // (handled above) or final_decision (FinalRoundDecision is only sent to alive players).
+    //
+    // NON-QCM EXCEPTION: For non-multiple-choice questions (open-text, word-cloud,
+    // rating, ranking, grid-2x2, vote, scaling, etc.) eliminated participants are
+    // allowed to answer — there is no right/wrong answer so they are never
+    // eliminated for their response. We therefore do NOT push them into spectator
+    // mode during those questions; they stay in the normal question UI.
+    const isNonQcmQuestion =
+      currentQuestion !== null &&
+      currentQuestion.type !== "multiple-choice";
     const isEliminatedSpectator =
       isEliminated &&
       !showEliminationOverlay &&
       !showSpeedEliminationOverlay &&
       !showCorrectAnswerFeedback &&
-      sessionState !== "final_decision";
+      sessionState !== "final_decision" &&
+      // Allow eliminated participants to see and answer non-QCM questions
+      !(isNonQcmQuestion && sessionState === "question");
 
     if (hasJustSubmittedAndWaiting || isEliminatedSpectator) {
       const hideBanner = hasJustSubmittedAndWaiting || eliminatedThisRoundWaiting;

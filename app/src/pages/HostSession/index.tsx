@@ -514,7 +514,24 @@ const HostSession: React.FC = () => {
   // Process untimed question eliminations (for non-speed elimination questions) ──
   const processUntimedQuestionEliminations = useCallback(async () => {
     if (!session || !currentQuestion || isProcessingSpeedQuestion || showResults) return;
-    
+
+    // NON-QCM GUARD: Elimination only makes sense for multiple-choice questions
+    // where every answer is definitively correct or incorrect.
+    // For all other question types (open-text, word-cloud, rating, ranking,
+    // grid-2x2, vote, scaling, etc.) there is no right/wrong answer, so
+    // nobody should ever be eliminated based on their response — or lack thereof.
+    //
+    // Without this guard, when 0 participants answer a non-QCM question the
+    // entire alive list lands in noAnswerIds → everyone gets eliminated →
+    // "fin de partie" even though no elimination should have occurred.
+    if (currentQuestion.type !== "multiple-choice") {
+      console.log(
+        "[HOST] Non-QCM question (" + currentQuestion.type + ") — skipping elimination, showing results only",
+      );
+      setShowResults(true);
+      return;
+    }
+
     console.log("[HOST] Processing untimed question eliminations...");
     setIsProcessingSpeedQuestion(true);
     
