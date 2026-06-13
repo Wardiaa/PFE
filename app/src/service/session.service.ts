@@ -1075,14 +1075,22 @@ export class SessionService {
             eliminated_at_question_id: args.questionId,
           })
           .eq("id", args.participantId),
-        supabase.from("elimination_log").insert({
-          session_id: args.sessionId,
-          participant_id: args.participantId,
-          participant_name: participant.name,
-          question_id: args.questionId,
-          round_number: args.roundNumber,
-          eliminated_at: new Date().toISOString(),
-        }),
+        // upsert with ignoreDuplicates absorbs the UNIQUE constraint violation
+        // (elimination_log_participant_id_unique) that fires when a concurrent
+        // safety-net and main-loop call both attempt to insert for the same
+        // participant.  Only one row is ever written; the second is silently
+        // discarded at the DB level with no error returned to the client.
+        supabase.from("elimination_log").upsert(
+          {
+            session_id: args.sessionId,
+            participant_id: args.participantId,
+            participant_name: participant.name,
+            question_id: args.questionId,
+            round_number: args.roundNumber,
+            eliminated_at: new Date().toISOString(),
+          },
+          { onConflict: "participant_id", ignoreDuplicates: true },
+        ),
       ]);
 
       if (updateError) {
@@ -1090,6 +1098,8 @@ export class SessionService {
         return null;
       }
 
+      // With ignoreDuplicates the upsert never returns an error on conflict,
+      // so logError here means a genuine failure (network, permissions, etc.).
       if (logError) {
         console.error("[eliminateParticipant] Log insert failed:", logError);
       }

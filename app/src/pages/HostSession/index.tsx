@@ -271,6 +271,12 @@ const HostSession: React.FC = () => {
   const [showEliminationPanel, setShowEliminationPanel] = useState<boolean>(false);
   const [displayedGameState, setDisplayedGameState] = useState<GameState>(gameState);
   const roundStartEliminatedCountRef = useRef<number>(0);
+  // Synchronous (ref, not state) flag set for the entire duration of
+  // processUntimedQuestionEliminations.  The GOODBYE safety-net checks this
+  // before calling eliminateParticipant to prevent a race condition where both
+  // the safety-net and the main loop read is_alive=true simultaneously and
+  // insert two elimination_log rows for the same player (name shown twice).
+  const isProcessingUntimedRef = useRef<boolean>(false);
   const [roundEliminationCount, setRoundEliminationCount] = useState<number | null>(null);
   const [overlayRoundNumber, setOverlayRoundNumber] = useState<number>(0);
   // Names for the current round's elimination overlay — set atomically when
@@ -534,6 +540,9 @@ const HostSession: React.FC = () => {
 
     console.log("[HOST] Processing untimed question eliminations...");
     setIsProcessingSpeedQuestion(true);
+    // Set synchronously so the GOODBYE handler can read it immediately,
+    // before any await yields control back to the event loop.
+    isProcessingUntimedRef.current = true;
     
     try {
       const roundNumber = currentQuestionIndex + 1;
@@ -583,8 +592,11 @@ const HostSession: React.FC = () => {
 
       // Explicit leavers not already in idsToEliminate (alive participants who
       // happened to also leave in the same window).
+      // The allParticipants check is a safety net: it ensures that any
+      // already-eliminated spectator who slips into leftDuringQuestionRef
+      // (e.g. via a stale ref) is not counted toward this round's total.
       const leftEntriesNew = leftEntries.filter(
-        (e) => !idsToEliminate.includes(e.id),
+        (e) => !idsToEliminate.includes(e.id) && (allParticipants || []).some(p => p.id === e.id),
       );
 
       console.log(
@@ -681,6 +693,7 @@ const HostSession: React.FC = () => {
       toast({ title: "Error", description: "Failed to process results", variant: "destructive" });
     } finally {
       setIsProcessingSpeedQuestion(false);
+      isProcessingUntimedRef.current = false;
     }
   }, [session, currentQuestion, currentQuestionIndex, isProcessingSpeedQuestion, showResults, toast]);
 
@@ -797,6 +810,13 @@ const HostSession: React.FC = () => {
         console.log(`[HOST] Participant disconnected: ${participantName} (${participantId}), explicit=${isExplicitLeave ?? false}`);
 
         if (isExplicitLeave && isElimination) {
+          // Guard: only run elimination logic for currently alive participants.
+          // Already-eliminated spectators (e.g. a no-submit player from a prior
+          // round who is now watching) may still close their tab and send GOODBYE.
+          // Without this check they would be added to leftDuringQuestionRef and
+          // pendingEliminatedRef, inflating the current round's overlay count by +1.
+          if (!gameStateRef.current.alive.some(p => p.id === participantId)) return;
+
           const round = currentQuestionIndexRef.current + 1;
 
           // 1. Register in leftDuringQuestionRef so processUntimedQuestionEliminations
@@ -819,8 +839,14 @@ const HostSession: React.FC = () => {
           // 3. Safety-net DB write: eliminates the participant even if the host
           //    advances to the next question without clicking Eliminate. The call is
           //    idempotent — processUntimedQuestionEliminations calling it again is safe.
+          //
+          //    RACE-CONDITION GUARD: skip when processUntimedQuestionEliminations is
+          //    currently running. If it IS running, it will handle this participant
+          //    via idsToEliminate or leftEntriesNew. Firing the safety-net at the
+          //    same time causes both callers to read is_alive=true before either
+          //    writes false, producing two elimination_log rows → same name twice.
           const sess = sessionRef.current;
-          if (sess) {
+          if (sess && !isProcessingUntimedRef.current) {
             const questionId = currentQuestionRef.current?.id ?? "";
             SessionService.eliminateParticipant({
               sessionId: sess.id,
